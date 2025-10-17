@@ -1,0 +1,677 @@
+---
+name: ios-simulator-skill
+description: Navigate and interact with iOS apps via accessibility-driven automation using 10 production-ready testing scripts.
+---
+
+# iOS Simulator Skill
+
+Efficiently navigate, test, and debug iOS applications using accessibility-first automation. This skill provides 10 production-ready scripts for complete iOS simulator testing workflows.
+
+## What This Skill Does
+
+Instead of pixel-based navigation (fragile, breaks on UI changes), use semantic navigation that understands what elements mean:
+
+```bash
+# ❌ Fragile - breaks if UI changes
+idb ui tap 320 400  # What's at those coordinates?
+
+# ✅ Robust - finds by meaning
+python scripts/navigator.py --find-text "Login" --tap
+```
+
+## Prerequisites
+
+Verify your environment is ready:
+
+```bash
+bash scripts/sim_health_check.sh
+```
+
+**Requires:**
+- macOS 12+
+- Xcode Command Line Tools
+- Python 3
+- IDB (optional but recommended)
+
+## Quick Navigation
+
+**First time?** → Start with screen mapping
+**Know what you want?** → Jump to the right script
+
+## 10 Production Scripts
+
+### Navigation & Interaction (5 scripts)
+
+#### 1. Screen Mapper - "What's on this screen?"
+
+See current screen in 5 lines:
+
+```bash
+python scripts/screen_mapper.py
+```
+
+**Output:**
+```
+Screen: LoginViewController (45 elements, 7 interactive)
+Buttons: "Login", "Cancel", "Forgot Password"
+TextFields: 2 (0 filled)
+Navigation: NavBar: "Sign In"
+Focusable: 7 elements
+```
+
+**Options:**
+- `--verbose` - Full element breakdown
+- `--hints` - Navigation suggestions
+- `--json` - Complete analysis object
+
+**Use when:** You need to understand what's currently visible and where to navigate next.
+
+---
+
+#### 2. Navigator - "Tap and interact with specific elements"
+
+Find and interact with UI elements by meaning:
+
+```bash
+# Find and tap a button
+python scripts/navigator.py --find-text "Login" --tap
+
+# Enter text into first text field
+python scripts/navigator.py --find-type TextField --index 0 --enter-text "user@test.com"
+
+# Tap by accessibility ID
+python scripts/navigator.py --find-id "submitButton" --tap
+
+# List all tappable elements
+python scripts/navigator.py --list
+```
+
+**Finding strategies (in order of preference):**
+1. By text (fuzzy matching): `--find-text "Button text"`
+2. By type: `--find-type TextField`
+3. By accessibility ID: `--find-id "elementID"`
+4. By coordinates (fallback): `--tap-at 200,400`
+
+**Output:**
+```
+Tapped: Button "Login" at (320, 450)
+Entered text in: TextField "Username"
+Not found: text='Submit'
+```
+
+**Use when:** You need to find specific elements and interact with them (tap, type).
+
+---
+
+#### 3. Gesture Controller - "Swipe, scroll, and complex gestures"
+
+Perform navigation gestures:
+
+```bash
+# Directional swipes
+python scripts/gesture.py --swipe up|down|left|right
+
+# Scroll multiple times
+python scripts/gesture.py --scroll down --scroll-amount 3
+
+# Pull to refresh
+python scripts/gesture.py --refresh
+
+# Pinch to zoom
+python scripts/gesture.py --pinch in|out
+
+# Long press
+python scripts/gesture.py --long-press 200,300 --duration 2.0
+
+# Custom swipe
+python scripts/gesture.py --swipe-from 100,500 --swipe-to 100,100
+```
+
+**Output:**
+```
+Swiped up
+Scrolled down (3x)
+Performed pull to refresh
+```
+
+**Use when:** You need to navigate using gestures (scrolling lists, dismissing overlays, etc.).
+
+---
+
+#### 4. Keyboard Controller - "Type and press buttons"
+
+Text entry and hardware button control:
+
+```bash
+# Type text (fast)
+python scripts/keyboard.py --type "hello@example.com"
+
+# Type slowly (for animations)
+python scripts/keyboard.py --type "slow typing" --slow
+
+# Press special keys
+python scripts/keyboard.py --key return          # Submit
+python scripts/keyboard.py --key delete          # Delete character
+python scripts/keyboard.py --key tab             # Next field
+python scripts/keyboard.py --key space           # Space
+python scripts/keyboard.py --key up|down|left|right  # Arrow keys
+
+# Press hardware buttons
+python scripts/keyboard.py --button home         # Go home
+python scripts/keyboard.py --button lock         # Lock device
+python scripts/keyboard.py --button volume-up    # Volume up
+python scripts/keyboard.py --button screenshot   # Take screenshot
+
+# Key sequences
+python scripts/keyboard.py --key-sequence return,return,delete
+
+# Clear field
+python scripts/keyboard.py --clear
+
+# Dismiss keyboard
+python scripts/keyboard.py --dismiss
+```
+
+**Output:**
+```
+Typed: "hello@example.com"
+Pressed return
+Pressed home button
+```
+
+**Use when:** You need to enter text or press buttons (including hardware).
+
+---
+
+#### 5. App Launcher - "Start/stop apps and manage installation"
+
+App lifecycle control:
+
+```bash
+# Launch app by bundle ID
+python scripts/app_launcher.py --launch com.example.app
+
+# Terminate app
+python scripts/app_launcher.py --terminate com.example.app
+
+# Restart app
+python scripts/app_launcher.py --restart com.example.app
+
+# Install app from bundle
+python scripts/app_launcher.py --install /path/to/app.app
+
+# Uninstall app
+python scripts/app_launcher.py --uninstall com.example.app
+
+# Open deep link
+python scripts/app_launcher.py --open-url "myapp://profile/123"
+
+# List installed apps
+python scripts/app_launcher.py --list
+
+# Check app state
+python scripts/app_launcher.py --state com.example.app
+```
+
+**Output:**
+```
+Launched com.example.app (PID: 12345)
+Installed /path/to/app.app
+Opened URL: myapp://profile/123
+Installed apps (15):
+  com.example.app: My App (v1.0.0)
+  ...
+```
+
+**Use when:** You need to control app lifecycle or manage app installation.
+
+---
+
+### Testing & Analysis (5 scripts)
+
+#### 6. Accessibility Auditor - "Check WCAG compliance"
+
+Find accessibility issues:
+
+```bash
+# Quick audit (default - top 3 issues)
+python scripts/accessibility_audit.py
+
+# Full detailed report
+python scripts/accessibility_audit.py --verbose
+
+# Save report to file
+python scripts/accessibility_audit.py --output audit.json
+```
+
+**Output (default):**
+```
+Elements: 45, Issues: 7
+Critical: 2, Warning: 3, Info: 2
+
+Top issues:
+  [critical] missing_label (2x) - Add accessibilityLabel
+  [warning] missing_hint (3x) - Add accessibilityHint
+  [info] no_identifier (2x) - Add accessibilityIdentifier for testing
+```
+
+**Checks for:**
+- **Critical:** Missing labels on buttons, empty buttons, images without alt text
+- **Warnings:** Missing hints on controls, small touch targets (< 44x44pt)
+- **Info:** Missing automation identifiers, deep nesting (> 5 levels)
+
+**Exit codes:**
+- 0 = No critical issues (pass)
+- 1 = Critical issues found (fail)
+
+**Use when:** You need to verify accessibility compliance or find UI issues.
+
+---
+
+#### 7. Visual Differ - "Compare screenshots for visual changes"
+
+Pixel-by-pixel screenshot comparison:
+
+```bash
+# Compare two screenshots
+python scripts/visual_diff.py baseline.png current.png
+
+# With custom threshold (1% = 0.01)
+python scripts/visual_diff.py baseline.png current.png --threshold 0.02
+
+# Detailed output
+python scripts/visual_diff.py baseline.png current.png --details
+```
+
+**Output:**
+```
+Difference: 0.5% (PASS)
+Changed pixels: 1,234
+Artifacts saved to: ./
+```
+
+**Generated artifacts:**
+- `diff.png` - Changes highlighted in red
+- `side-by-side.png` - Baseline and current comparison
+- `diff-report.json` - Detailed metrics
+
+**Use when:** You need to detect visual regressions or compare UI states.
+
+---
+
+#### 8. Test Recorder - "Document test execution automatically"
+
+Record test steps with screenshots and accessibility snapshots:
+
+```bash
+# Start recording (call from Python or use as module)
+python scripts/test_recorder.py --test-name "Login Flow" --output test-reports/
+```
+
+**Then in your test code:**
+```python
+from scripts.test_recorder import TestRecorder
+
+recorder = TestRecorder("Login Flow", output_dir="test-reports/")
+
+# Record each step
+recorder.step("Launch app")
+recorder.step("Tap login button")
+recorder.step("Enter credentials", metadata={"user": "test@example.com"})
+recorder.step("Verify login", assertion="Home screen visible")
+
+# Generate report
+recorder.generate_report()
+```
+
+**Output structure:**
+```
+test-reports/login-flow-TIMESTAMP/
+├── report.md (Markdown with screenshots)
+├── metadata.json (Complete timing data)
+├── screenshots/ (Numbered screenshots per step)
+└── accessibility/ (UI trees per step)
+```
+
+**Use when:** You need to document test execution with visual proof and timing data.
+
+---
+
+#### 9. App State Capture - "Create debugging snapshots"
+
+Capture complete app state for bug reproduction:
+
+```bash
+# Capture everything
+python scripts/app_state_capture.py --app-bundle-id com.example.app
+
+# Custom output location and log lines
+python scripts/app_state_capture.py \
+  --app-bundle-id com.example.app \
+  --output bug-reports/ \
+  --log-lines 200
+```
+
+**Output:**
+```
+State captured: app-state-TIMESTAMP/
+Issues found: 2 errors, 1 warning
+Elements: 45
+```
+
+**Captures:**
+- Screenshot of current screen
+- Full accessibility tree (UI hierarchy)
+- Recent app logs (filtered by app)
+- Device information
+- Error/warning counts
+- Markdown summary
+
+**Generated files:**
+```
+app-state-TIMESTAMP/
+├── screenshot.png
+├── accessibility-tree.json (full UI hierarchy)
+├── app-logs.txt (recent logs)
+├── device-info.json
+├── summary.json (metadata)
+└── summary.md (human-readable)
+```
+
+**Use when:** You need to capture the complete state for debugging or bug reports.
+
+---
+
+#### 10. Environment Health Check - "Verify everything is set up correctly"
+
+Verify your environment before testing:
+
+```bash
+bash scripts/sim_health_check.sh
+```
+
+**Checks (8 total):**
+1. macOS version
+2. Xcode Command Line Tools
+3. simctl availability
+4. IDB installation
+5. Python 3 installation
+6. Available simulators
+7. Booted simulators
+8. Python packages (Pillow for visual_diff)
+
+**Output:**
+```
+✓ macOS detected (version 14.1.1)
+✓ Xcode Command Line Tools installed
+✓ simctl is available
+⚠ IDB not found (optional, for advanced features)
+✓ Python 3 is installed (3.11.0)
+✓ Found 6 available simulator(s)
+⚠ No simulators currently booted
+✓ Pillow (PIL) installed
+```
+
+**Exit codes:**
+- 0 = Ready to test
+- 1 = Fix issues before testing
+
+**Use when:** Starting fresh or troubleshooting environment problems.
+
+---
+
+## Complete Workflow Examples
+
+### Example 1: Login Automation
+
+```bash
+# 1. Check environment
+bash scripts/sim_health_check.sh
+
+# 2. Launch app
+python scripts/app_launcher.py --launch com.example.app
+
+# 3. See what's on screen
+python scripts/screen_mapper.py
+
+# 4. Fill login form
+python scripts/navigator.py --find-type TextField --index 0 --enter-text "user@test.com"
+python scripts/navigator.py --find-type SecureTextField --enter-text "password123"
+
+# 5. Submit
+python scripts/navigator.py --find-text "Login" --tap
+
+# 6. Check for accessibility issues
+python scripts/accessibility_audit.py
+```
+
+### Example 2: Scroll and Verify
+
+```bash
+# See current screen
+python scripts/screen_mapper.py
+
+# Scroll down to see more
+python scripts/gesture.py --scroll down --scroll-amount 3
+
+# Find and tap a result
+python scripts/navigator.py --find-text "Search Result" --tap
+```
+
+### Example 3: Visual Regression Testing
+
+```bash
+# Capture baseline
+python scripts/app_state_capture.py --output baseline/
+
+# Make changes...
+
+# Capture current state
+python scripts/app_state_capture.py --output current/
+
+# Compare visually
+python scripts/visual_diff.py baseline/screenshot.png current/screenshot.png --threshold 0.02
+```
+
+### Example 4: Full Test Documentation
+
+```bash
+# Start recording
+python scripts/test_recorder.py --test-name "User Registration" --output test-reports/
+
+# In your test (Python):
+# recorder.step("View registration form")
+# recorder.step("Enter name", metadata={"name": "John Doe"})
+# recorder.step("Enter email", metadata={"email": "john@example.com"})
+# recorder.step("Submit form")
+# recorder.step("Verify confirmation", assertion="Success message visible")
+# recorder.generate_report()
+
+# Get complete report in: test-reports/user-registration-TIMESTAMP/report.md
+```
+
+### Example 5: Debug a Problem
+
+```bash
+# Capture everything for analysis
+python scripts/app_state_capture.py \
+  --app-bundle-id com.example.app \
+  --output bug-reports/ \
+  --log-lines 200
+
+# Creates bug-reports/app-state-TIMESTAMP/ with:
+# - Current screenshot
+# - Full UI hierarchy
+# - App logs
+# - Device info
+# - summary.md (human-readable)
+```
+
+---
+
+## Decision Tree
+
+```
+Want to...
+
+├─ See what's on screen?
+│  └─ python scripts/screen_mapper.py
+
+├─ Tap a button or enter text?
+│  └─ python scripts/navigator.py --find-text "..." --tap
+
+├─ Scroll or swipe?
+│  └─ python scripts/gesture.py --scroll down
+
+├─ Type or press keys?
+│  └─ python scripts/keyboard.py --type "..."
+
+├─ Launch/stop an app?
+│  └─ python scripts/app_launcher.py --launch com.app.id
+
+├─ Check accessibility?
+│  └─ python scripts/accessibility_audit.py
+
+├─ Compare screenshots?
+│  └─ python scripts/visual_diff.py baseline.png current.png
+
+├─ Document a test?
+│  └─ python scripts/test_recorder.py --test-name "Test Name"
+
+├─ Debug a problem?
+│  └─ python scripts/app_state_capture.py --app-bundle-id com.app.id
+
+└─ Verify environment?
+   └─ bash scripts/sim_health_check.sh
+```
+
+---
+
+## Token Efficiency
+
+All scripts are optimized for minimal output:
+
+| Operation | Raw Output | Skill Output | Savings |
+|-----------|-----------|-------------|---------|
+| Screen analysis | 200+ lines | 5 lines | 97.5% |
+| Find & tap | 100+ lines | 1 line | 99% |
+| Type text | 50+ lines | 1 line | 98% |
+| Login flow | 400+ lines | 15 lines | 96% |
+
+**Default modes:**
+- ✅ Minimal output (3-5 lines)
+- ✅ `--verbose` for details
+- ✅ `--json` for machine-readable format
+
+---
+
+## Accessibility-First Philosophy
+
+**Why semantic navigation instead of coordinates?**
+
+```bash
+# Fragile - breaks on any UI change
+idb ui tap 320 400
+
+# Robust - works even if layout changes
+python scripts/navigator.py --find-text "Login" --tap
+```
+
+**Benefits:**
+- Works across different screen sizes
+- Survives UI redesigns
+- Matches human understanding of the app
+- Faster (no pixel processing)
+- More reliable (structured data)
+
+---
+
+## Integration with Raw Tools
+
+All scripts wrap lower-level tools, but you can always use them directly:
+
+```bash
+# Use script (recommended - semantic)
+python scripts/navigator.py --find-text "Login" --tap
+
+# Or use raw IDB (if you have coordinates)
+idb ui tap 320 400
+
+# Or use raw simctl
+xcrun simctl launch booted com.example.app
+
+# Scripts are helpful abstractions, not restrictions
+```
+
+---
+
+## Help for Each Script
+
+All scripts provide detailed help:
+
+```bash
+python scripts/screen_mapper.py --help
+python scripts/navigator.py --help
+python scripts/gesture.py --help
+python scripts/keyboard.py --help
+python scripts/app_launcher.py --help
+python scripts/accessibility_audit.py --help
+python scripts/visual_diff.py --help
+python scripts/test_recorder.py --help
+python scripts/app_state_capture.py --help
+bash scripts/sim_health_check.sh --help
+```
+
+---
+
+## Best Practices
+
+1. **Always start with screen mapping** - Understand what's on screen before navigating
+2. **Use semantic finding** - Find by text or type, not coordinates
+3. **Verify state after actions** - Use screen_mapper to confirm navigation worked
+4. **Minimize verbose output** - Only use `--verbose` when debugging
+5. **Capture state for bugs** - Use app_state_capture for reproduction
+6. **Check accessibility** - Run accessibility_audit after major changes
+7. **Use test_recorder** - Document important workflows for team reference
+
+---
+
+## Troubleshooting
+
+**Environment issues?**
+```bash
+bash scripts/sim_health_check.sh
+```
+
+**Element not found?**
+```bash
+python scripts/screen_mapper.py --verbose
+# See all elements, then try partial text matching
+```
+
+**App won't launch?**
+```bash
+python scripts/app_launcher.py --list  # Find correct bundle ID
+python scripts/app_launcher.py --launch <correct-bundle-id>
+```
+
+**Gesture not working?**
+- Ensure simulator is in foreground
+- Try smaller swipe distances
+- Check screen dimensions
+
+---
+
+## Next Steps
+
+1. Run `bash scripts/sim_health_check.sh` to verify your environment
+2. Boot the iOS Simulator: `open -a Simulator`
+3. Launch your app: `python scripts/app_launcher.py --launch com.your.app`
+4. Map the screen: `python scripts/screen_mapper.py`
+5. Start navigating with `python scripts/navigator.py`
+
+For detailed documentation on each script, see `CLAUDE.md` and the `references/` directory.
+
+---
+
+**Built for AI agents. Optimized for humans. Made for testing iOS apps efficiently.**
