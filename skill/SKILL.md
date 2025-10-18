@@ -789,9 +789,91 @@ Want to...
 ├─ Debug a problem?
 │  └─ python scripts/app_state_capture.py --app-bundle-id com.app.id
 │
+├─ Pick which simulator to use?
+│  └─ python scripts/simulator_selector.py --suggest
+│
 └─ Verify environment?
    └─ bash scripts/sim_health_check.sh
 ```
+
+---
+
+## Selecting a Simulator - The Smart Way
+
+When you first start testing, Claude can **automatically suggest the best simulator for you**:
+
+```bash
+# Get top 4 recommended simulators
+python scripts/simulator_selector.py --suggest
+```
+
+**Output example:**
+```
+Available Simulators:
+
+1. iPhone 16 Pro (iOS 18.0)
+   Recommended, Latest iOS, #1 common model
+   UDID: 67A99DF0-27BD-4507-A3DE-B7D8C38F764A
+
+2. iPhone 16 Pro Max (iOS 18.0)
+   Latest iOS, #1 common model
+   UDID: 3CF3A78B-F899-4C50-A158-3707C6E16E15
+
+3. iPhone 16 (iOS 18.0)
+   Latest iOS, #2 common model
+   UDID: 20D618BD-AB45-41E5-8A4C-C11890E49205
+
+4. iPhone 15 Pro (iOS 17.5)
+   #1 common model
+   UDID: E4190DEA-B937-4331-A58E-15C747722308
+```
+
+### How Claude Helps
+
+When Claude sees this, it will:
+1. **Parse the suggestions** as JSON
+2. **Ask you to pick** from the top options
+3. **Boot your choice** automatically
+4. **Remember your preference** for next time
+
+**How it ranks simulators:**
+
+1. **Recently used** ← If you picked iPhone 16 Pro last time, it suggests it first
+2. **Latest iOS version** ← Testing on current iOS is important
+3. **Common models** ← iPhone 16 Pro, iPhone 15, iPhone SE (best for testing)
+4. **Currently booted** ← If one's already running, suggest it
+
+### Using the Selector
+
+```bash
+# Get top N suggestions (default: 4)
+python scripts/simulator_selector.py --suggest --count 3
+
+# Get suggestions as JSON for programmatic use
+python scripts/simulator_selector.py --suggest --json
+
+# List all available simulators
+python scripts/simulator_selector.py --list
+
+# Boot a specific simulator
+python scripts/simulator_selector.py --boot 67A99DF0-27BD-4507-A3DE-B7D8C38F764A
+```
+
+### Auto-Learning
+
+The skill **remembers which simulator you used last time**:
+
+```json
+# Saved in: .claude/skills/ios-simulator-skill/config.json
+{
+  "device": {
+    "last_used_simulator": "iPhone 16 Pro",
+    "last_used_at": "2025-10-18T16:50:00Z"
+  }
+}
+```
+
+Next time you test, the selector will suggest your previous device first.
 
 ---
 
@@ -873,17 +955,27 @@ xcrun simctl launch booted com.example.app  # Bypass all skill benefits
 All scripts provide detailed help:
 
 ```bash
+# Simulator Selection
+python scripts/simulator_selector.py --help
+
+# Development & Testing
 python scripts/build_and_test.py --help
 python scripts/log_monitor.py --help
+
+# Navigation & Interaction
 python scripts/screen_mapper.py --help
 python scripts/navigator.py --help
 python scripts/gesture.py --help
 python scripts/keyboard.py --help
 python scripts/app_launcher.py --help
+
+# Testing & Analysis
 python scripts/accessibility_audit.py --help
 python scripts/visual_diff.py --help
 python scripts/test_recorder.py --help
 python scripts/app_state_capture.py --help
+
+# Environment
 bash scripts/sim_health_check.sh --help
 ```
 
@@ -930,10 +1022,11 @@ python scripts/app_launcher.py --launch <correct-bundle-id>
 ## Next Steps
 
 1. Run `bash scripts/sim_health_check.sh` to verify your environment
-2. Boot the iOS Simulator: `open -a Simulator`
-3. Launch your app: `python scripts/app_launcher.py --launch com.your.app`
-4. Map the screen: `python scripts/screen_mapper.py`
-5. Start navigating with `python scripts/navigator.py`
+2. **Get simulator recommendations**: `python scripts/simulator_selector.py --suggest`
+3. Claude will ask which simulator you want to use (top 3-4 recommended)
+4. Launch your app: `python scripts/app_launcher.py --launch com.your.app`
+5. Map the screen: `python scripts/screen_mapper.py`
+6. Start navigating with `python scripts/navigator.py`
 
 For detailed documentation on each script, see `CLAUDE.md` and the `references/` directory.
 
