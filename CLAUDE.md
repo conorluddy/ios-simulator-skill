@@ -698,6 +698,148 @@ app-state-TIMESTAMP/
 
 ---
 
+## Shared Utilities Module
+
+### Overview
+
+The `scripts/common/` module provides reusable utilities to eliminate code duplication and maintain consistency across all scripts. This module is part of the **Jackson's Law** approach - code is only extracted when genuinely reused across multiple scripts.
+
+### Structure
+
+```
+scripts/common/
+├── __init__.py          # Clean exports
+├── idb_utils.py         # IDB-specific operations (140 lines)
+└── device_utils.py      # Device command building (80 lines)
+```
+
+### Module: `idb_utils.py`
+
+Provides common IDB (Facebook's iOS development bridge) operations used across 6+ scripts.
+
+**Key Functions:**
+
+1. **`get_accessibility_tree(udid, nested=True)`**
+   - Fetches accessibility tree from IDB
+   - Used by: navigator.py, screen_mapper.py, accessibility_audit.py, test_recorder.py, app_state_capture.py, gesture.py
+   - Returns: Root element dict with nested children
+   - Handles IDB's array format automatically
+
+2. **`flatten_tree(node, depth=0)`**
+   - Flattens nested accessibility tree into list
+   - Used by: navigator.py, screen_mapper.py, accessibility_audit.py
+   - Each element includes "depth" key for nesting level
+   - Enables easier element searching and filtering
+
+3. **`count_elements(node)`**
+   - Recursively counts all elements in tree
+   - Used by: test_recorder.py, app_state_capture.py
+   - Returns: Total element count
+
+4. **`get_screen_size(udid)`**
+   - Detects screen dimensions from accessibility tree
+   - Used by: gesture.py
+   - Falls back to (390, 844) if detection fails
+   - Enables device-independent gesture positioning
+
+**Usage Example:**
+```python
+from common import get_accessibility_tree, flatten_tree, count_elements
+
+# Fetch tree
+tree = get_accessibility_tree(udid="ABC123")
+
+# Flatten for element searching
+elements = flatten_tree(tree)
+for elem in elements:
+    if elem.get("AXLabel") == "Login":
+        print(f"Found at depth {elem['depth']}")
+
+# Count elements
+total = count_elements(tree)
+```
+
+### Module: `device_utils.py`
+
+Provides standardized command building for simctl and IDB to prevent device targeting bugs.
+
+**Key Functions:**
+
+1. **`build_simctl_command(operation, udid, *args)`**
+   - Builds xcrun simctl commands with proper device handling
+   - Used by: app_launcher.py (8+ call sites)
+   - Automatically uses "booted" if UDID not provided
+   - Example: `build_simctl_command("launch", "ABC123", "com.app.id")`
+   - Returns: `["xcrun", "simctl", "launch", "ABC123", "com.app.id"]`
+
+2. **`build_idb_command(operation, udid, *args)`**
+   - Builds IDB commands with consistent device targeting
+   - Used by: navigator.py, gesture.py, keyboard.py (15+ locations)
+   - Handles operation splitting (e.g., "ui tap" → ["ui", "tap"])
+   - Example: `build_idb_command("ui tap", "ABC123", "200", "400")`
+   - Returns: `["idb", "ui", "tap", "200", "400", "--udid", "ABC123"]`
+
+**Usage Example:**
+```python
+from common import build_simctl_command, build_idb_command
+
+# Launch app
+cmd = build_simctl_command("launch", udid, "com.example.app")
+subprocess.run(cmd)
+
+# Tap coordinates
+cmd = build_idb_command("ui tap", udid, "200", "400")
+subprocess.run(cmd)
+```
+
+### Design Principles
+
+- **No Over-Abstraction**: Only code used in 2+ scripts is extracted
+- **Self-Contained**: Each function is complete and understandable in isolation
+- **Documented Usage**: Docstrings list which scripts use each function
+- **Progressive Disclosure**: Functions are simple and focused, not generic
+- **Security**: All command building uses list arguments, never shell interpolation
+
+### When to Add New Utilities
+
+Add a new function to `common/` only when:
+1. Same code pattern appears in 2+ scripts
+2. Pattern is genuinely identical (not similar but different)
+3. Extraction doesn't obscure intent or create false abstraction
+4. Function is < 50 lines and single-purpose
+
+### Migration Example
+
+**Before (duplicated across scripts):**
+```python
+# In navigator.py
+cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
+if self.udid:
+    cmd.extend(["--udid", self.udid])
+tree_data = json.loads(subprocess.run(cmd, ...).stdout)
+tree = tree_data[0] if isinstance(tree_data, list) else tree_data
+
+# In screen_mapper.py (identical ~20-line block)
+cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
+if self.udid:
+    cmd.extend(["--udid", self.udid])
+tree_data = json.loads(subprocess.run(cmd, ...).stdout)
+tree = tree_data[0] if isinstance(tree_data, list) else tree_data
+```
+
+**After (using common utility):**
+```python
+# In navigator.py
+from common import get_accessibility_tree
+tree = get_accessibility_tree(self.udid)
+
+# In screen_mapper.py
+from common import get_accessibility_tree
+tree = get_accessibility_tree(self.udid)
+```
+
+---
+
 ## Script Implementation Patterns
 
 ### Bash Scripts

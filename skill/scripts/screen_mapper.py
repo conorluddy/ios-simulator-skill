@@ -49,6 +49,8 @@ import subprocess
 import sys
 from collections import defaultdict
 
+from common import get_accessibility_tree
+
 
 class ScreenMapper:
     """
@@ -102,36 +104,9 @@ class ScreenMapper:
         """
         Fetch accessibility tree from iOS simulator via IDB.
 
-        Returns:
-            Dict: Root element of the accessibility tree with nested children
-
-        Raises:
-            SystemExit: If IDB command fails or returns invalid JSON
-
-        Technical Notes:
-            - Uses `idb ui describe-all --json --nested`
-            - IDB returns array format: [{ root element }]
-            - We extract the first element as the root
-            - Tree structure: Each node has 'type', 'AXLabel', 'AXValue', 'children', etc.
+        Delegates to shared utility for consistent tree fetching across all scripts.
         """
-        cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            tree_data = json.loads(result.stdout)
-
-            # IDB returns an array with root element(s), get the first one
-            if isinstance(tree_data, list) and len(tree_data) > 0:
-                return tree_data[0]
-            return tree_data
-        except subprocess.CalledProcessError as e:
-            print(f"Error: Failed to get accessibility tree: {e.stderr}")
-            sys.exit(1)
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON from idb")
-            sys.exit(1)
+        return get_accessibility_tree(self.udid, nested=True)
 
     def analyze_tree(self, node: dict, depth: int = 0) -> dict:
         """Analyze accessibility tree for navigation info."""

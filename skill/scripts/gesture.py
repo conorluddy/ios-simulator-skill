@@ -62,6 +62,8 @@ import subprocess
 import sys
 import time
 
+from common import get_screen_size
+
 
 class GestureController:
     """Performs gestures on iOS simulator."""
@@ -76,29 +78,8 @@ class GestureController:
         self.screen_size = self._get_screen_size()
 
     def _get_screen_size(self) -> tuple[int, int]:
-        """Try to detect screen size from device."""
-        # Try to get screen size from accessibility tree
-        try:
-            cmd = ["idb", "ui", "describe-all", "--json"]
-            if self.udid:
-                cmd.extend(["--udid", self.udid])
-
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            import json
-
-            data = json.loads(result.stdout)
-
-            # IDB returns array, get first element
-            if isinstance(data, list) and len(data) > 0:
-                root = data[0]
-                frame = root.get("frame", {})
-                width = int(frame.get("width", self.DEFAULT_WIDTH))
-                height = int(frame.get("height", self.DEFAULT_HEIGHT))
-                return (width, height)
-        except:
-            pass
-
-        return (self.DEFAULT_WIDTH, self.DEFAULT_HEIGHT)
+        """Try to detect screen size from device using shared utility."""
+        return get_screen_size(self.udid)
 
     def swipe(self, direction: str, distance_ratio: float = 0.7) -> bool:
         """

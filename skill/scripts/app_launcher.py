@@ -14,6 +14,8 @@ import subprocess
 import sys
 import time
 
+from common import build_simctl_command
+
 
 class AppLauncher:
     """Controls app lifecycle on iOS simulator."""
@@ -33,18 +35,10 @@ class AppLauncher:
         Returns:
             (success, pid) tuple
         """
-        cmd = ["xcrun", "simctl", "launch"]
+        cmd = build_simctl_command("launch", self.udid, bundle_id)
 
         if wait_for_debugger:
-            cmd.append("--wait-for-debugger")
-
-        # Add device
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.append(bundle_id)
+            cmd.insert(3, "--wait-for-debugger")  # Insert after "launch" operation
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -70,15 +64,7 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ["xcrun", "simctl", "terminate"]
-
-        # Add device
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.append(bundle_id)
+        cmd = build_simctl_command("terminate", self.udid, bundle_id)
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -96,15 +82,7 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ["xcrun", "simctl", "install"]
-
-        # Add device
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.append(app_path)
+        cmd = build_simctl_command("install", self.udid, app_path)
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -122,15 +100,7 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ["xcrun", "simctl", "uninstall"]
-
-        # Add device
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.append(bundle_id)
+        cmd = build_simctl_command("uninstall", self.udid, bundle_id)
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -148,15 +118,7 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ["xcrun", "simctl", "openurl"]
-
-        # Add device
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.append(url)
+        cmd = build_simctl_command("openurl", self.udid, url)
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -171,13 +133,7 @@ class AppLauncher:
         Returns:
             List of app info dictionaries
         """
-        cmd = ["xcrun", "simctl", "listapps"]
-
-        # Add device
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
+        cmd = build_simctl_command("listapps", self.udid)
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -231,14 +187,7 @@ class AppLauncher:
             State string or 'unknown'
         """
         # Check if app is running by trying to get its PID
-        cmd = ["xcrun", "simctl", "spawn"]
-
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.extend(["launchctl", "list"])
+        cmd = build_simctl_command("spawn", self.udid, "launchctl", "list")
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)

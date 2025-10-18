@@ -15,7 +15,10 @@ class Config:
     """
     Project-local configuration with auto-learning.
 
-    Config file location: .claude/skills/ios-simulator-skill/config.json
+    Config file location: .claude/skills/<skill-directory-name>/config.json
+
+    The skill directory name is auto-detected from the installation location,
+    so configs work regardless of what users name the skill directory.
 
     Auto-updates last_used_simulator after successful builds.
     """
@@ -51,11 +54,21 @@ class Config:
 
         Returns:
             Config instance (creates default if not found)
+
+        Note:
+            The skill directory name is auto-detected from the installation location,
+            so configs work regardless of what users name the skill directory.
         """
         if project_dir is None:
             project_dir = Path.cwd()
 
-        config_path = project_dir / ".claude" / "skills" / "ios-simulator-skill" / "config.json"
+        # Auto-detect skill directory name from actual installation location
+        # This file is at: skill/scripts/xcode/config.py
+        # Navigate up to skill/ directory and use its name
+        skill_root = Path(__file__).parent.parent.parent  # xcode/ -> scripts/ -> skill/
+        skill_name = skill_root.name
+
+        config_path = project_dir / ".claude" / "skills" / skill_name / "config.json"
 
         # Load existing config
         if config_path.exists():
