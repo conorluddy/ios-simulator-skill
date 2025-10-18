@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
-version: 1.0.0
-description: This Claude Skill can be used to build, test, and automate iOS apps. 12 production-ready scripts including ultra token-efficient xcode build automation, log monitoring, and accessibility-driven UI simulator navigation.
+version: 1.0.1
+description: This Claude Skill can be used to build, test, and automate iOS apps. 13 production-ready scripts including ultra token-efficient xcode build automation, log monitoring, intelligent simulator selection, and accessibility-driven UI simulator navigation.
 ---
 
 # iOS Simulator Skill
