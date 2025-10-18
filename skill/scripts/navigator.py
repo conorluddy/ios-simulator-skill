@@ -60,6 +60,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
+from common import flatten_tree, get_accessibility_tree
+
 
 @dataclass
 class Element:
@@ -100,26 +102,9 @@ class Navigator:
         if self._tree_cache and not force_refresh:
             return self._tree_cache
 
-        cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            tree_data = json.loads(result.stdout)
-
-            # IDB returns an array with root element(s), get the first one
-            if isinstance(tree_data, list) and len(tree_data) > 0:
-                self._tree_cache = tree_data[0]
-            else:
-                self._tree_cache = tree_data
-            return self._tree_cache
-        except subprocess.CalledProcessError as e:
-            print(f"Error: Failed to get accessibility tree: {e.stderr}")
-            sys.exit(1)
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON from idb")
-            sys.exit(1)
+        # Delegate to shared utility
+        self._tree_cache = get_accessibility_tree(self.udid, nested=True)
+        return self._tree_cache
 
     def _flatten_tree(self, node: dict, elements: list[Element] | None = None) -> list[Element]:
         """Flatten accessibility tree into list of elements."""

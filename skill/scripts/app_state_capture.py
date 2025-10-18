@@ -15,6 +15,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from common import count_elements, get_accessibility_tree
+
 
 class AppStateCapture:
     """Captures comprehensive app state for debugging."""
@@ -48,34 +50,19 @@ class AppStateCapture:
             return False
 
     def capture_accessibility_tree(self, output_path: Path) -> dict:
-        """Capture accessibility tree."""
-        cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
-
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
+        """Capture accessibility tree using shared utility."""
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            tree_data = json.loads(result.stdout)
-
-            # IDB returns an array with root element(s), get the first one
-            tree = tree_data[0] if isinstance(tree_data, list) and len(tree_data) > 0 else tree_data
+            # Use shared utility to fetch tree
+            tree = get_accessibility_tree(self.udid, nested=True)
 
             # Save tree
             with open(output_path, "w") as f:
                 json.dump(tree, f, indent=2)
 
-            # Return summary
-            return {"captured": True, "element_count": self._count_elements(tree)}
-        except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+            # Return summary using shared utility
+            return {"captured": True, "element_count": count_elements(tree)}
+        except Exception as e:
             return {"captured": False, "error": str(e)}
-
-    def _count_elements(self, node: dict) -> int:
-        """Count total elements in tree."""
-        count = 1
-        for child in node.get("children", []):
-            count += self._count_elements(child)
-        return count
 
     def capture_logs(self, output_path: Path, line_limit: int = 100) -> dict:
         """Capture recent app logs."""

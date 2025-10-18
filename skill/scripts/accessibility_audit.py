@@ -15,6 +15,8 @@ import sys
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from common import flatten_tree, get_accessibility_tree
+
 
 @dataclass
 class Issue:
@@ -59,25 +61,8 @@ class AccessibilityAuditor:
         self.udid = udid
 
     def get_accessibility_tree(self) -> dict:
-        """Fetch accessibility tree from simulator."""
-        cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            tree_data = json.loads(result.stdout)
-
-            # IDB returns an array with root element(s), get the first one
-            if isinstance(tree_data, list) and len(tree_data) > 0:
-                return tree_data[0]
-            return tree_data
-        except subprocess.CalledProcessError as e:
-            print(f"Error: Failed to get accessibility tree: {e.stderr}")
-            sys.exit(1)
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON from idb")
-            sys.exit(1)
+        """Fetch accessibility tree from simulator using shared utility."""
+        return get_accessibility_tree(self.udid, nested=True)
 
     @staticmethod
     def _is_small_target(element: dict) -> bool:
@@ -88,19 +73,8 @@ class AccessibilityAuditor:
         return width < 44 or height < 44
 
     def _flatten_tree(self, node: dict, depth: int = 0) -> list[dict]:
-        """Flatten nested accessibility tree for easier processing."""
-        elements = []
-
-        # Add current node with depth
-        node_copy = node.copy()
-        node_copy["depth"] = depth
-        elements.append(node_copy)
-
-        # Process children
-        for child in node.get("children", []):
-            elements.extend(self._flatten_tree(child, depth + 1))
-
-        return elements
+        """Flatten nested accessibility tree for easier processing using shared utility."""
+        return flatten_tree(node, depth)
 
     def audit_element(self, element: dict) -> list[Issue]:
         """Audit a single element for accessibility issues."""

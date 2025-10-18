@@ -17,6 +17,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from common import count_elements, get_accessibility_tree
+
 
 class TestRecorder:
     """Records test execution with screenshots and accessibility snapshots."""
@@ -118,33 +120,18 @@ class TestRecorder:
 
     def _capture_accessibility(self, output_path: Path) -> int:
         """Capture accessibility tree and return element count."""
-        cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
-
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            tree_data = json.loads(result.stdout)
-
-            # IDB returns an array with root element(s), get the first one
-            tree = tree_data[0] if isinstance(tree_data, list) and len(tree_data) > 0 else tree_data
+            # Use shared utility to fetch tree
+            tree = get_accessibility_tree(self.udid, nested=True)
 
             # Save tree
             with open(output_path, "w") as f:
                 json.dump(tree, f, indent=2)
 
-            # Count elements (simplified)
-            return self._count_elements(tree)
-        except (subprocess.CalledProcessError, json.JSONDecodeError):
+            # Count elements using shared utility
+            return count_elements(tree)
+        except Exception:
             return 0
-
-    def _count_elements(self, node: dict) -> int:
-        """Recursively count elements in accessibility tree."""
-        count = 1
-        for child in node.get("children", []):
-            count += self._count_elements(child)
-        return count
 
     def generate_report(self) -> dict[str, str]:
         """
