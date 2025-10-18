@@ -1,4 +1,4 @@
-# iOS Simulator Skill
+# iOS Simulator Claude Skill
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
