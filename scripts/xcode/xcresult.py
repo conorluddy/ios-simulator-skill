@@ -5,6 +5,7 @@ Extracts structured data from xcresult bundles using xcresulttool.
 """
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -19,16 +20,18 @@ class XCResultParser:
     xcresult bundle format.
     """
 
-    def __init__(self, xcresult_path: Path):
+    def __init__(self, xcresult_path: Path, stderr: str = ""):
         """
         Initialize parser.
 
         Args:
             xcresult_path: Path to xcresult bundle
+            stderr: Optional stderr output for fallback parsing
         """
         self.xcresult_path = xcresult_path
+        self.stderr = stderr
 
-        if not xcresult_path.exists():
+        if xcresult_path and not xcresult_path.exists():
             raise FileNotFoundError(f"XCResult bundle not found: {xcresult_path}")
 
     def get_build_results(self) -> Optional[Dict]:
@@ -66,32 +69,34 @@ class XCResultParser:
         Returns:
             Tuple of (error_count, warning_count)
         """
-        build_results = self.get_build_results()
-        if not build_results:
-            return (0, 0)
-
         error_count = 0
         warning_count = 0
 
-        try:
-            # Navigate JSON: actions[0].buildResult.issues
-            actions = build_results.get('actions', {}).get('_values', [])
-            if not actions:
-                return (0, 0)
+        build_results = self.get_build_results()
 
-            build_result = actions[0].get('buildResult', {})
-            issues = build_result.get('issues', {})
+        if build_results:
+            try:
+                # Navigate JSON: actions[0].buildResult.issues
+                actions = build_results.get('actions', {}).get('_values', [])
+                if actions:
+                    build_result = actions[0].get('buildResult', {})
+                    issues = build_result.get('issues', {})
 
-            # Count errors
-            error_summaries = issues.get('errorSummaries', {}).get('_values', [])
-            error_count = len(error_summaries)
+                    # Count errors
+                    error_summaries = issues.get('errorSummaries', {}).get('_values', [])
+                    error_count = len(error_summaries)
 
-            # Count warnings
-            warning_summaries = issues.get('warningSummaries', {}).get('_values', [])
-            warning_count = len(warning_summaries)
+                    # Count warnings
+                    warning_summaries = issues.get('warningSummaries', {}).get('_values', [])
+                    warning_count = len(warning_summaries)
 
-        except (KeyError, IndexError, TypeError) as e:
-            print(f"Warning: Could not parse issue counts: {e}", file=sys.stderr)
+            except (KeyError, IndexError, TypeError) as e:
+                print(f"Warning: Could not parse issue counts from xcresult: {e}", file=sys.stderr)
+
+        # If no errors found in xcresult but stderr available, count stderr errors
+        if error_count == 0 and self.stderr:
+            stderr_errors = self._parse_stderr_errors()
+            error_count = len(stderr_errors)
 
         return (error_count, warning_count)
 
@@ -103,29 +108,30 @@ class XCResultParser:
             List of error dicts with message, file, line info
         """
         build_results = self.get_build_results()
-        if not build_results:
-            return []
-
         errors = []
 
-        try:
-            actions = build_results.get('actions', {}).get('_values', [])
-            if not actions:
-                return []
+        # Try to get errors from xcresult
+        if build_results:
+            try:
+                actions = build_results.get('actions', {}).get('_values', [])
+                if actions:
+                    build_result = actions[0].get('buildResult', {})
+                    issues = build_result.get('issues', {})
+                    error_summaries = issues.get('errorSummaries', {}).get('_values', [])
 
-            build_result = actions[0].get('buildResult', {})
-            issues = build_result.get('issues', {})
-            error_summaries = issues.get('errorSummaries', {}).get('_values', [])
+                    for error in error_summaries:
+                        errors.append({
+                            'message': error.get('message', {}).get('_value', 'Unknown error'),
+                            'type': error.get('issueType', {}).get('_value', 'error'),
+                            'location': self._extract_location(error)
+                        })
 
-            for error in error_summaries:
-                errors.append({
-                    'message': error.get('message', {}).get('_value', 'Unknown error'),
-                    'type': error.get('issueType', {}).get('_value', 'error'),
-                    'location': self._extract_location(error)
-                })
+            except (KeyError, IndexError, TypeError) as e:
+                print(f"Warning: Could not parse errors from xcresult: {e}", file=sys.stderr)
 
-        except (KeyError, IndexError, TypeError) as e:
-            print(f"Warning: Could not parse errors: {e}", file=sys.stderr)
+        # If no errors found in xcresult but stderr available, parse stderr
+        if not errors and self.stderr:
+            errors = self._parse_stderr_errors()
 
         return errors
 
@@ -196,6 +202,9 @@ class XCResultParser:
         Returns:
             Parsed JSON dict, plain text, or None on error
         """
+        if not self.xcresult_path:
+            return None
+
         cmd = ['xcrun', 'xcresulttool'] + args + ['--path', str(self.xcresult_path)]
 
         try:
@@ -218,3 +227,68 @@ class XCResultParser:
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON from xcresulttool: {e}", file=sys.stderr)
             return None
+
+    def _parse_stderr_errors(self) -> List[Dict]:
+        """
+        Parse common errors from stderr output as fallback.
+
+        Returns:
+            List of error dicts parsed from stderr
+        """
+        errors = []
+
+        if not self.stderr:
+            return errors
+
+        # Pattern 1: xcodebuild top-level errors (e.g., "xcodebuild: error: Unable to find...")
+        xcodebuild_error_pattern = r"xcodebuild:\s*error:\s*(?P<message>.*?)(?:\n\n|\Z)"
+        for match in re.finditer(xcodebuild_error_pattern, self.stderr, re.DOTALL):
+            message = match.group('message').strip()
+            # Clean up multi-line messages
+            message = ' '.join(line.strip() for line in message.split('\n') if line.strip())
+            errors.append({
+                'message': message,
+                'type': 'build',
+                'location': {'file': None, 'line': None, 'column': None}
+            })
+
+        # Pattern 2: Provisioning profile errors
+        provisioning_pattern = r"error:.*?provisioning profile.*?(?:doesn't|does not|cannot).*?(?P<message>.*?)(?:\n|$)"
+        for match in re.finditer(provisioning_pattern, self.stderr, re.IGNORECASE):
+            errors.append({
+                'message': f"Provisioning profile error: {match.group('message').strip()}",
+                'type': 'provisioning',
+                'location': {'file': None, 'line': None, 'column': None}
+            })
+
+        # Pattern 3: Code signing errors
+        signing_pattern = r"error:.*?(?:code sign|signing).*?(?P<message>.*?)(?:\n|$)"
+        for match in re.finditer(signing_pattern, self.stderr, re.IGNORECASE):
+            errors.append({
+                'message': f"Code signing error: {match.group('message').strip()}",
+                'type': 'signing',
+                'location': {'file': None, 'line': None, 'column': None}
+            })
+
+        # Pattern 4: Generic compilation errors (but not if already captured)
+        if not errors:
+            generic_error_pattern = r"^(?:\*\*\s)?(?:error|❌):\s*(?P<message>.*?)(?:\n|$)"
+            for match in re.finditer(generic_error_pattern, self.stderr, re.MULTILINE):
+                message = match.group('message').strip()
+                errors.append({
+                    'message': message,
+                    'type': 'build',
+                    'location': {'file': None, 'line': None, 'column': None}
+                })
+
+        # Pattern 5: Specific "No profiles" error
+        if 'No profiles for' in self.stderr:
+            no_profile_pattern = r"No profiles for '(?P<bundle_id>.*?)' were found"
+            for match in re.finditer(no_profile_pattern, self.stderr):
+                errors.append({
+                    'message': f"No provisioning profile found for bundle ID '{match.group('bundle_id')}'",
+                    'type': 'provisioning',
+                    'location': {'file': None, 'line': None, 'column': None}
+                })
+
+        return errors

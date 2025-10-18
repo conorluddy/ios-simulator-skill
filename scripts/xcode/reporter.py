@@ -6,7 +6,7 @@ Provides multiple output formats with progressive disclosure support.
 
 import json
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 
 class OutputFormatter:
@@ -22,7 +22,8 @@ class OutputFormatter:
         error_count: int,
         warning_count: int,
         xcresult_id: str,
-        test_info: Optional[Dict] = None
+        test_info: Optional[Dict] = None,
+        hints: Optional[List[str]] = None
     ) -> str:
         """
         Format ultra-minimal output (5-10 tokens).
@@ -33,6 +34,7 @@ class OutputFormatter:
             warning_count: Number of warnings
             xcresult_id: XCResult bundle ID
             test_info: Optional test results dict
+            hints: Optional list of actionable hints
 
         Returns:
             Minimal formatted string
@@ -55,6 +57,11 @@ class OutputFormatter:
         else:
             # Build mode
             lines.append(f"Build: {status} ({error_count} errors, {warning_count} warnings) [{xcresult_id}]")
+
+        # Add hints if provided and build failed
+        if hints and status == "FAILED":
+            lines.append("")
+            lines.extend(hints)
 
         return '\n'.join(lines)
 
@@ -176,6 +183,47 @@ class OutputFormatter:
             Pretty-printed JSON string
         """
         return json.dumps(data, indent=2)
+
+    @staticmethod
+    def generate_hints(errors: List[Dict]) -> List[str]:
+        """
+        Generate actionable hints based on error types.
+
+        Args:
+            errors: List of error dicts
+
+        Returns:
+            List of hint strings
+        """
+        hints = []
+        error_types: Set[str] = set()
+
+        # Collect error types
+        for error in errors:
+            error_type = error.get('type', 'unknown')
+            error_types.add(error_type)
+
+        # Generate hints based on error types
+        if 'provisioning' in error_types:
+            hints.append("Provisioning profile issue detected:")
+            hints.append("  • Ensure you have a valid provisioning profile for iOS Simulator")
+            hints.append("  • For simulator builds, use CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO")
+            hints.append("  • Or specify simulator explicitly: --simulator 'iPhone 16 Pro'")
+
+        if 'signing' in error_types:
+            hints.append("Code signing issue detected:")
+            hints.append("  • For simulator builds, code signing is not required")
+            hints.append("  • Ensure build settings target iOS Simulator, not physical device")
+            hints.append("  • Check destination: platform=iOS Simulator,name=<device>")
+
+        if not error_types or 'build' in error_types:
+            # Generic hints when error type is unknown
+            if any('destination' in error.get('message', '').lower() for error in errors):
+                hints.append("Device selection issue detected:")
+                hints.append("  • List available simulators: xcrun simctl list devices available")
+                hints.append("  • Specify simulator: --simulator 'iPhone 16 Pro'")
+
+        return hints
 
     @staticmethod
     def format_verbose(

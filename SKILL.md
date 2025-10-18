@@ -685,7 +685,7 @@ python scripts/app_state_capture.py \
 ```
 Want to...
 
-├─ Build your app or run tests?
+├─ Build your Xcode app or run tests?
 │  └─ python scripts/build_and_test.py --project MyApp.xcodeproj
 │
 ├─ Watch app logs in real-time?

@@ -228,21 +228,27 @@ Examples:
 
     # Execute build or test
     if args.test:
-        success, xcresult_id = builder.test(test_suite=args.suite)
+        success, xcresult_id, stderr = builder.test(test_suite=args.suite)
     else:
-        success, xcresult_id = builder.build(clean=args.clean)
+        success, xcresult_id, stderr = builder.build(clean=args.clean)
 
-    if not xcresult_id:
-        print("Error: Build/test failed without creating xcresult", file=sys.stderr)
+    if not xcresult_id and not stderr:
+        print("Error: Build/test failed without creating xcresult or error output", file=sys.stderr)
         return 1
 
     # Parse results
-    xcresult_path = cache.get_path(xcresult_id)
-    parser = XCResultParser(xcresult_path)
+    xcresult_path = cache.get_path(xcresult_id) if xcresult_id else None
+    parser = XCResultParser(xcresult_path, stderr=stderr)
     error_count, warning_count = parser.count_issues()
 
     # Format output
     status = "SUCCESS" if success else "FAILED"
+
+    # Generate hints for failed builds
+    hints = None
+    if not success:
+        errors = parser.get_errors()
+        hints = OutputFormatter.generate_hints(errors)
 
     if args.verbose:
         # Verbose mode with error/warning details
@@ -253,7 +259,7 @@ Examples:
             status=status,
             error_count=error_count,
             warning_count=warning_count,
-            xcresult_id=xcresult_id,
+            xcresult_id=xcresult_id or "N/A",
             errors=errors,
             warnings=warnings
         )
@@ -262,10 +268,12 @@ Examples:
         # JSON mode
         data = {
             'success': success,
-            'xcresult_id': xcresult_id,
+            'xcresult_id': xcresult_id or None,
             'error_count': error_count,
             'warning_count': warning_count
         }
+        if hints:
+            data['hints'] = hints
         import json
         print(json.dumps(data, indent=2))
     else:
@@ -274,7 +282,8 @@ Examples:
             status=status,
             error_count=error_count,
             warning_count=warning_count,
-            xcresult_id=xcresult_id
+            xcresult_id=xcresult_id or "N/A",
+            hints=hints
         )
         print(output)
 
