@@ -139,10 +139,12 @@ python ~/.claude/skills/ios-simulator-skill/scripts/test_recorder.py --test-name
 python ~/.claude/skills/ios-simulator-skill/scripts/gesture.py --swipe up
 ```
 
-## All 10 Scripts Overview
+## All 12 Scripts Overview
 
 | Script | Purpose | Output | Key Features |
 |--------|---------|--------|--------------|
+| `build_and_test.py` | Build Xcode projects & run tests | 1 line + xcresult ID | Progressive disclosure, ultra token-efficient |
+| `log_monitor.py` | Real-time log monitoring | Summary or stream | Intelligent filtering, error detection |
 | `screen_mapper.py` | Analyze current screen | 5 lines | Element types, button lists, counts |
 | `navigator.py` | Find & interact with elements | 1 line | Fuzzy text matching, type matching, coordinates |
 | `gesture.py` | Perform touches & gestures | 1 line | Swipes, scrolls, pinches, long-press, drag |

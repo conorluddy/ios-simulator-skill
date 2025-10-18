@@ -18,21 +18,21 @@ This is a **completed Agent Skill** for iOS simulator testing, fully distributed
 
 All 12 core scripts are **fully implemented and production-ready**:
 
-1. ✅ `build_and_test.py` (286 lines) - Build automation with progressive disclosure
-   - ✅ `xcode/` module (884 lines) - Modular architecture for xcresult handling
-2. ✅ `log_monitor.py` (494 lines) - Real-time log monitoring
+1. ✅ `build_and_test.py` (310 lines) - Build automation with progressive disclosure
+   - ✅ `xcode/` module (1,458 lines) - Modular architecture for xcresult handling
+2. ✅ `log_monitor.py` (486 lines) - Real-time log monitoring
 3. ✅ `sim_health_check.sh` (239 lines) - Environment verification
-4. ✅ `screen_mapper.py` (317 lines) - UI element analysis
-5. ✅ `navigator.py` (413 lines) - Element finding and interaction
-6. ✅ `gesture.py` (380 lines) - Swipes, scrolls, gestures
-7. ✅ `keyboard.py` (410 lines) - Text input and hardware buttons
-8. ✅ `app_launcher.py` (394 lines) - App lifecycle control
-9. ✅ `accessibility_audit.py` (306 lines) - WCAG compliance checking
-10. ✅ `visual_diff.py` (252 lines) - Screenshot comparison
-11. ✅ `test_recorder.py` (258 lines) - Test documentation
-12. ✅ `app_state_capture.py` (334 lines) - Complete state snapshots
+4. ✅ `screen_mapper.py` (307 lines) - UI element analysis
+5. ✅ `navigator.py` (412 lines) - Element finding and interaction
+6. ✅ `gesture.py` (353 lines) - Swipes, scrolls, gestures
+7. ✅ `keyboard.py` (379 lines) - Text input and hardware buttons
+8. ✅ `app_launcher.py` (363 lines) - App lifecycle control
+9. ✅ `accessibility_audit.py` (308 lines) - WCAG compliance checking
+10. ✅ `visual_diff.py` (235 lines) - Screenshot comparison
+11. ✅ `test_recorder.py` (246 lines) - Test documentation
+12. ✅ `app_state_capture.py` (305 lines) - Complete state snapshots
 
-**Total:** ~5,045 lines of production code
+**Total:** ~5,400 lines of production code
 
 ### ✅ Production Ready
 
@@ -56,33 +56,34 @@ ios-simulator-skill/                 # Development repository
 │   ├── CLAUDE.md                   # Developer guide (this file)
 │   ├── README.md                   # User-facing overview
 │   ├── scripts/                    # 12 executable production scripts
-│   │   ├── build_and_test.py      # Main CLI (286 lines)
-│   │   ├── xcode/                  # Modular architecture (1054 lines)
-│   │   │   ├── __init__.py        # Module exports
-│   │   │   ├── builder.py         # Build execution (231 lines)
-│   │   │   ├── xcresult.py        # Result parsing (220 lines)
-│   │   │   ├── reporter.py        # Output formatting (239 lines)
-│   │   │   ├── cache.py           # Cache management (177 lines)
-│   │   │   └── config.py          # Configuration (170 lines)
-│   │   ├── log_monitor.py         # (494 lines)
+│   │   ├── build_and_test.py      # Main CLI (310 lines)
+│   │   ├── xcode/                  # Modular architecture (1,458 lines)
+│   │   │   ├── __init__.py        # Module exports (13 lines)
+│   │   │   ├── builder.py         # Build execution (381 lines)
+│   │   │   ├── xcresult.py        # Result parsing (404 lines)
+│   │   │   ├── reporter.py        # Output formatting (291 lines)
+│   │   │   ├── cache.py           # Cache management (204 lines)
+│   │   │   └── config.py          # Configuration (165 lines)
+│   │   ├── log_monitor.py         # (486 lines)
 │   │   ├── sim_health_check.sh    # (239 lines)
-│   │   ├── screen_mapper.py       # (317 lines)
-│   │   ├── navigator.py           # (413 lines)
-│   │   ├── gesture.py             # (380 lines)
-│   │   ├── keyboard.py            # (410 lines)
-│   │   ├── app_launcher.py        # (394 lines)
-│   │   ├── accessibility_audit.py # (306 lines)
-│   │   ├── visual_diff.py         # (252 lines)
-│   │   ├── test_recorder.py       # (258 lines)
-│   │   └── app_state_capture.py   # (334 lines)
-│   ├── references/                 # Deep documentation
-│   │   ├── accessibility_checklist.md
-│   │   ├── troubleshooting.md
-│   │   ├── test_patterns.md
-│   │   ├── idb_quick.md
-│   │   └── simctl_quick.md
+│   │   ├── screen_mapper.py       # (307 lines)
+│   │   ├── navigator.py           # (412 lines)
+│   │   ├── gesture.py             # (353 lines)
+│   │   ├── keyboard.py            # (379 lines)
+│   │   ├── app_launcher.py        # (363 lines)
+│   │   ├── accessibility_audit.py # (308 lines)
+│   │   ├── visual_diff.py         # (235 lines)
+│   │   ├── test_recorder.py       # (246 lines)
+│   │   └── app_state_capture.py   # (305 lines)
 │   └── examples/                   # Complete usage examples
 │       └── login_flow.py
+│
+├── references/                     # Deep documentation (dev repo only, not distributed)
+│   ├── accessibility_checklist.md
+│   ├── troubleshooting.md
+│   ├── test_patterns.md
+│   ├── idb_quick.md
+│   └── simctl_quick.md
 │
 ├── .github/workflows/              # CI/CD (not distributed)
 │   ├── release.yml                # Auto-package skill/ on release
@@ -123,34 +124,34 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 **Purpose:** Complete the iOS development lifecycle with build automation and debugging support.
 
-#### build_and_test.py (286 lines) + xcode/ module (1,054 lines)
+#### build_and_test.py (310 lines) + xcode/ module (1,458 lines)
 **What it does:** Build Xcode projects with **ultra token-efficient progressive disclosure** via xcresult bundles.
 
 **New Modular Architecture:**
 
 The build system is now organized into focused modules:
 
-1. **build_and_test.py** (Main CLI - 286 lines)
+1. **build_and_test.py** (Main CLI - 310 lines)
    - Argument parsing
    - Mode detection (build vs retrieve)
    - Orchestrates other modules
    - Minimal business logic
 
-2. **xcode/builder.py** (Build Execution - 231 lines)
+2. **xcode/builder.py** (Build Execution - 381 lines)
    - BuildRunner class
    - Scheme auto-detection
    - xcodebuild command construction
    - Executes builds with `-quiet` and `-resultBundlePath`
    - Returns (success, xcresult_id) tuple
 
-3. **xcode/xcresult.py** (Result Parsing - 220 lines)
+3. **xcode/xcresult.py** (Result Parsing - 404 lines)
    - XCResultParser class
    - Extracts data via `xcrun xcresulttool`
    - Parses Apple's xcresult JSON format
    - Methods: get_errors(), get_warnings(), get_build_log()
    - Navigates nested JSON structure
 
-4. **xcode/reporter.py** (Output Formatting - 239 lines)
+4. **xcode/reporter.py** (Output Formatting - 291 lines)
    - OutputFormatter class (static methods)
    - format_minimal() - Ultra token-efficient (5-10 tokens)
    - format_errors() - Detailed error list
@@ -159,14 +160,14 @@ The build system is now organized into focused modules:
    - format_verbose() - Full details
    - format_json() - Machine-readable output
 
-5. **xcode/cache.py** (Cache Management - 177 lines)
+5. **xcode/cache.py** (Cache Management - 204 lines)
    - XCResultCache class
    - Stores xcresult bundles in ~/.ios-simulator-skill/xcresults/
    - Generates timestamp-based IDs
    - Methods: save(), get_path(), exists(), list(), cleanup()
    - Enables progressive disclosure (access results hours/days later)
 
-6. **xcode/config.py** (Configuration Management - 170 lines) **NEW**
+6. **xcode/config.py** (Configuration Management - 165 lines) **NEW**
    - Config class with auto-learning device preferences
    - JSON-based configuration at `.claude/skills/ios-simulator-skill/config.json`
    - Auto-updates `last_used_simulator` after successful builds
@@ -293,7 +294,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### log_monitor.py (494 lines)
+#### log_monitor.py (486 lines)
 **What it does:** Monitor and analyze iOS simulator logs in real-time with intelligent filtering.
 
 **Algorithm:**
@@ -331,7 +332,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 **Purpose:** Enable semantic, accessibility-based navigation instead of pixel coordinates.
 
-#### screen_mapper.py (317 lines)
+#### screen_mapper.py (307 lines)
 **What it does:** Analyzes current screen to answer "What's visible and interactive?"
 
 **Algorithm:**
@@ -356,7 +357,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### navigator.py (413 lines)
+#### navigator.py (412 lines)
 **What it does:** Find and interact with specific UI elements semantically.
 
 **Core capabilities:**
@@ -387,7 +388,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### gesture.py (380 lines)
+#### gesture.py (353 lines)
 **What it does:** Perform swipes, scrolls, and complex touch gestures.
 
 **Supported gestures:**
@@ -415,7 +416,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### keyboard.py (410 lines)
+#### keyboard.py (379 lines)
 **What it does:** Handle text input, special keys, and hardware buttons.
 
 **Capabilities:**
@@ -454,7 +455,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### app_launcher.py (394 lines)
+#### app_launcher.py (363 lines)
 **What it does:** Control app lifecycle and state.
 
 **Capabilities:**
@@ -499,7 +500,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 **Purpose:** Provide specialized tools for test automation, debugging, and compliance checking.
 
-#### accessibility_audit.py (306 lines)
+#### accessibility_audit.py (308 lines)
 **What it does:** Check screen for WCAG accessibility compliance.
 
 **Rules checked:**
@@ -539,7 +540,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### visual_diff.py (252 lines)
+#### visual_diff.py (235 lines)
 **What it does:** Compare two screenshots for visual changes.
 
 **Features:**
@@ -576,7 +577,7 @@ Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
 
 ---
 
-#### test_recorder.py (258 lines)
+#### test_recorder.py (246 lines)
 **What it does:** Automatically document test execution with screenshots and state.
 
 **Features:**
@@ -623,7 +624,7 @@ test-name-TIMESTAMP/
 
 ---
 
-#### app_state_capture.py (334 lines)
+#### app_state_capture.py (305 lines)
 **What it does:** Create comprehensive debugging snapshots.
 
 **Captures:**

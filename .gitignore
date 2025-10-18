@@ -51,3 +51,6 @@ DerivedData/
 
 # Local skill config (user-specific)
 skill/scripts/.claude/skills/ios-simulator-skill/config.json
+
+# Other
+.claude

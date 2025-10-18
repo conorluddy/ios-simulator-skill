@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 class XCResultParser:
@@ -279,7 +280,7 @@ class XCResultParser:
 
         return location
 
-    def _run_xcresulttool(self, args: list[str], parse_json: bool = True) -> any | None:
+    def _run_xcresulttool(self, args: list[str], parse_json: bool = True) -> Any | None:
         """
         Run xcresulttool command.
 
