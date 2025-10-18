@@ -2,413 +2,207 @@
 """
 Build and Test Automation for Xcode Projects
 
-Wraps xcodebuild to provide token-efficient build and test execution with intelligent
-error parsing and result summarization. Integrates with other scripts in this skill.
+Ultra token-efficient build automation with progressive disclosure via xcresult bundles.
 
 Features:
-- Build Xcode projects and workspaces
-- Run test suites with result parsing
-- Clean builds with simulator selection
-- Token-efficient summaries (3-5 lines by default)
-- Integration with sim_health_check, test_recorder, app_launcher
+- Minimal default output (5-10 tokens)
+- Progressive disclosure for error/warning/log details
+- Native xcresult bundle support
+- Clean modular architecture
 
 Usage Examples:
-    # Build project with auto-detected scheme
+    # Build (minimal output)
     python scripts/build_and_test.py --project MyApp.xcodeproj
+    # Output: Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]
 
-    # Build workspace with specific scheme
-    python scripts/build_and_test.py --workspace MyApp.xcworkspace --scheme MyApp
+    # Get error details
+    python scripts/build_and_test.py --get-errors xcresult-20251018-143052
 
-    # Run tests
-    python scripts/build_and_test.py --project MyApp.xcodeproj --test
+    # Get warnings
+    python scripts/build_and_test.py --get-warnings xcresult-20251018-143052
 
-    # Clean build with simulator selection
-    python scripts/build_and_test.py --project MyApp.xcodeproj --clean --simulator "iPhone 15 Pro"
+    # Get build log
+    python scripts/build_and_test.py --get-log xcresult-20251018-143052
 
-    # Verbose output
+    # Get everything as JSON
+    python scripts/build_and_test.py --get-all xcresult-20251018-143052 --json
+
+    # List recent builds
+    python scripts/build_and_test.py --list-xcresults
+
+    # Verbose mode (for debugging)
     python scripts/build_and_test.py --project MyApp.xcodeproj --verbose
 """
 
 import argparse
-import json
-import os
-import re
-import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-
-class BuildAndTest:
-    """Xcode build and test automation with intelligent result parsing."""
-
-    def __init__(
-        self,
-        project_path: Optional[str] = None,
-        workspace_path: Optional[str] = None,
-        scheme: Optional[str] = None,
-        simulator: Optional[str] = None,
-        configuration: str = "Debug"
-    ):
-        """
-        Initialize build configuration.
-
-        Args:
-            project_path: Path to .xcodeproj file
-            workspace_path: Path to .xcworkspace file
-            scheme: Build scheme name (auto-detected if not provided)
-            simulator: Simulator name (uses booted if not specified)
-            configuration: Build configuration (Debug or Release)
-        """
-        self.project_path = project_path
-        self.workspace_path = workspace_path
-        self.scheme = scheme
-        self.simulator = simulator
-        self.configuration = configuration
-        self.build_output: List[str] = []
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-        self.test_results: Dict = {}
-
-    def auto_detect_scheme(self) -> Optional[str]:
-        """Auto-detect build scheme from project/workspace."""
-        try:
-            cmd = ['xcodebuild', '-list']
-
-            if self.workspace_path:
-                cmd.extend(['-workspace', self.workspace_path])
-            elif self.project_path:
-                cmd.extend(['-project', self.project_path])
-            else:
-                return None
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-
-            # Parse schemes from output
-            in_schemes_section = False
-            for line in result.stdout.split('\n'):
-                line = line.strip()
-
-                if 'Schemes:' in line:
-                    in_schemes_section = True
-                    continue
-
-                if in_schemes_section and line and not line.startswith('Build'):
-                    # First scheme in list
-                    return line
-
-        except subprocess.CalledProcessError as e:
-            print(f"Error auto-detecting scheme: {e}", file=sys.stderr)
-
-        return None
-
-    def get_simulator_destination(self) -> str:
-        """Get xcodebuild destination string for simulator."""
-        if self.simulator:
-            return f"platform=iOS Simulator,name={self.simulator}"
-        else:
-            # Use generic simulator (xcodebuild will pick one)
-            return "platform=iOS Simulator,name=iPhone 15"
-
-    def parse_build_output(self, output: str):
-        """Parse xcodebuild output to extract errors and warnings."""
-        self.build_output = output.split('\n')
-        self.errors = []
-        self.warnings = []
-
-        # Common error patterns
-        error_patterns = [
-            r'❌\s+(.+)',  # Emoji error marker
-            r'error:\s+(.+)',  # Standard error
-            r'\*\* BUILD FAILED \*\*',  # Build failed
-            r'Undefined symbols',  # Linker error
-            r'No such file or directory',  # Missing file
-        ]
-
-        # Warning patterns
-        warning_patterns = [
-            r'⚠️\s+(.+)',  # Emoji warning marker
-            r'warning:\s+(.+)',  # Standard warning
-        ]
-
-        for line in self.build_output:
-            # Check for errors
-            for pattern in error_patterns:
-                if re.search(pattern, line, re.IGNORECASE):
-                    self.errors.append(line.strip())
-                    break
-
-            # Check for warnings
-            for pattern in warning_patterns:
-                if re.search(pattern, line, re.IGNORECASE):
-                    self.warnings.append(line.strip())
-                    break
-
-    def parse_test_results(self, output: str):
-        """Parse xcodebuild test output to extract results."""
-        lines = output.split('\n')
-
-        # Initialize test results
-        self.test_results = {
-            'total': 0,
-            'passed': 0,
-            'failed': 0,
-            'skipped': 0,
-            'duration': 0.0,
-            'failures': []
-        }
-
-        # Parse test summary
-        for line in lines:
-            # Look for test execution summary
-            if 'Test Suite' in line and 'passed' in line.lower():
-                # Example: "Test Suite 'All tests' passed at 2025-10-18 14:30:00.000."
-                match = re.search(r'(\d+) test[s]?,\s*(\d+) failure[s]?', line)
-                if match:
-                    self.test_results['total'] = int(match.group(1))
-                    self.test_results['failed'] = int(match.group(2))
-                    self.test_results['passed'] = self.test_results['total'] - self.test_results['failed']
-
-            # Test duration
-            if 'Executed in' in line or 'Test session duration' in line:
-                match = re.search(r'([\d.]+)\s*second[s]?', line)
-                if match:
-                    self.test_results['duration'] = float(match.group(1))
-
-            # Individual test failures
-            if line.strip().startswith('✗') or 'failed' in line.lower():
-                self.test_results['failures'].append(line.strip())
-
-    def build(self, clean: bool = False) -> bool:
-        """
-        Build the project.
-
-        Args:
-            clean: Perform clean build
-
-        Returns:
-            True if build succeeded, False otherwise
-        """
-        # Auto-detect scheme if not provided
-        if not self.scheme:
-            self.scheme = self.auto_detect_scheme()
-            if not self.scheme:
-                print("Error: Could not auto-detect scheme. Please specify with --scheme", file=sys.stderr)
-                return False
-
-        # Build xcodebuild command
-        cmd = ['xcodebuild']
-
-        if clean:
-            cmd.append('clean')
-
-        cmd.append('build')
-
-        if self.workspace_path:
-            cmd.extend(['-workspace', self.workspace_path])
-        elif self.project_path:
-            cmd.extend(['-project', self.project_path])
-        else:
-            print("Error: No project or workspace specified", file=sys.stderr)
-            return False
-
-        cmd.extend([
-            '-scheme', self.scheme,
-            '-configuration', self.configuration,
-            '-destination', self.get_simulator_destination()
-        ])
-
-        # Execute build
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False  # Don't raise on non-zero exit
-            )
-
-            # Combine stdout and stderr
-            full_output = result.stdout + '\n' + result.stderr
-            self.parse_build_output(full_output)
-
-            return result.returncode == 0
-
-        except Exception as e:
-            print(f"Error executing build: {e}", file=sys.stderr)
-            return False
-
-    def test(self, test_suite: Optional[str] = None) -> bool:
-        """
-        Run tests.
-
-        Args:
-            test_suite: Specific test suite/class to run (runs all if not specified)
-
-        Returns:
-            True if all tests passed, False otherwise
-        """
-        # Auto-detect scheme if not provided
-        if not self.scheme:
-            self.scheme = self.auto_detect_scheme()
-            if not self.scheme:
-                print("Error: Could not auto-detect scheme. Please specify with --scheme", file=sys.stderr)
-                return False
-
-        # Build xcodebuild test command
-        cmd = ['xcodebuild', 'test']
-
-        if self.workspace_path:
-            cmd.extend(['-workspace', self.workspace_path])
-        elif self.project_path:
-            cmd.extend(['-project', self.project_path])
-
-        cmd.extend([
-            '-scheme', self.scheme,
-            '-destination', self.get_simulator_destination()
-        ])
-
-        if test_suite:
-            cmd.extend(['-only-testing', test_suite])
-
-        # Execute tests
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False
-            )
-
-            # Parse test results
-            full_output = result.stdout + '\n' + result.stderr
-            self.parse_test_results(full_output)
-            self.parse_build_output(full_output)  # Also get build errors
-
-            return result.returncode == 0
-
-        except Exception as e:
-            print(f"Error executing tests: {e}", file=sys.stderr)
-            return False
-
-    def get_summary(self, verbose: bool = False) -> str:
-        """
-        Get build/test summary.
-
-        Args:
-            verbose: Include full output
-
-        Returns:
-            Formatted summary string
-        """
-        lines = []
-
-        if self.test_results.get('total', 0) > 0:
-            # Test summary
-            total = self.test_results['total']
-            passed = self.test_results['passed']
-            failed = self.test_results['failed']
-            duration = self.test_results['duration']
-
-            status = "PASS" if failed == 0 else "FAIL"
-            lines.append(f"Tests: {status} ({passed}/{total} passed, {failed} failed, {duration:.1f}s)")
-
-            if failed > 0 and self.test_results['failures']:
-                lines.append(f"Failures: {len(self.test_results['failures'])}")
-                if not verbose:
-                    # Show first 3 failures
-                    for failure in self.test_results['failures'][:3]:
-                        lines.append(f"  - {failure}")
-        else:
-            # Build summary
-            status = "SUCCESS" if len(self.errors) == 0 else "FAILED"
-            lines.append(f"Build: {status}")
-
-        # Errors and warnings
-        if self.errors:
-            lines.append(f"Errors: {len(self.errors)}")
-            if not verbose:
-                # Show first 3 errors
-                for error in self.errors[:3]:
-                    lines.append(f"  {error[:100]}")  # Truncate long lines
-
-        if self.warnings:
-            lines.append(f"Warnings: {len(self.warnings)}")
-            if not verbose and len(self.warnings) <= 3:
-                for warning in self.warnings[:3]:
-                    lines.append(f"  {warning[:100]}")
-
-        # Verbose output
-        if verbose and (self.errors or self.warnings):
-            lines.append("\n=== Full Output ===")
-            lines.extend(self.build_output[-100:])  # Last 100 lines
-
-        return '\n'.join(lines)
-
-    def get_json_output(self) -> Dict:
-        """Get build/test results as JSON."""
-        return {
-            'success': len(self.errors) == 0,
-            'scheme': self.scheme,
-            'configuration': self.configuration,
-            'errors': self.errors,
-            'warnings': self.warnings,
-            'test_results': self.test_results if self.test_results.get('total', 0) > 0 else None
-        }
+# Import our modular components
+from xcode import XCResultCache, XCResultParser, OutputFormatter, BuildRunner
 
 
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Build and test Xcode projects with token-efficient output',
+        description='Build and test Xcode projects with progressive disclosure',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Build project
+  # Build project (minimal output)
   python scripts/build_and_test.py --project MyApp.xcodeproj
-
-  # Build workspace with specific scheme
-  python scripts/build_and_test.py --workspace MyApp.xcworkspace --scheme MyApp
 
   # Run tests
   python scripts/build_and_test.py --project MyApp.xcodeproj --test
 
-  # Clean build
-  python scripts/build_and_test.py --project MyApp.xcodeproj --clean
+  # Get error details from previous build
+  python scripts/build_and_test.py --get-errors xcresult-20251018-143052
 
-  # Specific test suite
-  python scripts/build_and_test.py --project MyApp.xcodeproj --test --suite LoginTests
+  # Get all details as JSON
+  python scripts/build_and_test.py --get-all xcresult-20251018-143052 --json
+
+  # List recent builds
+  python scripts/build_and_test.py --list-xcresults
         """
     )
 
-    # Project/workspace selection
-    project_group = parser.add_mutually_exclusive_group()
+    # Build/test mode arguments
+    build_group = parser.add_argument_group('Build/Test Options')
+    project_group = build_group.add_mutually_exclusive_group()
     project_group.add_argument('--project', help='Path to .xcodeproj file')
     project_group.add_argument('--workspace', help='Path to .xcworkspace file')
 
-    # Build options
-    parser.add_argument('--scheme', help='Build scheme (auto-detected if not specified)')
-    parser.add_argument('--configuration', default='Debug', choices=['Debug', 'Release'],
-                       help='Build configuration (default: Debug)')
-    parser.add_argument('--simulator', help='Simulator name (default: iPhone 15)')
-    parser.add_argument('--clean', action='store_true', help='Clean before building')
+    build_group.add_argument('--scheme', help='Build scheme (auto-detected if not specified)')
+    build_group.add_argument('--configuration', default='Debug',
+                            choices=['Debug', 'Release'],
+                            help='Build configuration (default: Debug)')
+    build_group.add_argument('--simulator', help='Simulator name (default: iPhone 15)')
+    build_group.add_argument('--clean', action='store_true', help='Clean before building')
+    build_group.add_argument('--test', action='store_true', help='Run tests')
+    build_group.add_argument('--suite', help='Specific test suite to run')
 
-    # Test options
-    parser.add_argument('--test', action='store_true', help='Run tests')
-    parser.add_argument('--suite', help='Specific test suite to run (e.g., LoginTests)')
+    # Progressive disclosure arguments
+    disclosure_group = parser.add_argument_group('Progressive Disclosure Options')
+    disclosure_group.add_argument('--get-errors', metavar='XCRESULT_ID',
+                                 help='Get error details from xcresult')
+    disclosure_group.add_argument('--get-warnings', metavar='XCRESULT_ID',
+                                 help='Get warning details from xcresult')
+    disclosure_group.add_argument('--get-log', metavar='XCRESULT_ID',
+                                 help='Get build log from xcresult')
+    disclosure_group.add_argument('--get-all', metavar='XCRESULT_ID',
+                                 help='Get all details from xcresult')
+    disclosure_group.add_argument('--list-xcresults', action='store_true',
+                                 help='List recent xcresult bundles')
 
     # Output options
-    parser.add_argument('--verbose', action='store_true', help='Show detailed output')
-    parser.add_argument('--json', action='store_true', help='Output as JSON')
-    parser.add_argument('--output', help='Save results to file')
+    output_group = parser.add_argument_group('Output Options')
+    output_group.add_argument('--verbose', action='store_true',
+                             help='Show detailed output')
+    output_group.add_argument('--json', action='store_true',
+                             help='Output as JSON')
 
     args = parser.parse_args()
 
-    # Validate inputs
+    # Initialize cache
+    cache = XCResultCache()
+
+    # Handle list mode
+    if args.list_xcresults:
+        xcresults = cache.list()
+        if args.json:
+            import json
+            print(json.dumps(xcresults, indent=2))
+        else:
+            if not xcresults:
+                print("No xcresult bundles found")
+            else:
+                print(f"Recent XCResult bundles ({len(xcresults)}):")
+                print()
+                for xc in xcresults:
+                    print(f"  {xc['id']}")
+                    print(f"    Created: {xc['created']}")
+                    print(f"    Size: {xc['size_mb']} MB")
+                    print()
+        return 0
+
+    # Handle retrieval modes
+    xcresult_id = (args.get_errors or args.get_warnings or
+                   args.get_log or args.get_all)
+
+    if xcresult_id:
+        xcresult_path = cache.get_path(xcresult_id)
+
+        if not xcresult_path or not xcresult_path.exists():
+            print(f"Error: XCResult bundle not found: {xcresult_id}", file=sys.stderr)
+            print(f"Use --list-xcresults to see available bundles", file=sys.stderr)
+            return 1
+
+        parser = XCResultParser(xcresult_path)
+
+        # Get errors
+        if args.get_errors:
+            errors = parser.get_errors()
+            if args.json:
+                import json
+                print(json.dumps(errors, indent=2))
+            else:
+                print(OutputFormatter.format_errors(errors))
+            return 0
+
+        # Get warnings
+        if args.get_warnings:
+            warnings = parser.get_warnings()
+            if args.json:
+                import json
+                print(json.dumps(warnings, indent=2))
+            else:
+                print(OutputFormatter.format_warnings(warnings))
+            return 0
+
+        # Get log
+        if args.get_log:
+            log = parser.get_build_log()
+            if log:
+                print(OutputFormatter.format_log(log))
+            else:
+                print("No build log available", file=sys.stderr)
+                return 1
+            return 0
+
+        # Get all
+        if args.get_all:
+            error_count, warning_count = parser.count_issues()
+            errors = parser.get_errors()
+            warnings = parser.get_warnings()
+            build_log = parser.get_build_log()
+
+            if args.json:
+                import json
+                data = {
+                    'xcresult_id': xcresult_id,
+                    'error_count': error_count,
+                    'warning_count': warning_count,
+                    'errors': errors,
+                    'warnings': warnings,
+                    'log_preview': build_log[:1000] if build_log else None
+                }
+                print(json.dumps(data, indent=2))
+            else:
+                print(f"XCResult: {xcresult_id}")
+                print(f"Errors: {error_count}, Warnings: {warning_count}")
+                print()
+                if errors:
+                    print(OutputFormatter.format_errors(errors, limit=10))
+                    print()
+                if warnings:
+                    print(OutputFormatter.format_warnings(warnings, limit=10))
+                    print()
+                if build_log:
+                    print("Build Log (last 30 lines):")
+                    print(OutputFormatter.format_log(build_log, lines=30))
+            return 0
+
+    # Build/test mode
     if not args.project and not args.workspace:
         # Try to auto-detect in current directory
         cwd = Path.cwd()
@@ -423,40 +217,70 @@ Examples:
             parser.error("No project or workspace specified and none found in current directory")
 
     # Initialize builder
-    builder = BuildAndTest(
+    builder = BuildRunner(
         project_path=args.project,
         workspace_path=args.workspace,
         scheme=args.scheme,
+        configuration=args.configuration,
         simulator=args.simulator,
-        configuration=args.configuration
+        cache=cache
     )
 
     # Execute build or test
-    success = False
     if args.test:
-        success = builder.test(test_suite=args.suite)
+        success, xcresult_id = builder.test(test_suite=args.suite)
     else:
-        success = builder.build(clean=args.clean)
+        success, xcresult_id = builder.build(clean=args.clean)
 
-    # Output results
-    if args.json:
-        output = json.dumps(builder.get_json_output(), indent=2)
-        if args.output:
-            Path(args.output).write_text(output)
-            print(f"Results saved to: {args.output}")
-        else:
-            print(output)
+    if not xcresult_id:
+        print("Error: Build/test failed without creating xcresult", file=sys.stderr)
+        return 1
+
+    # Parse results
+    xcresult_path = cache.get_path(xcresult_id)
+    parser = XCResultParser(xcresult_path)
+    error_count, warning_count = parser.count_issues()
+
+    # Format output
+    status = "SUCCESS" if success else "FAILED"
+
+    if args.verbose:
+        # Verbose mode with error/warning details
+        errors = parser.get_errors() if error_count > 0 else None
+        warnings = parser.get_warnings() if warning_count > 0 else None
+
+        output = OutputFormatter.format_verbose(
+            status=status,
+            error_count=error_count,
+            warning_count=warning_count,
+            xcresult_id=xcresult_id,
+            errors=errors,
+            warnings=warnings
+        )
+        print(output)
+    elif args.json:
+        # JSON mode
+        data = {
+            'success': success,
+            'xcresult_id': xcresult_id,
+            'error_count': error_count,
+            'warning_count': warning_count
+        }
+        import json
+        print(json.dumps(data, indent=2))
     else:
-        summary = builder.get_summary(verbose=args.verbose)
-        if args.output:
-            Path(args.output).write_text(summary)
-            print(f"Results saved to: {args.output}")
-        else:
-            print(summary)
+        # Minimal mode (default)
+        output = OutputFormatter.format_minimal(
+            status=status,
+            error_count=error_count,
+            warning_count=warning_count,
+            xcresult_id=xcresult_id
+        )
+        print(output)
 
     # Exit with appropriate code
-    sys.exit(0 if success else 1)
+    return 0 if success else 1
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

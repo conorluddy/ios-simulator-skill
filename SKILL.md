@@ -44,12 +44,31 @@ bash scripts/sim_health_check.sh
 
 #### 1. Build & Test Automation - "Build and run tests"
 
-Build Xcode projects and run test suites with token-efficient output:
+Build Xcode projects with **ultra token-efficient progressive disclosure**:
 
 ```bash
-# Build project (auto-detects scheme)
+# Build project (ultra-minimal output: 5-10 tokens)
 python scripts/build_and_test.py --project MyApp.xcodeproj
+# Output: Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]
 
+# Get error details on demand
+python scripts/build_and_test.py --get-errors xcresult-20251018-143052
+
+# Get warning details
+python scripts/build_and_test.py --get-warnings xcresult-20251018-143052
+
+# Get full build log
+python scripts/build_and_test.py --get-log xcresult-20251018-143052
+
+# Get everything as JSON
+python scripts/build_and_test.py --get-all xcresult-20251018-143052 --json
+
+# List recent builds
+python scripts/build_and_test.py --list-xcresults
+```
+
+**Traditional Options:**
+```bash
 # Build workspace with specific scheme
 python scripts/build_and_test.py --workspace MyApp.xcworkspace --scheme MyApp
 
@@ -59,40 +78,48 @@ python scripts/build_and_test.py --project MyApp.xcodeproj --test
 # Clean build with simulator selection
 python scripts/build_and_test.py --project MyApp.xcodeproj --clean --simulator "iPhone 15 Pro"
 
-# Run specific test suite
-python scripts/build_and_test.py --project MyApp.xcodeproj --test --suite LoginTests
-
-# Verbose output
+# Verbose mode (for debugging)
 python scripts/build_and_test.py --project MyApp.xcodeproj --verbose
-
-# Save results to file
-python scripts/build_and_test.py --project MyApp.xcodeproj --output build-results.json --json
 ```
 
-**Output:**
+**Output (default - ultra-minimal):**
 ```
-Build: SUCCESS
-Warnings: 3
-  warning: 'UIWebView' is deprecated
-  warning: unused variable 'tempValue'
+Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]
 ```
 
-**Output (with tests):**
+**Output (progressive disclosure - get warnings):**
 ```
-Tests: PASS (12/12 passed, 0 failed, 4.2s)
-Warnings: 1
+Warnings (3):
+
+1. 'UIWebView' is deprecated
+   Location: LoginView.swift:line 45
+
+2. Unused variable 'tempValue'
+   Location: DataModel.swift:line 112
+
+3. ...
 ```
 
 **Output (on failure):**
 ```
-Build: FAILED
-Errors: 2
-  error: use of unresolved identifier 'invalidFunction'
-  error: cannot find 'MissingClass' in scope
-Warnings: 1
+Build: FAILED (2 errors, 1 warnings) [xcresult-20251018-143100]
 ```
 
+**Then get error details:**
+```bash
+python scripts/build_and_test.py --get-errors xcresult-20251018-143100
+```
+
+**Key Features:**
+- ✅ **Ultra token-efficient**: Default output is 5-10 tokens
+- ✅ **Progressive disclosure**: Load error/warning/log details only when needed
+- ✅ **Native xcresult**: Uses Apple's official result bundle format
+- ✅ **Structured data**: JSON output via xcresulttool
+- ✅ **Cached results**: Access build details hours/days later
+
 **Options:**
+
+*Build/Test:*
 - `--project` or `--workspace` - Xcode project/workspace path
 - `--scheme` - Build scheme (auto-detected if not specified)
 - `--configuration` - Debug or Release (default: Debug)
@@ -100,9 +127,17 @@ Warnings: 1
 - `--test` - Run test suite
 - `--suite` - Specific test suite to run
 - `--simulator` - Target simulator name
-- `--verbose` - Show full build output
+
+*Progressive Disclosure:*
+- `--get-errors XCRESULT_ID` - Get error details
+- `--get-warnings XCRESULT_ID` - Get warning details
+- `--get-log XCRESULT_ID` - Get full build log
+- `--get-all XCRESULT_ID` - Get complete details
+- `--list-xcresults` - List recent build results
+
+*Output:*
+- `--verbose` - Show detailed output
 - `--json` - Output as JSON
-- `--output` - Save results to file
 
 **Use when:** You need to build your app or run automated tests.
 
@@ -110,6 +145,13 @@ Warnings: 1
 - Combines with `sim_health_check.sh` to verify environment first
 - Uses `app_launcher.py` to install built app
 - Works with `test_recorder.py` for test documentation
+
+**Progressive Disclosure Workflow:**
+1. Build returns minimal result + xcresult ID
+2. Agent sees build failed
+3. Agent requests error details using xcresult ID
+4. Agent gets structured error list
+5. Agent fixes errors and rebuilds
 
 ---
 

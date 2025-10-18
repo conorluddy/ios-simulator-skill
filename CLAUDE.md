@@ -18,7 +18,8 @@ This is a **completed Agent Skill** for iOS simulator testing, fully distributed
 
 All 12 core scripts are **fully implemented and production-ready**:
 
-1. ✅ `build_and_test.py` (462 lines) - Build automation and test execution
+1. ✅ `build_and_test.py` (286 lines) - Build automation with progressive disclosure
+   - ✅ `xcode/` module (884 lines) - Modular architecture for xcresult handling
 2. ✅ `log_monitor.py` (494 lines) - Real-time log monitoring
 3. ✅ `sim_health_check.sh` (239 lines) - Environment verification
 4. ✅ `screen_mapper.py` (317 lines) - UI element analysis
@@ -31,7 +32,7 @@ All 12 core scripts are **fully implemented and production-ready**:
 11. ✅ `test_recorder.py` (258 lines) - Test documentation
 12. ✅ `app_state_capture.py` (334 lines) - Complete state snapshots
 
-**Total:** ~4,259 lines of production code
+**Total:** ~5,045 lines of production code
 
 ### ⏳ Ready for Release
 
@@ -53,7 +54,13 @@ ios-simulator-skill/
 ├── README.md                # User-facing overview
 ├── LICENSE                  # MIT
 ├── scripts/                 # 12 executable production scripts
-│   ├── build_and_test.py
+│   ├── build_and_test.py  # Main CLI (286 lines)
+│   ├── xcode/              # Modular architecture (884 lines)
+│   │   ├── __init__.py    # Module exports
+│   │   ├── builder.py     # Build execution (231 lines)
+│   │   ├── xcresult.py    # Result parsing (220 lines)
+│   │   ├── reporter.py    # Output formatting (239 lines)
+│   │   └── cache.py       # Cache management (177 lines)
 │   ├── log_monitor.py
 │   ├── sim_health_check.sh
 │   ├── screen_mapper.py
@@ -99,35 +106,116 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 **Purpose:** Complete the iOS development lifecycle with build automation and debugging support.
 
-#### build_and_test.py (462 lines)
-**What it does:** Build Xcode projects and run test suites with token-efficient error parsing.
+#### build_and_test.py (286 lines) + xcode/ module (884 lines)
+**What it does:** Build Xcode projects with **ultra token-efficient progressive disclosure** via xcresult bundles.
 
-**Algorithm:**
-1. Auto-detect scheme from project/workspace if not specified
-2. Build xcodebuild command with appropriate flags
-3. Execute build or test operation
-4. Parse output for errors and warnings using regex patterns
-5. Extract test results from test summary
-6. Format token-efficient summary (3-5 lines by default)
+**New Modular Architecture:**
 
-**Output formats:**
-- Default: 3-5 line summary (status, error/warning counts, top issues)
-- `--verbose`: Full build output
-- `--json`: Complete structured results
+The build system is now organized into focused modules:
 
-**Key features:**
-- Scheme auto-detection
-- Build/test in single script
-- Intelligent error parsing (groups similar errors)
-- Test result parsing from xcresult
-- Clean build support
-- Simulator selection
-- Token-efficient summaries
+1. **build_and_test.py** (Main CLI - 286 lines)
+   - Argument parsing
+   - Mode detection (build vs retrieve)
+   - Orchestrates other modules
+   - Minimal business logic
 
-**Integration points:**
+2. **xcode/builder.py** (Build Execution - 231 lines)
+   - BuildRunner class
+   - Scheme auto-detection
+   - xcodebuild command construction
+   - Executes builds with `-quiet` and `-resultBundlePath`
+   - Returns (success, xcresult_id) tuple
+
+3. **xcode/xcresult.py** (Result Parsing - 220 lines)
+   - XCResultParser class
+   - Extracts data via `xcrun xcresulttool`
+   - Parses Apple's xcresult JSON format
+   - Methods: get_errors(), get_warnings(), get_build_log()
+   - Navigates nested JSON structure
+
+4. **xcode/reporter.py** (Output Formatting - 239 lines)
+   - OutputFormatter class (static methods)
+   - format_minimal() - Ultra token-efficient (5-10 tokens)
+   - format_errors() - Detailed error list
+   - format_warnings() - Detailed warning list
+   - format_log() - Build log excerpts
+   - format_verbose() - Full details
+   - format_json() - Machine-readable output
+
+5. **xcode/cache.py** (Cache Management - 177 lines)
+   - XCResultCache class
+   - Stores xcresult bundles in ~/.ios-simulator-skill/xcresults/
+   - Generates timestamp-based IDs
+   - Methods: save(), get_path(), exists(), list(), cleanup()
+   - Enables progressive disclosure (access results hours/days later)
+
+**Algorithm (Two-Tier Progressive Disclosure):**
+
+**Tier 1: Build Execution (Ultra-Minimal Output)**
+1. Run xcodebuild with `-quiet` and `-resultBundlePath`
+2. Generate timestamped xcresult ID
+3. Save xcresult bundle to cache
+4. Extract error/warning counts via xcresulttool
+5. Return minimal output: `Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]`
+
+**Tier 2: Progressive Disclosure (On-Demand Details)**
+1. Agent uses xcresult ID to request details
+2. XCResultParser loads bundle from cache
+3. Runs appropriate xcresulttool command
+4. Parses structured JSON
+5. OutputFormatter renders requested view
+
+**Output Formats:**
+- **Default (5-10 tokens):** `Build: SUCCESS (0 errors, 3 warnings) [xcresult-abc123]`
+- **--get-errors:** Detailed error list with file/line info
+- **--get-warnings:** Detailed warning list
+- **--get-log:** Full build log (last N lines)
+- **--get-all:** Complete details as JSON or formatted text
+- **--list-xcresults:** Recent build results
+- **--verbose:** Errors + warnings inline (backwards compatible)
+- **--json:** Machine-readable output
+
+**Key Features:**
+- ✅ **Ultra token-efficient**: Default = 5-10 tokens (vs 400+ before)
+- ✅ **Progressive disclosure**: Load details only when needed
+- ✅ **Native xcresult**: Uses Apple's official format
+- ✅ **Structured data**: JSON from xcresulttool
+- ✅ **Cached results**: Access build data hours/days later
+- ✅ **Modular design**: 5 focused files, each <250 lines
+- ✅ **Backwards compatible**: --verbose and --json still work
+
+**Integration Points:**
 - Uses `sim_health_check.sh` for environment validation
 - Produces .app bundles for `app_launcher.py`
 - Works with `test_recorder.py` for test documentation
+- xcresult bundles persist in cache for later analysis
+
+**Progressive Disclosure Workflow:**
+```bash
+# Step 1: Build (minimal output)
+$ python scripts/build_and_test.py --project MyApp.xcodeproj
+Build: FAILED (2 errors, 0 warnings) [xcresult-20251018-143052]
+
+# Step 2: Get error details
+$ python scripts/build_and_test.py --get-errors xcresult-20251018-143052
+Errors (2):
+
+1. Use of unresolved identifier 'invalidFunction'
+   Location: ViewController.swift:line 45
+
+2. Cannot find 'MissingClass' in scope
+   Location: DataModel.swift:line 78
+
+# Step 3: Fix errors and rebuild
+$ python scripts/build_and_test.py --project MyApp.xcodeproj
+Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
+```
+
+**Benefits:**
+- Dramatically reduces token usage for successful builds
+- Agent only loads error details when build fails
+- Enables debugging without re-running builds
+- Perfect for CI/CD with token-constrained agents
 
 ---
 
