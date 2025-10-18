@@ -1,11 +1,11 @@
 ---
 name: ios-simulator-skill
-description: Navigate and interact with iOS apps via accessibility-driven automation using 12 production-ready testing scripts.
+description: Build, test, and automate iOS apps with 12 production-ready scripts including ultra token-efficient build automation, real-time log monitoring, and accessibility-driven UI navigation.
 ---
 
 # iOS Simulator Skill
 
-Efficiently navigate, test, and debug iOS applications using accessibility-first automation. This skill provides 12 production-ready scripts for complete iOS simulator testing workflows.
+Build, test, and automate iOS applications with progressive disclosure and accessibility-first navigation. This skill provides 12 production-ready scripts for the complete iOS development lifecycle.
 
 ## What This Skill Does
 
