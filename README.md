@@ -1,19 +1,46 @@
 # iOS Simulator Skill
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Efficient iOS app navigation and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
+Efficient iOS app building, navigation, and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
+
+## 📥 Installation
+
+**Download the latest release** from the [releases page](https://github.com/conorluddy/ios-simulator-skill/releases) and extract to your Claude skills directory:
+
+```bash
+# Download latest release (replace vX.X.X with actual version)
+curl -L https://github.com/conorluddy/ios-simulator-skill/releases/download/vX.X.X/ios-simulator-skill-vX.X.X.zip -o skill.zip
+
+# Extract to your project's skills directory
+unzip skill.zip -d .claude/skills/ios-simulator-skill
+
+# OR extract to your personal skills directory
+unzip skill.zip -d ~/.claude/skills/ios-simulator-skill
+
+# Verify installation
+ls .claude/skills/ios-simulator-skill/SKILL.md
+```
+
+**What you get:** A clean, focused skill package with just the scripts and examples - no development tooling.
+
+---
 
 ## Features
 
-🎯 **10 Production Scripts** - Complete testing toolkit for iOS simulator automation
+🎯 **12 Production Scripts** - Complete toolkit for iOS development and testing
+🔧 **Build Automation** - Build projects and run tests with intelligent error parsing
 📊 **Token-Efficient** - 97% reduction in output tokens vs raw tools
 ♿ **Accessibility-First** - Use structured data and semantic navigation, not pixels
 🚀 **Zero Config** - Works immediately on any macOS with Xcode
 🤖 **AI-Optimized** - Progressive disclosure with `--verbose` and `--json` flags
-🔍 **Debugging Tools** - Complete state capture, visual diffs, accessibility audits
+🔍 **Debugging Tools** - Real-time log monitoring, state capture, visual diffs
 
 ## What You Get
+
+### Build & Development Tools (2 scripts)
+- **build_and_test.py** - Build Xcode projects and run test suites with smart error parsing
+- **log_monitor.py** - Real-time log streaming with intelligent filtering and error detection
 
 ### Navigation Tools (5 scripts)
 - **screen_mapper.py** - Analyze current screen in 5 lines
@@ -134,10 +161,12 @@ python ~/.claude/skills/ios-simulator-skill/scripts/test_recorder.py --test-name
 python ~/.claude/skills/ios-simulator-skill/scripts/gesture.py --swipe up
 ```
 
-## All 10 Scripts Overview
+## All 12 Scripts Overview
 
 | Script | Purpose | Output | Key Features |
 |--------|---------|--------|--------------|
+| `build_and_test.py` | Build Xcode projects & run tests | 1 line + xcresult ID | Progressive disclosure, ultra token-efficient |
+| `log_monitor.py` | Real-time log monitoring | Summary or stream | Intelligent filtering, error detection |
 | `screen_mapper.py` | Analyze current screen | 5 lines | Element types, button lists, counts |
 | `navigator.py` | Find & interact with elements | 1 line | Fuzzy text matching, type matching, coordinates |
 | `gesture.py` | Perform touches & gestures | 1 line | Swipes, scrolls, pinches, long-press, drag |

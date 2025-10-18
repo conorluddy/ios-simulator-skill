@@ -16,60 +16,89 @@ This is a **completed Agent Skill** for iOS simulator testing, fully distributed
 
 ### ✅ Implementation Complete
 
-All 10 core scripts are **fully implemented and production-ready**:
+All 12 core scripts are **fully implemented and production-ready**:
 
-1. ✅ `sim_health_check.sh` (239 lines) - Environment verification
-2. ✅ `screen_mapper.py` (317 lines) - UI element analysis
-3. ✅ `navigator.py` (413 lines) - Element finding and interaction
-4. ✅ `gesture.py` (380 lines) - Swipes, scrolls, gestures
-5. ✅ `keyboard.py` (410 lines) - Text input and hardware buttons
-6. ✅ `app_launcher.py` (394 lines) - App lifecycle control
-7. ✅ `accessibility_audit.py` (306 lines) - WCAG compliance checking
-8. ✅ `visual_diff.py` (252 lines) - Screenshot comparison
-9. ✅ `test_recorder.py` (258 lines) - Test documentation
-10. ✅ `app_state_capture.py` (334 lines) - Complete state snapshots
+1. ✅ `build_and_test.py` (310 lines) - Build automation with progressive disclosure
+   - ✅ `xcode/` module (1,458 lines) - Modular architecture for xcresult handling
+2. ✅ `log_monitor.py` (486 lines) - Real-time log monitoring
+3. ✅ `sim_health_check.sh` (239 lines) - Environment verification
+4. ✅ `screen_mapper.py` (307 lines) - UI element analysis
+5. ✅ `navigator.py` (412 lines) - Element finding and interaction
+6. ✅ `gesture.py` (353 lines) - Swipes, scrolls, gestures
+7. ✅ `keyboard.py` (379 lines) - Text input and hardware buttons
+8. ✅ `app_launcher.py` (363 lines) - App lifecycle control
+9. ✅ `accessibility_audit.py` (308 lines) - WCAG compliance checking
+10. ✅ `visual_diff.py` (235 lines) - Screenshot comparison
+11. ✅ `test_recorder.py` (246 lines) - Test documentation
+12. ✅ `app_state_capture.py` (305 lines) - Complete state snapshots
 
-**Total:** ~3,300 lines of production code
+**Total:** ~5,400 lines of production code
 
-### ⏳ Ready for Release
+### ✅ Production Ready
 
 - ✅ All scripts tested and working
 - ✅ Complete documentation
 - ✅ Reference guides prepared
-- ⏳ Git repository initialization
+- ✅ Repository structure finalized
+- ✅ Linting and CI/CD workflows configured
 - ⏳ First GitHub release
 - ⏳ Marketplace publication
 
-## Skill Format Requirements
+## Repository Structure
 
-### Directory Structure
+**This skill is distributed from a GitHub repository with the following structure:**
 
 ```
-ios-simulator-skill/
-├── SKILL.md                 # REQUIRED: Entry point with YAML frontmatter
-├── CLAUDE.md                # Developer guide (this file)
-├── README.md                # User-facing overview
-├── LICENSE                  # Apache 2.0
-├── scripts/                 # 10 executable production scripts
-│   ├── sim_health_check.sh
-│   ├── screen_mapper.py
-│   ├── navigator.py
-│   ├── gesture.py
-│   ├── keyboard.py
-│   ├── app_launcher.py
-│   ├── accessibility_audit.py
-│   ├── visual_diff.py
-│   ├── test_recorder.py
-│   └── app_state_capture.py
-├── references/             # Deep documentation
+ios-simulator-skill/                 # Development repository
+│
+├── skill/                           # ← DISTRIBUTABLE SKILL (users get this)
+│   ├── SKILL.md                    # REQUIRED: Entry point with YAML frontmatter
+│   ├── CLAUDE.md                   # Developer guide (this file)
+│   ├── README.md                   # User-facing overview
+│   ├── scripts/                    # 12 executable production scripts
+│   │   ├── build_and_test.py      # Main CLI (310 lines)
+│   │   ├── xcode/                  # Modular architecture (1,458 lines)
+│   │   │   ├── __init__.py        # Module exports (13 lines)
+│   │   │   ├── builder.py         # Build execution (381 lines)
+│   │   │   ├── xcresult.py        # Result parsing (404 lines)
+│   │   │   ├── reporter.py        # Output formatting (291 lines)
+│   │   │   ├── cache.py           # Cache management (204 lines)
+│   │   │   └── config.py          # Configuration (165 lines)
+│   │   ├── log_monitor.py         # (486 lines)
+│   │   ├── sim_health_check.sh    # (239 lines)
+│   │   ├── screen_mapper.py       # (307 lines)
+│   │   ├── navigator.py           # (412 lines)
+│   │   ├── gesture.py             # (353 lines)
+│   │   ├── keyboard.py            # (379 lines)
+│   │   ├── app_launcher.py        # (363 lines)
+│   │   ├── accessibility_audit.py # (308 lines)
+│   │   ├── visual_diff.py         # (235 lines)
+│   │   ├── test_recorder.py       # (246 lines)
+│   │   └── app_state_capture.py   # (305 lines)
+│   └── examples/                   # Complete usage examples
+│       └── login_flow.py
+│
+├── references/                     # Deep documentation (dev repo only, not distributed)
 │   ├── accessibility_checklist.md
 │   ├── troubleshooting.md
 │   ├── test_patterns.md
 │   ├── idb_quick.md
 │   └── simctl_quick.md
-└── examples/               # Complete usage examples
-    └── login_flow.py
+│
+├── .github/workflows/              # CI/CD (not distributed)
+│   ├── release.yml                # Auto-package skill/ on release
+│   ├── lint.yml                   # Run linters on PRs
+│   └── validate-version.yml       # Version consistency checks
+│
+├── pyproject.toml                  # Linting config (dev only)
+├── .pre-commit-config.yaml         # Git hooks (dev only)
+├── .gitignore
+├── LICENSE.md                      # MIT License
+├── README.md                       # Development guide
+└── SPECIFICATION.md
 ```
+
+**Distribution:** Users download `ios-simulator-skill-vX.X.X.zip` from GitHub releases, which contains only the `skill/` directory contents. Development tooling (linting, CI/CD) stays in the repository.
 
 ### SKILL.md Requirements
 
@@ -91,11 +120,219 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ## Architecture & Script Categories
 
-### Category 1: Navigation & Interaction (5 scripts)
+### Category 1: Build & Development (2 scripts)
+
+**Purpose:** Complete the iOS development lifecycle with build automation and debugging support.
+
+#### build_and_test.py (310 lines) + xcode/ module (1,458 lines)
+**What it does:** Build Xcode projects with **ultra token-efficient progressive disclosure** via xcresult bundles.
+
+**New Modular Architecture:**
+
+The build system is now organized into focused modules:
+
+1. **build_and_test.py** (Main CLI - 310 lines)
+   - Argument parsing
+   - Mode detection (build vs retrieve)
+   - Orchestrates other modules
+   - Minimal business logic
+
+2. **xcode/builder.py** (Build Execution - 381 lines)
+   - BuildRunner class
+   - Scheme auto-detection
+   - xcodebuild command construction
+   - Executes builds with `-quiet` and `-resultBundlePath`
+   - Returns (success, xcresult_id) tuple
+
+3. **xcode/xcresult.py** (Result Parsing - 404 lines)
+   - XCResultParser class
+   - Extracts data via `xcrun xcresulttool`
+   - Parses Apple's xcresult JSON format
+   - Methods: get_errors(), get_warnings(), get_build_log()
+   - Navigates nested JSON structure
+
+4. **xcode/reporter.py** (Output Formatting - 291 lines)
+   - OutputFormatter class (static methods)
+   - format_minimal() - Ultra token-efficient (5-10 tokens)
+   - format_errors() - Detailed error list
+   - format_warnings() - Detailed warning list
+   - format_log() - Build log excerpts
+   - format_verbose() - Full details
+   - format_json() - Machine-readable output
+
+5. **xcode/cache.py** (Cache Management - 204 lines)
+   - XCResultCache class
+   - Stores xcresult bundles in ~/.ios-simulator-skill/xcresults/
+   - Generates timestamp-based IDs
+   - Methods: save(), get_path(), exists(), list(), cleanup()
+   - Enables progressive disclosure (access results hours/days later)
+
+6. **xcode/config.py** (Configuration Management - 165 lines) **NEW**
+   - Config class with auto-learning device preferences
+   - JSON-based configuration at `.claude/skills/ios-simulator-skill/config.json`
+   - Auto-updates `last_used_simulator` after successful builds
+   - Atomic writes (temp file + rename) prevent corruption
+   - Graceful error handling (doesn't break builds if config fails)
+   - Methods: load(), save(), update_last_used_simulator(), get_preferred_simulator()
+
+**Config System Architecture:**
+
+The config system provides **auto-learning device preferences** with zero configuration required:
+
+**Config Schema:**
+```json
+{
+  "device": {
+    "preferred_simulator": null,           // Manual preference (always used)
+    "preferred_os_version": null,          // Reserved for future use
+    "fallback_to_any_iphone": true,       // Enable auto-detection fallback
+    "last_used_simulator": "iPhone 16 Pro", // Auto-learned from successful builds
+    "last_used_at": "2025-10-18T13:36:18Z" // ISO timestamp
+  }
+}
+```
+
+**Simulator Selection Priority (in builder.py):**
+1. `--simulator` CLI flag → One-off override
+2. `config.preferred_simulator` → Manual preference (always used if available)
+3. `config.last_used_simulator` → Auto-learned from successful builds
+4. Auto-detect first available iPhone → Fallback
+5. `generic/platform=iOS Simulator` → Final fallback
+
+**Auto-Learning Flow:**
+1. Build completes successfully
+2. Extract simulator name from xcodebuild destination
+3. Load config from project directory
+4. Update `last_used_simulator` + `last_used_at` timestamp
+5. Atomic save (temp file + rename)
+6. Silent failure if config update fails (doesn't break build)
+
+**Key Design Decisions:**
+- **Project-local** (not user-global): Different projects need different simulators
+- **JSON format**: No dependencies, native Python support, easy to read/edit
+- **Auto-learning only on success**: Don't remember failed builds
+- **Atomic writes**: Prevent corruption from interrupted writes
+- **Graceful degradation**: Works perfectly without config file
+- **Zero configuration**: Creates config automatically on first build
+- **Error isolation**: Config failures never break builds (warnings only)
+
+**Benefits:**
+- ✅ **Consistent builds**: Remembers what worked last time
+- ✅ **No repeated flags**: Don't need `--simulator` every time
+- ✅ **Project-specific**: Each project remembers its own preference
+- ✅ **Learns from you**: Updates automatically based on successful choices
+- ✅ **Manual override**: Can set `preferred_simulator` for strict preference
+- ✅ **Safe**: Atomic writes, error handling, never breaks builds
+
+**Algorithm (Two-Tier Progressive Disclosure):**
+
+**Tier 1: Build Execution (Ultra-Minimal Output)**
+1. Run xcodebuild with `-quiet` and `-resultBundlePath`
+2. Generate timestamped xcresult ID
+3. Save xcresult bundle to cache
+4. Extract error/warning counts via xcresulttool
+5. Return minimal output: `Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]`
+
+**Tier 2: Progressive Disclosure (On-Demand Details)**
+1. Agent uses xcresult ID to request details
+2. XCResultParser loads bundle from cache
+3. Runs appropriate xcresulttool command
+4. Parses structured JSON
+5. OutputFormatter renders requested view
+
+**Output Formats:**
+- **Default (5-10 tokens):** `Build: SUCCESS (0 errors, 3 warnings) [xcresult-abc123]`
+- **--get-errors:** Detailed error list with file/line info
+- **--get-warnings:** Detailed warning list
+- **--get-log:** Full build log (last N lines)
+- **--get-all:** Complete details as JSON or formatted text
+- **--list-xcresults:** Recent build results
+- **--verbose:** Errors + warnings inline (backwards compatible)
+- **--json:** Machine-readable output
+
+**Key Features:**
+- ✅ **Ultra token-efficient**: Default = 5-10 tokens (vs 400+ before)
+- ✅ **Progressive disclosure**: Load details only when needed
+- ✅ **Native xcresult**: Uses Apple's official format
+- ✅ **Structured data**: JSON from xcresulttool
+- ✅ **Cached results**: Access build data hours/days later
+- ✅ **Modular design**: 5 focused files, each <250 lines
+- ✅ **Backwards compatible**: --verbose and --json still work
+
+**Integration Points:**
+- Uses `sim_health_check.sh` for environment validation
+- Produces .app bundles for `app_launcher.py`
+- Works with `test_recorder.py` for test documentation
+- xcresult bundles persist in cache for later analysis
+
+**Progressive Disclosure Workflow:**
+```bash
+# Step 1: Build (minimal output)
+$ python scripts/build_and_test.py --project MyApp.xcodeproj
+Build: FAILED (2 errors, 0 warnings) [xcresult-20251018-143052]
+
+# Step 2: Get error details
+$ python scripts/build_and_test.py --get-errors xcresult-20251018-143052
+Errors (2):
+
+1. Use of unresolved identifier 'invalidFunction'
+   Location: ViewController.swift:line 45
+
+2. Cannot find 'MissingClass' in scope
+   Location: DataModel.swift:line 78
+
+# Step 3: Fix errors and rebuild
+$ python scripts/build_and_test.py --project MyApp.xcodeproj
+Build: SUCCESS (0 errors, 1 warnings) [xcresult-20251018-143100]
+```
+
+**Benefits:**
+- Dramatically reduces token usage for successful builds
+- Agent only loads error details when build fails
+- Enables debugging without re-running builds
+- Perfect for CI/CD with token-constrained agents
+
+---
+
+#### log_monitor.py (486 lines)
+**What it does:** Monitor and analyze iOS simulator logs in real-time with intelligent filtering.
+
+**Algorithm:**
+1. Build `xcrun simctl spawn booted log stream` command
+2. Add predicate filters for app bundle ID
+3. Stream logs line-by-line
+4. Classify each line by severity (error/warning/info/debug)
+5. Deduplicate repeated messages (signature-based)
+6. Store by severity with counts
+7. Generate token-efficient summary or stream in follow mode
+
+**Output formats:**
+- Default: Summary with error/warning counts and top issues
+- `--follow`: Real-time streaming to stdout
+- `--json`: Structured log events
+- `--output`: Save full logs to file
+
+**Key features:**
+- Real-time streaming or duration-based capture
+- Severity classification (error/warning/info/debug)
+- Deduplication of repeated messages
+- Time-based filtering (last N minutes)
+- App bundle ID filtering
+- Graceful interruption handling (Ctrl+C)
+- Token-efficient summaries
+
+**Integration points:**
+- Enhanced version of `app_state_capture.py` log capture
+- Runs alongside `test_recorder.py` for comprehensive documentation
+- Complements `navigator.py` for debugging UI interactions
+
+---
+
+### Category 2: Navigation & Interaction (5 scripts)
 
 **Purpose:** Enable semantic, accessibility-based navigation instead of pixel coordinates.
 
-#### screen_mapper.py (317 lines)
+#### screen_mapper.py (307 lines)
 **What it does:** Analyzes current screen to answer "What's visible and interactive?"
 
 **Algorithm:**
@@ -120,7 +357,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-#### navigator.py (413 lines)
+#### navigator.py (412 lines)
 **What it does:** Find and interact with specific UI elements semantically.
 
 **Core capabilities:**
@@ -151,7 +388,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-#### gesture.py (380 lines)
+#### gesture.py (353 lines)
 **What it does:** Perform swipes, scrolls, and complex touch gestures.
 
 **Supported gestures:**
@@ -179,7 +416,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-#### keyboard.py (410 lines)
+#### keyboard.py (379 lines)
 **What it does:** Handle text input, special keys, and hardware buttons.
 
 **Capabilities:**
@@ -218,7 +455,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-#### app_launcher.py (394 lines)
+#### app_launcher.py (363 lines)
 **What it does:** Control app lifecycle and state.
 
 **Capabilities:**
@@ -259,11 +496,11 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-### Category 2: Testing & Analysis (5 scripts)
+### Category 3: Testing & Analysis (5 scripts)
 
 **Purpose:** Provide specialized tools for test automation, debugging, and compliance checking.
 
-#### accessibility_audit.py (306 lines)
+#### accessibility_audit.py (308 lines)
 **What it does:** Check screen for WCAG accessibility compliance.
 
 **Rules checked:**
@@ -303,7 +540,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-#### visual_diff.py (252 lines)
+#### visual_diff.py (235 lines)
 **What it does:** Compare two screenshots for visual changes.
 
 **Features:**
@@ -340,7 +577,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-#### test_recorder.py (258 lines)
+#### test_recorder.py (246 lines)
 **What it does:** Automatically document test execution with screenshots and state.
 
 **Features:**
@@ -387,7 +624,7 @@ test-name-TIMESTAMP/
 
 ---
 
-#### app_state_capture.py (334 lines)
+#### app_state_capture.py (305 lines)
 **What it does:** Create comprehensive debugging snapshots.
 
 **Captures:**
@@ -903,7 +1140,7 @@ All code in this repository follows:
 
 ## License
 
-Apache 2.0 - Allowing commercial use and distribution.
+MIT - Allowing commercial use and distribution.
 
 ---
 

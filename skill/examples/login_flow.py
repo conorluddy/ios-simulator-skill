@@ -36,7 +36,7 @@ def print_step(step_num: int, description: str):
     """Print step header."""
     print(f"\n{'='*60}")
     print(f"Step {step_num}: {description}")
-    print('='*60)
+    print("=" * 60)
 
 
 def main():
@@ -50,10 +50,9 @@ def main():
 
     # Step 1: Launch the app
     print_step(1, "Launch App")
-    success, output = run_command([
-        'python', str(scripts_dir / 'app_launcher.py'),
-        '--launch', APP_BUNDLE_ID
-    ])
+    success, output = run_command(
+        ["python", str(scripts_dir / "app_launcher.py"), "--launch", APP_BUNDLE_ID]
+    )
 
     if success:
         print(f"✓ {output}")
@@ -66,9 +65,7 @@ def main():
 
     # Step 2: Map the login screen
     print_step(2, "Map Login Screen")
-    success, output = run_command([
-        'python', str(scripts_dir / 'screen_mapper.py')
-    ])
+    success, output = run_command(["python", str(scripts_dir / "screen_mapper.py")])
 
     if success:
         print(output)
@@ -78,12 +75,18 @@ def main():
 
     # Step 3: Enter email
     print_step(3, "Enter Email Address")
-    success, output = run_command([
-        'python', str(scripts_dir / 'navigator.py'),
-        '--find-type', 'TextField',
-        '--index', '0',
-        '--enter-text', 'test@example.com'
-    ])
+    success, output = run_command(
+        [
+            "python",
+            str(scripts_dir / "navigator.py"),
+            "--find-type",
+            "TextField",
+            "--index",
+            "0",
+            "--enter-text",
+            "test@example.com",
+        ]
+    )
 
     if success:
         print(f"✓ {output}")
@@ -93,11 +96,16 @@ def main():
 
     # Step 4: Enter password
     print_step(4, "Enter Password")
-    success, output = run_command([
-        'python', str(scripts_dir / 'navigator.py'),
-        '--find-type', 'SecureTextField',
-        '--enter-text', 'password123'
-    ])
+    success, output = run_command(
+        [
+            "python",
+            str(scripts_dir / "navigator.py"),
+            "--find-type",
+            "SecureTextField",
+            "--enter-text",
+            "password123",
+        ]
+    )
 
     if success:
         print(f"✓ {output}")
@@ -107,11 +115,9 @@ def main():
 
     # Step 5: Tap Login button
     print_step(5, "Tap Login Button")
-    success, output = run_command([
-        'python', str(scripts_dir / 'navigator.py'),
-        '--find-text', 'Login',
-        '--tap'
-    ])
+    success, output = run_command(
+        ["python", str(scripts_dir / "navigator.py"), "--find-text", "Login", "--tap"]
+    )
 
     if success:
         print(f"✓ {output}")
@@ -125,9 +131,7 @@ def main():
 
     # Step 6: Verify we're logged in
     print_step(6, "Verify Logged In")
-    success, output = run_command([
-        'python', str(scripts_dir / 'screen_mapper.py')
-    ])
+    success, output = run_command(["python", str(scripts_dir / "screen_mapper.py")])
 
     if success:
         print(output)
@@ -141,31 +145,27 @@ def main():
 
     # Optional: Navigate to profile
     print_step(7, "Navigate to Profile (Optional)")
-    success, output = run_command([
-        'python', str(scripts_dir / 'navigator.py'),
-        '--find-text', 'Profile',
-        '--tap'
-    ])
+    success, output = run_command(
+        ["python", str(scripts_dir / "navigator.py"), "--find-text", "Profile", "--tap"]
+    )
 
     if success:
         print(f"✓ {output}")
         time.sleep(1)
 
         # Map profile screen
-        success, output = run_command([
-            'python', str(scripts_dir / 'screen_mapper.py')
-        ])
+        success, output = run_command(["python", str(scripts_dir / "screen_mapper.py")])
         if success:
             print(f"\nProfile Screen:\n{output}")
     else:
         print(f"⚠ Profile navigation skipped: {output}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Login flow complete!")
-    print("="*60)
+    print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

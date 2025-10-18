@@ -1,0 +1,71 @@
+[project]
+name = "ios-simulator-skill"
+version = "1.0.0"
+description = "Build, test, and automate iOS apps with accessibility-driven navigation"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE.md"}
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.ruff_cache
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Only check skill code, not root-level dev scripts
+include = ["skill/scripts/**/*.py", "skill/examples/**/*.py"]
+
+[tool.ruff.lint]
+# Enable ALL recommended rules (strict mode)
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+]
+
+# Strict mode with pragmatic exceptions for CLI tools
+ignore = [
+    "PLR0913",  # Too many arguments - common in CLI tools
+    "PLR2004",  # Magic values - acceptable for coordinates/constants
+    "PLR0912",  # Too many branches - acceptable for CLI scripts
+    "PLR0915",  # Too many statements - acceptable for main() functions
+    "PLR0911",  # Too many return statements
+    "PLC0415",  # Import outside top-level - lazy imports are intentional
+    "PTH123",   # Use Path.open() - open() is fine for simple cases
+    "PTH119",   # Use Path - os.path is fine for simple cases
+    "E501",     # Line too long - Black handles this, some long lines OK
+    "E722",     # Bare except - acceptable for top-level error handling
+    "RUF012",   # Mutable class attributes - acceptable for constants
+    "RUF001",   # Ambiguous characters - intentional use of emoji
+    "RUF005",   # Iterable unpacking - list concatenation is readable
+    "ARG001",   # Unused function arguments - required by signal handlers
+    "SIM102",   # Nested if statements - more readable in some cases
+    "PLW2901",  # Redefined loop variable - acceptable in some contexts
+    "F401",     # Unused import - may be used in __init__.py exports
+    "N806",     # Non-lowercase variable - acceptable for constants
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["xcode"]

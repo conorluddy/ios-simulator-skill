@@ -61,7 +61,6 @@ import argparse
 import subprocess
 import sys
 import time
-from typing import Tuple, Optional
 
 
 class GestureController:
@@ -71,29 +70,30 @@ class GestureController:
     DEFAULT_WIDTH = 390  # iPhone 14
     DEFAULT_HEIGHT = 844
 
-    def __init__(self, udid: Optional[str] = None):
+    def __init__(self, udid: str | None = None):
         """Initialize gesture controller."""
         self.udid = udid
         self.screen_size = self._get_screen_size()
 
-    def _get_screen_size(self) -> Tuple[int, int]:
+    def _get_screen_size(self) -> tuple[int, int]:
         """Try to detect screen size from device."""
         # Try to get screen size from accessibility tree
         try:
-            cmd = ['idb', 'ui', 'describe-all', '--json']
+            cmd = ["idb", "ui", "describe-all", "--json"]
             if self.udid:
-                cmd.extend(['--udid', self.udid])
+                cmd.extend(["--udid", self.udid])
 
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             import json
+
             data = json.loads(result.stdout)
 
             # IDB returns array, get first element
             if isinstance(data, list) and len(data) > 0:
                 root = data[0]
-                frame = root.get('frame', {})
-                width = int(frame.get('width', self.DEFAULT_WIDTH))
-                height = int(frame.get('height', self.DEFAULT_HEIGHT))
+                frame = root.get("frame", {})
+                width = int(frame.get("width", self.DEFAULT_WIDTH))
+                height = int(frame.get("height", self.DEFAULT_HEIGHT))
                 return (width, height)
         except:
             pass
@@ -116,16 +116,16 @@ class GestureController:
         center_y = height // 2
 
         # Calculate swipe coordinates based on direction
-        if direction == 'up':
+        if direction == "up":
             start = (center_x, int(height * 0.7))
             end = (center_x, int(height * (1 - distance_ratio + 0.3)))
-        elif direction == 'down':
+        elif direction == "down":
             start = (center_x, int(height * 0.3))
             end = (center_x, int(height * (distance_ratio - 0.3 + 0.3)))
-        elif direction == 'left':
+        elif direction == "left":
             start = (int(width * 0.8), center_y)
             end = (int(width * (1 - distance_ratio + 0.2)), center_y)
-        elif direction == 'right':
+        elif direction == "right":
             start = (int(width * 0.2), center_y)
             end = (int(width * (distance_ratio - 0.2 + 0.2)), center_y)
         else:
@@ -133,7 +133,9 @@ class GestureController:
 
         return self.swipe_between(start, end)
 
-    def swipe_between(self, start: Tuple[int, int], end: Tuple[int, int], duration: float = 0.3) -> bool:
+    def swipe_between(
+        self, start: tuple[int, int], end: tuple[int, int], duration: float = 0.3
+    ) -> bool:
         """
         Swipe between two points.
 
@@ -145,15 +147,15 @@ class GestureController:
         Returns:
             Success status
         """
-        cmd = ['idb', 'ui', 'swipe']
+        cmd = ["idb", "ui", "swipe"]
         cmd.extend([str(start[0]), str(start[1]), str(end[0]), str(end[1])])
 
         # IDB doesn't support duration directly, but we can add delay
         if duration != 0.3:
-            cmd.extend(['--duration', str(int(duration * 1000))])
+            cmd.extend(["--duration", str(int(duration * 1000))])
 
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -191,10 +193,10 @@ class GestureController:
         """
         # IDB doesn't have native long press, simulate with tap
         # In real implementation, might need to use different approach
-        cmd = ['idb', 'ui', 'tap', str(x), str(y)]
+        cmd = ["idb", "ui", "tap", str(x), str(y)]
 
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -204,7 +206,7 @@ class GestureController:
         except subprocess.CalledProcessError:
             return False
 
-    def pinch(self, direction: str = 'out', center: Optional[Tuple[int, int]] = None) -> bool:
+    def pinch(self, direction: str = "out", center: tuple[int, int] | None = None) -> bool:
         """
         Perform pinch gesture (zoom in/out).
 
@@ -220,9 +222,9 @@ class GestureController:
             center = (width // 2, height // 2)
 
         # Calculate pinch points
-        offset = 100 if direction == 'out' else 50
+        offset = 100 if direction == "out" else 50
 
-        if direction == 'out':
+        if direction == "out":
             # Zoom in - fingers move apart
             start1 = (center[0] - 20, center[1] - 20)
             end1 = (center[0] - offset, center[1] - offset)
@@ -241,7 +243,7 @@ class GestureController:
 
         return success1 and success2
 
-    def drag_and_drop(self, start: Tuple[int, int], end: Tuple[int, int]) -> bool:
+    def drag_and_drop(self, start: tuple[int, int], end: tuple[int, int]) -> bool:
         """
         Drag element from one position to another.
 
@@ -265,59 +267,29 @@ class GestureController:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Perform gestures on iOS simulator'
-    )
+    parser = argparse.ArgumentParser(description="Perform gestures on iOS simulator")
 
     # Gesture options
     parser.add_argument(
-        '--swipe',
-        choices=['up', 'down', 'left', 'right'],
-        help='Perform directional swipe'
+        "--swipe", choices=["up", "down", "left", "right"], help="Perform directional swipe"
+    )
+    parser.add_argument("--swipe-from", help="Custom swipe start coordinates (x,y)")
+    parser.add_argument("--swipe-to", help="Custom swipe end coordinates (x,y)")
+    parser.add_argument(
+        "--scroll", choices=["up", "down"], help="Scroll in direction (multiple small swipes)"
     )
     parser.add_argument(
-        '--swipe-from',
-        help='Custom swipe start coordinates (x,y)'
+        "--scroll-amount", type=int, default=3, help="Number of scroll swipes (default: 3)"
+    )
+    parser.add_argument("--long-press", help="Long press at coordinates (x,y)")
+    parser.add_argument(
+        "--duration", type=float, default=2.0, help="Duration for long press in seconds"
     )
     parser.add_argument(
-        '--swipe-to',
-        help='Custom swipe end coordinates (x,y)'
+        "--pinch", choices=["in", "out"], help="Pinch gesture (in=zoom out, out=zoom in)"
     )
-    parser.add_argument(
-        '--scroll',
-        choices=['up', 'down'],
-        help='Scroll in direction (multiple small swipes)'
-    )
-    parser.add_argument(
-        '--scroll-amount',
-        type=int,
-        default=3,
-        help='Number of scroll swipes (default: 3)'
-    )
-    parser.add_argument(
-        '--long-press',
-        help='Long press at coordinates (x,y)'
-    )
-    parser.add_argument(
-        '--duration',
-        type=float,
-        default=2.0,
-        help='Duration for long press in seconds'
-    )
-    parser.add_argument(
-        '--pinch',
-        choices=['in', 'out'],
-        help='Pinch gesture (in=zoom out, out=zoom in)'
-    )
-    parser.add_argument(
-        '--refresh',
-        action='store_true',
-        help='Pull to refresh gesture'
-    )
-    parser.add_argument(
-        '--udid',
-        help='Device UDID'
-    )
+    parser.add_argument("--refresh", action="store_true", help="Pull to refresh gesture")
+    parser.add_argument("--udid", help="Device UDID")
 
     args = parser.parse_args()
 
@@ -333,13 +305,13 @@ def main():
 
     elif args.swipe_from and args.swipe_to:
         # Custom swipe
-        start = tuple(map(int, args.swipe_from.split(',')))
-        end = tuple(map(int, args.swipe_to.split(',')))
+        start = tuple(map(int, args.swipe_from.split(",")))
+        end = tuple(map(int, args.swipe_to.split(",")))
 
         if controller.swipe_between(start, end):
             print(f"Swiped from {start} to {end}")
         else:
-            print(f"Failed to swipe")
+            print("Failed to swipe")
             sys.exit(1)
 
     elif args.scroll:
@@ -350,16 +322,16 @@ def main():
             sys.exit(1)
 
     elif args.long_press:
-        coords = tuple(map(int, args.long_press.split(',')))
+        coords = tuple(map(int, args.long_press.split(",")))
         if controller.tap_and_hold(coords[0], coords[1], args.duration):
             print(f"Long pressed at {coords} for {args.duration}s")
         else:
-            print(f"Failed to long press")
+            print("Failed to long press")
             sys.exit(1)
 
     elif args.pinch:
         if controller.pinch(args.pinch):
-            action = "Zoomed in" if args.pinch == 'out' else "Zoomed out"
+            action = "Zoomed in" if args.pinch == "out" else "Zoomed out"
             print(action)
         else:
             print(f"Failed to pinch {args.pinch}")
@@ -377,5 +349,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

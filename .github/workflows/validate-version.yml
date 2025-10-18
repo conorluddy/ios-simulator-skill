@@ -1,0 +1,70 @@
+name: Validate Version
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to validate (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate version consistency
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag or input
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+
+          # Remove 'v' prefix if present
+          VERSION_NUMBER="${VERSION#v}"
+
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+          echo "number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+          echo "📌 Validating version: $VERSION (number: $VERSION_NUMBER)"
+
+      - name: Check pyproject.toml version
+        run: |
+          PYPROJECT_VERSION=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+          echo "Release version: ${{ steps.version.outputs.number }}"
+
+          if [ "$PYPROJECT_VERSION" != "${{ steps.version.outputs.number }}" ]; then
+            echo "❌ ERROR: Version mismatch!"
+            echo "  pyproject.toml: $PYPROJECT_VERSION"
+            echo "  Release tag: ${{ steps.version.outputs.number }}"
+            exit 1
+          fi
+          echo "✅ pyproject.toml version matches"
+
+      - name: Check SKILL.md for version reference
+        run: |
+          if ! grep -q "${{ steps.version.outputs.number }}" skill/SKILL.md; then
+            echo "⚠️  WARNING: Version ${{ steps.version.outputs.number }} not mentioned in SKILL.md"
+            echo "Consider adding version info to the SKILL.md frontmatter or description"
+          else
+            echo "✅ SKILL.md mentions version ${{ steps.version.outputs.number }}"
+          fi
+
+      - name: Validation summary
+        if: success()
+        run: |
+          echo "## ✅ Version Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Version:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All version references are consistent:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ pyproject.toml: ${{ steps.version.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Git tag: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY

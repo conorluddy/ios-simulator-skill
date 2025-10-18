@@ -1,0 +1,39 @@
+# Pre-commit hooks for ios-simulator-skill
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Black - Code formatter
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        name: Format Python code with Black
+        language_version: python3.12
+        files: ^skill/scripts/.*\.py$
+
+  # Ruff - Fast linter (replaces Flake8, isort, etc)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        name: Lint with Ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^skill/scripts/.*\.py$
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of files
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=500']
+      - id: mixed-line-ending
+        name: Fix mixed line endings
+        args: ['--fix=lf']

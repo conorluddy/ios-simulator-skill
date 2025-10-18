@@ -9,20 +9,20 @@ Usage: python scripts/app_launcher.py --launch com.example.app
 """
 
 import argparse
+import contextlib
 import subprocess
 import sys
 import time
-from typing import Optional, List, Dict, Tuple
 
 
 class AppLauncher:
     """Controls app lifecycle on iOS simulator."""
 
-    def __init__(self, udid: Optional[str] = None):
+    def __init__(self, udid: str | None = None):
         """Initialize app launcher."""
         self.udid = udid
 
-    def launch(self, bundle_id: str, wait_for_debugger: bool = False) -> Tuple[bool, Optional[int]]:
+    def launch(self, bundle_id: str, wait_for_debugger: bool = False) -> tuple[bool, int | None]:
         """
         Launch an app.
 
@@ -33,16 +33,16 @@ class AppLauncher:
         Returns:
             (success, pid) tuple
         """
-        cmd = ['xcrun', 'simctl', 'launch']
+        cmd = ["xcrun", "simctl", "launch"]
 
         if wait_for_debugger:
-            cmd.append('--wait-for-debugger')
+            cmd.append("--wait-for-debugger")
 
         # Add device
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
         cmd.append(bundle_id)
 
@@ -52,12 +52,10 @@ class AppLauncher:
             pid = None
             if result.stdout:
                 # Output format: "com.example.app: <PID>"
-                parts = result.stdout.strip().split(':')
+                parts = result.stdout.strip().split(":")
                 if len(parts) > 1:
-                    try:
+                    with contextlib.suppress(ValueError):
                         pid = int(parts[1].strip())
-                    except ValueError:
-                        pass
             return (True, pid)
         except subprocess.CalledProcessError:
             return (False, None)
@@ -72,13 +70,13 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ['xcrun', 'simctl', 'terminate']
+        cmd = ["xcrun", "simctl", "terminate"]
 
         # Add device
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
         cmd.append(bundle_id)
 
@@ -98,13 +96,13 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ['xcrun', 'simctl', 'install']
+        cmd = ["xcrun", "simctl", "install"]
 
         # Add device
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
         cmd.append(app_path)
 
@@ -124,13 +122,13 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ['xcrun', 'simctl', 'uninstall']
+        cmd = ["xcrun", "simctl", "uninstall"]
 
         # Add device
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
         cmd.append(bundle_id)
 
@@ -150,13 +148,13 @@ class AppLauncher:
         Returns:
             Success status
         """
-        cmd = ['xcrun', 'simctl', 'openurl']
+        cmd = ["xcrun", "simctl", "openurl"]
 
         # Add device
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
         cmd.append(url)
 
@@ -166,20 +164,20 @@ class AppLauncher:
         except subprocess.CalledProcessError:
             return False
 
-    def list_apps(self) -> List[Dict[str, str]]:
+    def list_apps(self) -> list[dict[str, str]]:
         """
         List installed apps.
 
         Returns:
             List of app info dictionaries
         """
-        cmd = ['xcrun', 'simctl', 'listapps']
+        cmd = ["xcrun", "simctl", "listapps"]
 
         # Add device
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -188,31 +186,33 @@ class AppLauncher:
             plist_data = result.stdout
 
             # Use plutil to convert plist to JSON
-            convert_cmd = ['plutil', '-convert', 'json', '-o', '-', '-']
+            convert_cmd = ["plutil", "-convert", "json", "-o", "-", "-"]
             convert_result = subprocess.run(
-                convert_cmd,
-                input=plist_data,
-                capture_output=True,
-                text=True
+                convert_cmd, check=False, input=plist_data, capture_output=True, text=True
             )
 
             apps = []
             if convert_result.returncode == 0:
                 import json
+
                 try:
                     data = json.loads(convert_result.stdout)
                     for bundle_id, app_info in data.items():
                         # Skip system internal apps that are hidden
-                        if app_info.get('ApplicationType') == 'Hidden':
+                        if app_info.get("ApplicationType") == "Hidden":
                             continue
 
-                        apps.append({
-                            'bundle_id': bundle_id,
-                            'name': app_info.get('CFBundleDisplayName', app_info.get('CFBundleName', bundle_id)),
-                            'path': app_info.get('Path', ''),
-                            'version': app_info.get('CFBundleVersion', 'Unknown'),
-                            'type': app_info.get('ApplicationType', 'User')
-                        })
+                        apps.append(
+                            {
+                                "bundle_id": bundle_id,
+                                "name": app_info.get(
+                                    "CFBundleDisplayName", app_info.get("CFBundleName", bundle_id)
+                                ),
+                                "path": app_info.get("Path", ""),
+                                "version": app_info.get("CFBundleVersion", "Unknown"),
+                                "type": app_info.get("ApplicationType", "User"),
+                            }
+                        )
                 except json.JSONDecodeError:
                     pass
 
@@ -231,22 +231,22 @@ class AppLauncher:
             State string or 'unknown'
         """
         # Check if app is running by trying to get its PID
-        cmd = ['xcrun', 'simctl', 'spawn']
+        cmd = ["xcrun", "simctl", "spawn"]
 
         if self.udid:
             cmd.append(self.udid)
         else:
-            cmd.append('booted')
+            cmd.append("booted")
 
-        cmd.extend(['launchctl', 'list'])
+        cmd.extend(["launchctl", "list"])
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             if bundle_id in result.stdout:
-                return 'running'
-            return 'not running'
+                return "running"
+            return "not running"
         except subprocess.CalledProcessError:
-            return 'unknown'
+            return "unknown"
 
     def restart_app(self, bundle_id: str, delay: float = 1.0) -> bool:
         """
@@ -270,55 +270,23 @@ class AppLauncher:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Control iOS app lifecycle'
-    )
+    parser = argparse.ArgumentParser(description="Control iOS app lifecycle")
 
     # Actions
-    parser.add_argument(
-        '--launch',
-        help='Launch app by bundle ID'
-    )
-    parser.add_argument(
-        '--terminate',
-        help='Terminate app by bundle ID'
-    )
-    parser.add_argument(
-        '--restart',
-        help='Restart app by bundle ID'
-    )
-    parser.add_argument(
-        '--install',
-        help='Install app from .app path'
-    )
-    parser.add_argument(
-        '--uninstall',
-        help='Uninstall app by bundle ID'
-    )
-    parser.add_argument(
-        '--open-url',
-        help='Open URL (deep link)'
-    )
-    parser.add_argument(
-        '--list',
-        action='store_true',
-        help='List installed apps'
-    )
-    parser.add_argument(
-        '--state',
-        help='Get app state by bundle ID'
-    )
+    parser.add_argument("--launch", help="Launch app by bundle ID")
+    parser.add_argument("--terminate", help="Terminate app by bundle ID")
+    parser.add_argument("--restart", help="Restart app by bundle ID")
+    parser.add_argument("--install", help="Install app from .app path")
+    parser.add_argument("--uninstall", help="Uninstall app by bundle ID")
+    parser.add_argument("--open-url", help="Open URL (deep link)")
+    parser.add_argument("--list", action="store_true", help="List installed apps")
+    parser.add_argument("--state", help="Get app state by bundle ID")
 
     # Options
     parser.add_argument(
-        '--wait-for-debugger',
-        action='store_true',
-        help='Wait for debugger when launching'
+        "--wait-for-debugger", action="store_true", help="Wait for debugger when launching"
     )
-    parser.add_argument(
-        '--udid',
-        help='Device UDID'
-    )
+    parser.add_argument("--udid", help="Device UDID")
 
     args = parser.parse_args()
 
@@ -391,5 +359,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

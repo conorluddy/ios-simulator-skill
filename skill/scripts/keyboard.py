@@ -69,7 +69,6 @@ import argparse
 import subprocess
 import sys
 import time
-from typing import Optional, List
 
 
 class KeyboardController:
@@ -78,31 +77,31 @@ class KeyboardController:
     # Special key mappings to iOS HID key codes
     # See: https://developer.apple.com/documentation/uikit/uikeyboardhidusage
     SPECIAL_KEYS = {
-        'return': 40,
-        'enter': 40,
-        'delete': 42,
-        'backspace': 42,
-        'tab': 43,
-        'space': 44,
-        'escape': 41,
-        'up': 82,
-        'down': 81,
-        'left': 80,
-        'right': 79
+        "return": 40,
+        "enter": 40,
+        "delete": 42,
+        "backspace": 42,
+        "tab": 43,
+        "space": 44,
+        "escape": 41,
+        "up": 82,
+        "down": 81,
+        "left": 80,
+        "right": 79,
     }
 
     # Hardware button mappings
     HARDWARE_BUTTONS = {
-        'home': 'HOME',
-        'lock': 'LOCK',
-        'volume-up': 'VOLUME_UP',
-        'volume-down': 'VOLUME_DOWN',
-        'ringer': 'RINGER',
-        'power': 'LOCK',  # Alias
-        'screenshot': 'SCREENSHOT'
+        "home": "HOME",
+        "lock": "LOCK",
+        "volume-up": "VOLUME_UP",
+        "volume-down": "VOLUME_DOWN",
+        "ringer": "RINGER",
+        "power": "LOCK",  # Alias
+        "screenshot": "SCREENSHOT",
     }
 
-    def __init__(self, udid: Optional[str] = None):
+    def __init__(self, udid: str | None = None):
         """Initialize keyboard controller."""
         self.udid = udid
 
@@ -124,15 +123,14 @@ class KeyboardController:
                     return False
                 time.sleep(delay)
             return True
-        else:
-            # Type all at once (efficient)
-            return self._type_single(text)
+        # Type all at once (efficient)
+        return self._type_single(text)
 
     def _type_single(self, text: str) -> bool:
         """Type text using IDB."""
-        cmd = ['idb', 'ui', 'text', text]
+        cmd = ["idb", "ui", "text", text]
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -160,9 +158,9 @@ class KeyboardController:
             except ValueError:
                 return False
 
-        cmd = ['idb', 'ui', 'key', str(key_code)]
+        cmd = ["idb", "ui", "key", str(key_code)]
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             for _ in range(count):
@@ -173,7 +171,7 @@ class KeyboardController:
         except subprocess.CalledProcessError:
             return False
 
-    def press_key_sequence(self, keys: List[str]) -> bool:
+    def press_key_sequence(self, keys: list[str]) -> bool:
         """
         Press a sequence of keys.
 
@@ -183,7 +181,7 @@ class KeyboardController:
         Returns:
             Success status
         """
-        cmd_base = ['idb', 'ui', 'key-sequence']
+        cmd_base = ["idb", "ui", "key-sequence"]
 
         # Map keys to codes
         mapped_keys = []
@@ -200,7 +198,7 @@ class KeyboardController:
         cmd = cmd_base + mapped_keys
 
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -222,9 +220,9 @@ class KeyboardController:
         if not button_code:
             return False
 
-        cmd = ['idb', 'ui', 'button', button_code]
+        cmd = ["idb", "ui", "button", button_code]
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -245,14 +243,15 @@ class KeyboardController:
         if select_all:
             # Select all then delete
             # Note: This might need adjustment for iOS keyboard shortcuts
-            success = self.press_key_combo(['cmd', 'a'])
+            success = self.press_key_combo(["cmd", "a"])
             if success:
-                return self.press_key('delete')
+                return self.press_key("delete")
         else:
             # Just delete multiple times
-            return self.press_key('delete', count=50)
+            return self.press_key("delete", count=50)
+        return None
 
-    def press_key_combo(self, keys: List[str]) -> bool:
+    def press_key_combo(self, keys: list[str]) -> bool:
         """
         Press key combination (like Cmd+A).
 
@@ -264,17 +263,17 @@ class KeyboardController:
         """
         # IDB doesn't directly support key combos
         # This is a workaround - may need platform-specific handling
-        if 'cmd' in keys or 'command' in keys:
+        if "cmd" in keys or "command" in keys:
             # Handle common shortcuts
-            if 'a' in keys:
+            if "a" in keys:
                 # Select all - might work with key sequence
-                return self.press_key_sequence(['command', 'a'])
-            elif 'c' in keys:
-                return self.press_key_sequence(['command', 'c'])
-            elif 'v' in keys:
-                return self.press_key_sequence(['command', 'v'])
-            elif 'x' in keys:
-                return self.press_key_sequence(['command', 'x'])
+                return self.press_key_sequence(["command", "a"])
+            if "c" in keys:
+                return self.press_key_sequence(["command", "c"])
+            if "v" in keys:
+                return self.press_key_sequence(["command", "v"])
+            if "x" in keys:
+                return self.press_key_sequence(["command", "x"])
 
         # Try as sequence
         return self.press_key_sequence(keys)
@@ -283,7 +282,7 @@ class KeyboardController:
         """Dismiss on-screen keyboard."""
         # Common ways to dismiss keyboard on iOS
         # Try Done button first, then Return
-        success = self.press_key('return')
+        success = self.press_key("return")
         if not success:
             # Try tapping outside (would need coordinate)
             pass
@@ -292,60 +291,29 @@ class KeyboardController:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Control keyboard and hardware buttons'
-    )
+    parser = argparse.ArgumentParser(description="Control keyboard and hardware buttons")
 
     # Text input
-    parser.add_argument(
-        '--type',
-        help='Type text into current focus'
-    )
-    parser.add_argument(
-        '--slow',
-        action='store_true',
-        help='Type slowly (character by character)'
-    )
+    parser.add_argument("--type", help="Type text into current focus")
+    parser.add_argument("--slow", action="store_true", help="Type slowly (character by character)")
 
     # Special keys
-    parser.add_argument(
-        '--key',
-        help='Press special key (return, delete, tab, space, etc.)'
-    )
-    parser.add_argument(
-        '--key-sequence',
-        help='Press key sequence (comma-separated)'
-    )
-    parser.add_argument(
-        '--count',
-        type=int,
-        default=1,
-        help='Number of times to press key'
-    )
+    parser.add_argument("--key", help="Press special key (return, delete, tab, space, etc.)")
+    parser.add_argument("--key-sequence", help="Press key sequence (comma-separated)")
+    parser.add_argument("--count", type=int, default=1, help="Number of times to press key")
 
     # Hardware buttons
     parser.add_argument(
-        '--button',
-        choices=['home', 'lock', 'volume-up', 'volume-down', 'ringer', 'screenshot'],
-        help='Press hardware button'
+        "--button",
+        choices=["home", "lock", "volume-up", "volume-down", "ringer", "screenshot"],
+        help="Press hardware button",
     )
 
     # Other operations
-    parser.add_argument(
-        '--clear',
-        action='store_true',
-        help='Clear current text field'
-    )
-    parser.add_argument(
-        '--dismiss',
-        action='store_true',
-        help='Dismiss keyboard'
-    )
+    parser.add_argument("--clear", action="store_true", help="Clear current text field")
+    parser.add_argument("--dismiss", action="store_true", help="Dismiss keyboard")
 
-    parser.add_argument(
-        '--udid',
-        help='Device UDID'
-    )
+    parser.add_argument("--udid", help="Device UDID")
 
     args = parser.parse_args()
 
@@ -356,9 +324,9 @@ def main():
         delay = 0.1 if args.slow else 0.0
         if controller.type_text(args.type, delay):
             if args.slow:
-                print(f"Typed: \"{args.type}\" (slowly)")
+                print(f'Typed: "{args.type}" (slowly)')
             else:
-                print(f"Typed: \"{args.type}\"")
+                print(f'Typed: "{args.type}"')
         else:
             print("Failed to type text")
             sys.exit(1)
@@ -374,7 +342,7 @@ def main():
             sys.exit(1)
 
     elif args.key_sequence:
-        keys = args.key_sequence.split(',')
+        keys = args.key_sequence.split(",")
         if controller.press_key_sequence(keys):
             print(f"Pressed sequence: {' -> '.join(keys)}")
         else:
@@ -407,5 +375,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

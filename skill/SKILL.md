@@ -1,11 +1,12 @@
 ---
 name: ios-simulator-skill
-description: Navigate and interact with iOS apps via accessibility-driven automation using 10 production-ready testing scripts.
+version: 1.0.0
+description: This Claude Skill can be used to build, test, and automate iOS apps. 12 production-ready scripts including ultra token-efficient xcode build automation, log monitoring, and accessibility-driven UI simulator navigation.
 ---
 
 # iOS Simulator Skill
 
-Efficiently navigate, test, and debug iOS applications using accessibility-first automation. This skill provides 10 production-ready scripts for complete iOS simulator testing workflows.
+Build, test, and automate iOS applications with progressive disclosure and accessibility-first navigation. This skill provides 12 production-ready scripts for the complete iOS development lifecycle.
 
 ## What This Skill Does
 
@@ -33,16 +34,229 @@ bash scripts/sim_health_check.sh
 - Python 3
 - IDB (optional but recommended)
 
+## Configuration (Optional)
+
+The skill **automatically learns your simulator preferences**. No setup required!
+
+### Auto-Learning Behavior
+
+After each successful build, the skill remembers which simulator was used:
+
+```json
+# Created at: .claude/skills/ios-simulator-skill/config.json
+{
+  "device": {
+    "last_used_simulator": "iPhone 16 Pro",
+    "last_used_at": "2025-10-18T13:36:18Z"
+  }
+}
+```
+
+**Next time you build without `--simulator`, it uses the remembered device automatically.**
+
+### Simulator Selection Priority
+
+1. `--simulator` CLI flag ← One-off override
+2. `preferred_simulator` in config ← Manual preference (always used)
+3. `last_used_simulator` in config ← Auto-learned from successful builds
+4. Auto-detect first available iPhone
+5. Generic iOS Simulator ← Fallback
+
+### Manual Preference (Optional)
+
+To always use a specific simulator, edit the config:
+
+```json
+{
+  "device": {
+    "preferred_simulator": "iPhone 15 Pro Max"
+  }
+}
+```
+
+**Config location**: `.claude/skills/ios-simulator-skill/config.json` (created automatically on first build)
+
 ## Quick Navigation
 
 **First time?** → Start with screen mapping
 **Know what you want?** → Jump to the right script
 
-## 10 Production Scripts
+## 12 Production Scripts
+
+### Build & Development (2 scripts)
+
+#### 1. Build & Test Automation - "Build and run tests"
+
+Build Xcode projects with **ultra token-efficient progressive disclosure**:
+
+```bash
+# Build project (ultra-minimal output: 5-10 tokens)
+python scripts/build_and_test.py --project MyApp.xcodeproj
+# Output: Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]
+
+# Get error details on demand
+python scripts/build_and_test.py --get-errors xcresult-20251018-143052
+
+# Get warning details
+python scripts/build_and_test.py --get-warnings xcresult-20251018-143052
+
+# Get full build log
+python scripts/build_and_test.py --get-log xcresult-20251018-143052
+
+# Get everything as JSON
+python scripts/build_and_test.py --get-all xcresult-20251018-143052 --json
+
+# List recent builds
+python scripts/build_and_test.py --list-xcresults
+```
+
+**Traditional Options:**
+```bash
+# Build workspace with specific scheme
+python scripts/build_and_test.py --workspace MyApp.xcworkspace --scheme MyApp
+
+# Run tests
+python scripts/build_and_test.py --project MyApp.xcodeproj --test
+
+# Clean build with simulator selection
+python scripts/build_and_test.py --project MyApp.xcodeproj --clean --simulator "iPhone 15 Pro"
+
+# Verbose mode (for debugging)
+python scripts/build_and_test.py --project MyApp.xcodeproj --verbose
+```
+
+**Output (default - ultra-minimal):**
+```
+Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]
+```
+
+**Output (progressive disclosure - get warnings):**
+```
+Warnings (3):
+
+1. 'UIWebView' is deprecated
+   Location: LoginView.swift:line 45
+
+2. Unused variable 'tempValue'
+   Location: DataModel.swift:line 112
+
+3. ...
+```
+
+**Output (on failure):**
+```
+Build: FAILED (2 errors, 1 warnings) [xcresult-20251018-143100]
+```
+
+**Then get error details:**
+```bash
+python scripts/build_and_test.py --get-errors xcresult-20251018-143100
+```
+
+**Key Features:**
+- ✅ **Ultra token-efficient**: Default output is 5-10 tokens
+- ✅ **Progressive disclosure**: Load error/warning/log details only when needed
+- ✅ **Native xcresult**: Uses Apple's official result bundle format
+- ✅ **Structured data**: JSON output via xcresulttool
+- ✅ **Cached results**: Access build details hours/days later
+
+**Options:**
+
+*Build/Test:*
+- `--project` or `--workspace` - Xcode project/workspace path
+- `--scheme` - Build scheme (auto-detected if not specified)
+- `--configuration` - Debug or Release (default: Debug)
+- `--clean` - Clean before building
+- `--test` - Run test suite
+- `--suite` - Specific test suite to run
+- `--simulator` - Target simulator name
+
+*Progressive Disclosure:*
+- `--get-errors XCRESULT_ID` - Get error details
+- `--get-warnings XCRESULT_ID` - Get warning details
+- `--get-log XCRESULT_ID` - Get full build log
+- `--get-all XCRESULT_ID` - Get complete details
+- `--list-xcresults` - List recent build results
+
+*Output:*
+- `--verbose` - Show detailed output
+- `--json` - Output as JSON
+
+**Use when:** You need to build your app or run automated tests.
+
+**Integrations:**
+- Combines with `sim_health_check.sh` to verify environment first
+- Uses `app_launcher.py` to install built app
+- Works with `test_recorder.py` for test documentation
+
+**Progressive Disclosure Workflow:**
+1. Build returns minimal result + xcresult ID
+2. Agent sees build failed
+3. Agent requests error details using xcresult ID
+4. Agent gets structured error list
+5. Agent fixes errors and rebuilds
+
+---
+
+#### 2. Log Monitor - "Watch app logs in real-time"
+
+Monitor simulator logs with intelligent filtering and error detection:
+
+```bash
+# Monitor app logs in real-time (follow mode)
+python scripts/log_monitor.py --app com.myapp.MyApp --follow
+
+# Capture logs for specific duration
+python scripts/log_monitor.py --app com.myapp.MyApp --duration 30s
+
+# Show errors and warnings only from last 5 minutes
+python scripts/log_monitor.py --severity error,warning --last 5m
+
+# Save logs to file
+python scripts/log_monitor.py --app com.myapp.MyApp --duration 1m --output logs/
+
+# Verbose output with full log lines
+python scripts/log_monitor.py --app com.myapp.MyApp --duration 30s --verbose
+```
+
+**Output:**
+```
+Logs for: com.myapp.MyApp
+Total lines: 342
+Errors: 2, Warnings: 5, Info: 87
+
+Top Errors (2):
+  ❌ Network request failed: timeout after 30s
+  ❌ Image loading failed: invalid URL
+
+Top Warnings (5):
+  ⚠️  Deprecated API usage: UIWebView
+  ⚠️  Main thread performance warning: 2.3s
+  ⚠️  Memory warning received
+```
+
+**Options:**
+- `--app` - App bundle ID to filter logs
+- `--severity` - Filter by severity (error,warning,info,debug)
+- `--follow` - Continuous streaming (Ctrl+C to stop)
+- `--duration` - Capture duration (e.g., 30s, 5m, 1h)
+- `--last` - Show logs from last N minutes
+- `--output` - Save logs to directory
+- `--verbose` - Show detailed log lines
+- `--json` - Output as JSON
+
+**Use when:** You need to debug issues, monitor app behavior, or capture logs during testing.
+
+**Integrations:**
+- Enhanced version of `app_state_capture.py` log capture
+- Runs alongside `test_recorder.py` for comprehensive test documentation
+- Complements `navigator.py` - see logs while interacting with UI
+
+---
 
 ### Navigation & Interaction (5 scripts)
 
-#### 1. Screen Mapper - "What's on this screen?"
+#### 3. Screen Mapper - "What's on this screen?"
 
 See current screen in 5 lines:
 
@@ -68,7 +282,7 @@ Focusable: 7 elements
 
 ---
 
-#### 2. Navigator - "Tap and interact with specific elements"
+#### 4. Navigator - "Tap and interact with specific elements"
 
 Find and interact with UI elements by meaning:
 
@@ -103,7 +317,7 @@ Not found: text='Submit'
 
 ---
 
-#### 3. Gesture Controller - "Swipe, scroll, and complex gestures"
+#### 5. Gesture Controller - "Swipe, scroll, and complex gestures"
 
 Perform navigation gestures:
 
@@ -138,7 +352,7 @@ Performed pull to refresh
 
 ---
 
-#### 4. Keyboard Controller - "Type and press buttons"
+#### 6. Keyboard Controller - "Type and press buttons"
 
 Text entry and hardware button control:
 
@@ -183,7 +397,7 @@ Pressed home button
 
 ---
 
-#### 5. App Launcher - "Start/stop apps and manage installation"
+#### 7. App Launcher - "Start/stop apps and manage installation"
 
 App lifecycle control:
 
@@ -229,7 +443,7 @@ Installed apps (15):
 
 ### Testing & Analysis (5 scripts)
 
-#### 6. Accessibility Auditor - "Check WCAG compliance"
+#### 8. Accessibility Auditor - "Check WCAG compliance"
 
 Find accessibility issues:
 
@@ -268,7 +482,7 @@ Top issues:
 
 ---
 
-#### 7. Visual Differ - "Compare screenshots for visual changes"
+#### 9. Visual Differ - "Compare screenshots for visual changes"
 
 Pixel-by-pixel screenshot comparison:
 
@@ -299,7 +513,7 @@ Artifacts saved to: ./
 
 ---
 
-#### 8. Test Recorder - "Document test execution automatically"
+#### 10. Test Recorder - "Document test execution automatically"
 
 Record test steps with screenshots and accessibility snapshots:
 
@@ -337,7 +551,7 @@ test-reports/login-flow-TIMESTAMP/
 
 ---
 
-#### 9. App State Capture - "Create debugging snapshots"
+#### 11. App State Capture - "Create debugging snapshots"
 
 Capture complete app state for bug reproduction:
 
@@ -382,7 +596,7 @@ app-state-TIMESTAMP/
 
 ---
 
-#### 10. Environment Health Check - "Verify everything is set up correctly"
+#### 12. Environment Health Check - "Verify everything is set up correctly"
 
 Verify your environment before testing:
 
@@ -514,33 +728,39 @@ python scripts/app_state_capture.py \
 ```
 Want to...
 
+├─ Build your Xcode app or run tests?
+│  └─ python scripts/build_and_test.py --project MyApp.xcodeproj
+│
+├─ Watch app logs in real-time?
+│  └─ python scripts/log_monitor.py --app com.app.id --follow
+│
 ├─ See what's on screen?
 │  └─ python scripts/screen_mapper.py
-
+│
 ├─ Tap a button or enter text?
 │  └─ python scripts/navigator.py --find-text "..." --tap
-
+│
 ├─ Scroll or swipe?
 │  └─ python scripts/gesture.py --scroll down
-
+│
 ├─ Type or press keys?
 │  └─ python scripts/keyboard.py --type "..."
-
+│
 ├─ Launch/stop an app?
 │  └─ python scripts/app_launcher.py --launch com.app.id
-
+│
 ├─ Check accessibility?
 │  └─ python scripts/accessibility_audit.py
-
+│
 ├─ Compare screenshots?
 │  └─ python scripts/visual_diff.py baseline.png current.png
-
+│
 ├─ Document a test?
 │  └─ python scripts/test_recorder.py --test-name "Test Name"
-
+│
 ├─ Debug a problem?
 │  └─ python scripts/app_state_capture.py --app-bundle-id com.app.id
-
+│
 └─ Verify environment?
    └─ bash scripts/sim_health_check.sh
 ```
@@ -610,6 +830,8 @@ xcrun simctl launch booted com.example.app
 All scripts provide detailed help:
 
 ```bash
+python scripts/build_and_test.py --help
+python scripts/log_monitor.py --help
 python scripts/screen_mapper.py --help
 python scripts/navigator.py --help
 python scripts/gesture.py --help
@@ -674,4 +896,4 @@ For detailed documentation on each script, see `CLAUDE.md` and the `references/`
 
 ---
 
-**Built for AI agents. Optimized for humans. Made for testing iOS apps efficiently.**
+**Built for AI agents. Optimized for humans. Made for building and testing iOS apps efficiently.**

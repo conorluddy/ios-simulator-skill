@@ -1,0 +1,57 @@
+name: Package and Release Skill
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package skill and upload to release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate skill structure
+        run: |
+          echo "Validating skill/ directory structure..."
+          test -f skill/SKILL.md || { echo "ERROR: skill/SKILL.md not found"; exit 1; }
+          test -d skill/scripts || { echo "ERROR: skill/scripts directory not found"; exit 1; }
+          test -d skill/examples || { echo "ERROR: skill/examples directory not found"; exit 1; }
+          echo "✅ Skill structure validated successfully"
+
+      - name: Create skill package
+        run: |
+          cd skill
+          zip -r ../ios-simulator-skill-${{ github.ref_name }}.zip . \
+            -x "*.pyc" \
+            -x "__pycache__/*" \
+            -x "*.DS_Store"
+          cd ..
+          echo "📦 Created package: ios-simulator-skill-${{ github.ref_name }}.zip"
+          ls -lh ios-simulator-skill-${{ github.ref_name }}.zip
+
+      - name: Upload package to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ios-simulator-skill-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Release summary
+        run: |
+          echo "## 🎉 Release Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** ios-simulator-skill-${{ github.ref_name }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# Download and extract to Claude skills directory" >> $GITHUB_STEP_SUMMARY
+          echo 'curl -L https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ios-simulator-skill-${{ github.ref_name }}.zip -o skill.zip' >> $GITHUB_STEP_SUMMARY
+          echo 'unzip skill.zip -d ~/.claude/skills/ios-simulator-skill' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
