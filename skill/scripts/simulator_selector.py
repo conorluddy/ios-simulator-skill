@@ -81,8 +81,8 @@ class SimulatorSelector:
     def __init__(self):
         """Initialize selector."""
         self.simulators: list[SimulatorInfo] = []
-        self.config: Optional[dict] = None
-        self.last_used_simulator: Optional[str] = None
+        self.config: dict | None = None
+        self.last_used_simulator: str | None = None
 
         # Load config if available
         if Config:
@@ -346,8 +346,7 @@ Examples:
         if success:
             print(f"Booted simulator: {args.boot}")
             return 0
-        else:
-            return 1
+        return 1
 
     if args.list:
         # List all simulators
