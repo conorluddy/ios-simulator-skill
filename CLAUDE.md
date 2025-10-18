@@ -16,20 +16,22 @@ This is a **completed Agent Skill** for iOS simulator testing, fully distributed
 
 ### ✅ Implementation Complete
 
-All 10 core scripts are **fully implemented and production-ready**:
+All 12 core scripts are **fully implemented and production-ready**:
 
-1. ✅ `sim_health_check.sh` (239 lines) - Environment verification
-2. ✅ `screen_mapper.py` (317 lines) - UI element analysis
-3. ✅ `navigator.py` (413 lines) - Element finding and interaction
-4. ✅ `gesture.py` (380 lines) - Swipes, scrolls, gestures
-5. ✅ `keyboard.py` (410 lines) - Text input and hardware buttons
-6. ✅ `app_launcher.py` (394 lines) - App lifecycle control
-7. ✅ `accessibility_audit.py` (306 lines) - WCAG compliance checking
-8. ✅ `visual_diff.py` (252 lines) - Screenshot comparison
-9. ✅ `test_recorder.py` (258 lines) - Test documentation
-10. ✅ `app_state_capture.py` (334 lines) - Complete state snapshots
+1. ✅ `build_and_test.py` (462 lines) - Build automation and test execution
+2. ✅ `log_monitor.py` (494 lines) - Real-time log monitoring
+3. ✅ `sim_health_check.sh` (239 lines) - Environment verification
+4. ✅ `screen_mapper.py` (317 lines) - UI element analysis
+5. ✅ `navigator.py` (413 lines) - Element finding and interaction
+6. ✅ `gesture.py` (380 lines) - Swipes, scrolls, gestures
+7. ✅ `keyboard.py` (410 lines) - Text input and hardware buttons
+8. ✅ `app_launcher.py` (394 lines) - App lifecycle control
+9. ✅ `accessibility_audit.py` (306 lines) - WCAG compliance checking
+10. ✅ `visual_diff.py` (252 lines) - Screenshot comparison
+11. ✅ `test_recorder.py` (258 lines) - Test documentation
+12. ✅ `app_state_capture.py` (334 lines) - Complete state snapshots
 
-**Total:** ~3,300 lines of production code
+**Total:** ~4,259 lines of production code
 
 ### ⏳ Ready for Release
 
@@ -49,8 +51,10 @@ ios-simulator-skill/
 ├── SKILL.md                 # REQUIRED: Entry point with YAML frontmatter
 ├── CLAUDE.md                # Developer guide (this file)
 ├── README.md                # User-facing overview
-├── LICENSE                  # Apache 2.0
-├── scripts/                 # 10 executable production scripts
+├── LICENSE                  # MIT
+├── scripts/                 # 12 executable production scripts
+│   ├── build_and_test.py
+│   ├── log_monitor.py
 │   ├── sim_health_check.sh
 │   ├── screen_mapper.py
 │   ├── navigator.py
@@ -91,7 +95,77 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ## Architecture & Script Categories
 
-### Category 1: Navigation & Interaction (5 scripts)
+### Category 1: Build & Development (2 scripts)
+
+**Purpose:** Complete the iOS development lifecycle with build automation and debugging support.
+
+#### build_and_test.py (462 lines)
+**What it does:** Build Xcode projects and run test suites with token-efficient error parsing.
+
+**Algorithm:**
+1. Auto-detect scheme from project/workspace if not specified
+2. Build xcodebuild command with appropriate flags
+3. Execute build or test operation
+4. Parse output for errors and warnings using regex patterns
+5. Extract test results from test summary
+6. Format token-efficient summary (3-5 lines by default)
+
+**Output formats:**
+- Default: 3-5 line summary (status, error/warning counts, top issues)
+- `--verbose`: Full build output
+- `--json`: Complete structured results
+
+**Key features:**
+- Scheme auto-detection
+- Build/test in single script
+- Intelligent error parsing (groups similar errors)
+- Test result parsing from xcresult
+- Clean build support
+- Simulator selection
+- Token-efficient summaries
+
+**Integration points:**
+- Uses `sim_health_check.sh` for environment validation
+- Produces .app bundles for `app_launcher.py`
+- Works with `test_recorder.py` for test documentation
+
+---
+
+#### log_monitor.py (494 lines)
+**What it does:** Monitor and analyze iOS simulator logs in real-time with intelligent filtering.
+
+**Algorithm:**
+1. Build `xcrun simctl spawn booted log stream` command
+2. Add predicate filters for app bundle ID
+3. Stream logs line-by-line
+4. Classify each line by severity (error/warning/info/debug)
+5. Deduplicate repeated messages (signature-based)
+6. Store by severity with counts
+7. Generate token-efficient summary or stream in follow mode
+
+**Output formats:**
+- Default: Summary with error/warning counts and top issues
+- `--follow`: Real-time streaming to stdout
+- `--json`: Structured log events
+- `--output`: Save full logs to file
+
+**Key features:**
+- Real-time streaming or duration-based capture
+- Severity classification (error/warning/info/debug)
+- Deduplication of repeated messages
+- Time-based filtering (last N minutes)
+- App bundle ID filtering
+- Graceful interruption handling (Ctrl+C)
+- Token-efficient summaries
+
+**Integration points:**
+- Enhanced version of `app_state_capture.py` log capture
+- Runs alongside `test_recorder.py` for comprehensive documentation
+- Complements `navigator.py` for debugging UI interactions
+
+---
+
+### Category 2: Navigation & Interaction (5 scripts)
 
 **Purpose:** Enable semantic, accessibility-based navigation instead of pixel coordinates.
 
@@ -259,7 +333,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 ---
 
-### Category 2: Testing & Analysis (5 scripts)
+### Category 3: Testing & Analysis (5 scripts)
 
 **Purpose:** Provide specialized tools for test automation, debugging, and compliance checking.
 
@@ -903,7 +977,7 @@ All code in this repository follows:
 
 ## License
 
-Apache 2.0 - Allowing commercial use and distribution.
+MIT - Allowing commercial use and distribution.
 
 ---
 

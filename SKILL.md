@@ -1,11 +1,11 @@
 ---
 name: ios-simulator-skill
-description: Navigate and interact with iOS apps via accessibility-driven automation using 10 production-ready testing scripts.
+description: Navigate and interact with iOS apps via accessibility-driven automation using 12 production-ready testing scripts.
 ---
 
 # iOS Simulator Skill
 
-Efficiently navigate, test, and debug iOS applications using accessibility-first automation. This skill provides 10 production-ready scripts for complete iOS simulator testing workflows.
+Efficiently navigate, test, and debug iOS applications using accessibility-first automation. This skill provides 12 production-ready scripts for complete iOS simulator testing workflows.
 
 ## What This Skill Does
 
@@ -38,11 +38,140 @@ bash scripts/sim_health_check.sh
 **First time?** → Start with screen mapping
 **Know what you want?** → Jump to the right script
 
-## 10 Production Scripts
+## 12 Production Scripts
+
+### Build & Development (2 scripts)
+
+#### 1. Build & Test Automation - "Build and run tests"
+
+Build Xcode projects and run test suites with token-efficient output:
+
+```bash
+# Build project (auto-detects scheme)
+python scripts/build_and_test.py --project MyApp.xcodeproj
+
+# Build workspace with specific scheme
+python scripts/build_and_test.py --workspace MyApp.xcworkspace --scheme MyApp
+
+# Run tests
+python scripts/build_and_test.py --project MyApp.xcodeproj --test
+
+# Clean build with simulator selection
+python scripts/build_and_test.py --project MyApp.xcodeproj --clean --simulator "iPhone 15 Pro"
+
+# Run specific test suite
+python scripts/build_and_test.py --project MyApp.xcodeproj --test --suite LoginTests
+
+# Verbose output
+python scripts/build_and_test.py --project MyApp.xcodeproj --verbose
+
+# Save results to file
+python scripts/build_and_test.py --project MyApp.xcodeproj --output build-results.json --json
+```
+
+**Output:**
+```
+Build: SUCCESS
+Warnings: 3
+  warning: 'UIWebView' is deprecated
+  warning: unused variable 'tempValue'
+```
+
+**Output (with tests):**
+```
+Tests: PASS (12/12 passed, 0 failed, 4.2s)
+Warnings: 1
+```
+
+**Output (on failure):**
+```
+Build: FAILED
+Errors: 2
+  error: use of unresolved identifier 'invalidFunction'
+  error: cannot find 'MissingClass' in scope
+Warnings: 1
+```
+
+**Options:**
+- `--project` or `--workspace` - Xcode project/workspace path
+- `--scheme` - Build scheme (auto-detected if not specified)
+- `--configuration` - Debug or Release (default: Debug)
+- `--clean` - Clean before building
+- `--test` - Run test suite
+- `--suite` - Specific test suite to run
+- `--simulator` - Target simulator name
+- `--verbose` - Show full build output
+- `--json` - Output as JSON
+- `--output` - Save results to file
+
+**Use when:** You need to build your app or run automated tests.
+
+**Integrations:**
+- Combines with `sim_health_check.sh` to verify environment first
+- Uses `app_launcher.py` to install built app
+- Works with `test_recorder.py` for test documentation
+
+---
+
+#### 2. Log Monitor - "Watch app logs in real-time"
+
+Monitor simulator logs with intelligent filtering and error detection:
+
+```bash
+# Monitor app logs in real-time (follow mode)
+python scripts/log_monitor.py --app com.myapp.MyApp --follow
+
+# Capture logs for specific duration
+python scripts/log_monitor.py --app com.myapp.MyApp --duration 30s
+
+# Show errors and warnings only from last 5 minutes
+python scripts/log_monitor.py --severity error,warning --last 5m
+
+# Save logs to file
+python scripts/log_monitor.py --app com.myapp.MyApp --duration 1m --output logs/
+
+# Verbose output with full log lines
+python scripts/log_monitor.py --app com.myapp.MyApp --duration 30s --verbose
+```
+
+**Output:**
+```
+Logs for: com.myapp.MyApp
+Total lines: 342
+Errors: 2, Warnings: 5, Info: 87
+
+Top Errors (2):
+  ❌ Network request failed: timeout after 30s
+  ❌ Image loading failed: invalid URL
+
+Top Warnings (5):
+  ⚠️  Deprecated API usage: UIWebView
+  ⚠️  Main thread performance warning: 2.3s
+  ⚠️  Memory warning received
+```
+
+**Options:**
+- `--app` - App bundle ID to filter logs
+- `--severity` - Filter by severity (error,warning,info,debug)
+- `--follow` - Continuous streaming (Ctrl+C to stop)
+- `--duration` - Capture duration (e.g., 30s, 5m, 1h)
+- `--last` - Show logs from last N minutes
+- `--output` - Save logs to directory
+- `--verbose` - Show detailed log lines
+- `--json` - Output as JSON
+
+**Use when:** You need to debug issues, monitor app behavior, or capture logs during testing.
+
+**Integrations:**
+- Enhanced version of `app_state_capture.py` log capture
+- Runs alongside `test_recorder.py` for comprehensive test documentation
+- Complements `navigator.py` - see logs while interacting with UI
+
+---
 
 ### Navigation & Interaction (5 scripts)
 
-#### 1. Screen Mapper - "What's on this screen?"
+#### 3. Screen Mapper - "What's on this screen?"
 
 See current screen in 5 lines:
 
@@ -68,7 +197,7 @@ Focusable: 7 elements
 
 ---
 
-#### 2. Navigator - "Tap and interact with specific elements"
+#### 4. Navigator - "Tap and interact with specific elements"
 
 Find and interact with UI elements by meaning:
 
@@ -103,7 +232,7 @@ Not found: text='Submit'
 
 ---
 
-#### 3. Gesture Controller - "Swipe, scroll, and complex gestures"
+#### 5. Gesture Controller - "Swipe, scroll, and complex gestures"
 
 Perform navigation gestures:
 
@@ -138,7 +267,7 @@ Performed pull to refresh
 
 ---
 
-#### 4. Keyboard Controller - "Type and press buttons"
+#### 6. Keyboard Controller - "Type and press buttons"
 
 Text entry and hardware button control:
 
@@ -183,7 +312,7 @@ Pressed home button
 
 ---
 
-#### 5. App Launcher - "Start/stop apps and manage installation"
+#### 7. App Launcher - "Start/stop apps and manage installation"
 
 App lifecycle control:
 
@@ -229,7 +358,7 @@ Installed apps (15):
 
 ### Testing & Analysis (5 scripts)
 
-#### 6. Accessibility Auditor - "Check WCAG compliance"
+#### 8. Accessibility Auditor - "Check WCAG compliance"
 
 Find accessibility issues:
 
@@ -268,7 +397,7 @@ Top issues:
 
 ---
 
-#### 7. Visual Differ - "Compare screenshots for visual changes"
+#### 9. Visual Differ - "Compare screenshots for visual changes"
 
 Pixel-by-pixel screenshot comparison:
 
@@ -299,7 +428,7 @@ Artifacts saved to: ./
 
 ---
 
-#### 8. Test Recorder - "Document test execution automatically"
+#### 10. Test Recorder - "Document test execution automatically"
 
 Record test steps with screenshots and accessibility snapshots:
 
@@ -337,7 +466,7 @@ test-reports/login-flow-TIMESTAMP/
 
 ---
 
-#### 9. App State Capture - "Create debugging snapshots"
+#### 11. App State Capture - "Create debugging snapshots"
 
 Capture complete app state for bug reproduction:
 
@@ -382,7 +511,7 @@ app-state-TIMESTAMP/
 
 ---
 
-#### 10. Environment Health Check - "Verify everything is set up correctly"
+#### 12. Environment Health Check - "Verify everything is set up correctly"
 
 Verify your environment before testing:
 
@@ -514,33 +643,39 @@ python scripts/app_state_capture.py \
 ```
 Want to...
 
+├─ Build your app or run tests?
+│  └─ python scripts/build_and_test.py --project MyApp.xcodeproj
+│
+├─ Watch app logs in real-time?
+│  └─ python scripts/log_monitor.py --app com.app.id --follow
+│
 ├─ See what's on screen?
 │  └─ python scripts/screen_mapper.py
-
+│
 ├─ Tap a button or enter text?
 │  └─ python scripts/navigator.py --find-text "..." --tap
-
+│
 ├─ Scroll or swipe?
 │  └─ python scripts/gesture.py --scroll down
-
+│
 ├─ Type or press keys?
 │  └─ python scripts/keyboard.py --type "..."
-
+│
 ├─ Launch/stop an app?
 │  └─ python scripts/app_launcher.py --launch com.app.id
-
+│
 ├─ Check accessibility?
 │  └─ python scripts/accessibility_audit.py
-
+│
 ├─ Compare screenshots?
 │  └─ python scripts/visual_diff.py baseline.png current.png
-
+│
 ├─ Document a test?
 │  └─ python scripts/test_recorder.py --test-name "Test Name"
-
+│
 ├─ Debug a problem?
 │  └─ python scripts/app_state_capture.py --app-bundle-id com.app.id
-
+│
 └─ Verify environment?
    └─ bash scripts/sim_health_check.sh
 ```
@@ -610,6 +745,8 @@ xcrun simctl launch booted com.example.app
 All scripts provide detailed help:
 
 ```bash
+python scripts/build_and_test.py --help
+python scripts/log_monitor.py --help
 python scripts/screen_mapper.py --help
 python scripts/navigator.py --help
 python scripts/gesture.py --help
@@ -674,4 +811,4 @@ For detailed documentation on each script, see `CLAUDE.md` and the `references/`
 
 ---
 
-**Built for AI agents. Optimized for humans. Made for testing iOS apps efficiently.**
+**Built for AI agents. Optimized for humans. Made for building and testing iOS apps efficiently.**

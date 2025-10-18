@@ -1,19 +1,24 @@
 # iOS Simulator Skill
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Efficient iOS app navigation and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
+Efficient iOS app building, navigation, and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
 
 ## Features
 
-🎯 **10 Production Scripts** - Complete testing toolkit for iOS simulator automation
+🎯 **12 Production Scripts** - Complete toolkit for iOS development and testing
+🔧 **Build Automation** - Build projects and run tests with intelligent error parsing
 📊 **Token-Efficient** - 97% reduction in output tokens vs raw tools
 ♿ **Accessibility-First** - Use structured data and semantic navigation, not pixels
 🚀 **Zero Config** - Works immediately on any macOS with Xcode
 🤖 **AI-Optimized** - Progressive disclosure with `--verbose` and `--json` flags
-🔍 **Debugging Tools** - Complete state capture, visual diffs, accessibility audits
+🔍 **Debugging Tools** - Real-time log monitoring, state capture, visual diffs
 
 ## What You Get
+
+### Build & Development Tools (2 scripts)
+- **build_and_test.py** - Build Xcode projects and run test suites with smart error parsing
+- **log_monitor.py** - Real-time log streaming with intelligent filtering and error detection
 
 ### Navigation Tools (5 scripts)
 - **screen_mapper.py** - Analyze current screen in 5 lines
