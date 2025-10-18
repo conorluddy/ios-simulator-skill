@@ -106,7 +106,7 @@ description: Navigate and interact with iOS apps via accessibility-driven automa
 
 **Purpose:** Complete the iOS development lifecycle with build automation and debugging support.
 
-#### build_and_test.py (286 lines) + xcode/ module (884 lines)
+#### build_and_test.py (286 lines) + xcode/ module (1,054 lines)
 **What it does:** Build Xcode projects with **ultra token-efficient progressive disclosure** via xcresult bundles.
 
 **New Modular Architecture:**
@@ -148,6 +148,63 @@ The build system is now organized into focused modules:
    - Generates timestamp-based IDs
    - Methods: save(), get_path(), exists(), list(), cleanup()
    - Enables progressive disclosure (access results hours/days later)
+
+6. **xcode/config.py** (Configuration Management - 170 lines) **NEW**
+   - Config class with auto-learning device preferences
+   - JSON-based configuration at `.claude/skills/ios-simulator-skill/config.json`
+   - Auto-updates `last_used_simulator` after successful builds
+   - Atomic writes (temp file + rename) prevent corruption
+   - Graceful error handling (doesn't break builds if config fails)
+   - Methods: load(), save(), update_last_used_simulator(), get_preferred_simulator()
+
+**Config System Architecture:**
+
+The config system provides **auto-learning device preferences** with zero configuration required:
+
+**Config Schema:**
+```json
+{
+  "device": {
+    "preferred_simulator": null,           // Manual preference (always used)
+    "preferred_os_version": null,          // Reserved for future use
+    "fallback_to_any_iphone": true,       // Enable auto-detection fallback
+    "last_used_simulator": "iPhone 16 Pro", // Auto-learned from successful builds
+    "last_used_at": "2025-10-18T13:36:18Z" // ISO timestamp
+  }
+}
+```
+
+**Simulator Selection Priority (in builder.py):**
+1. `--simulator` CLI flag → One-off override
+2. `config.preferred_simulator` → Manual preference (always used if available)
+3. `config.last_used_simulator` → Auto-learned from successful builds
+4. Auto-detect first available iPhone → Fallback
+5. `generic/platform=iOS Simulator` → Final fallback
+
+**Auto-Learning Flow:**
+1. Build completes successfully
+2. Extract simulator name from xcodebuild destination
+3. Load config from project directory
+4. Update `last_used_simulator` + `last_used_at` timestamp
+5. Atomic save (temp file + rename)
+6. Silent failure if config update fails (doesn't break build)
+
+**Key Design Decisions:**
+- **Project-local** (not user-global): Different projects need different simulators
+- **JSON format**: No dependencies, native Python support, easy to read/edit
+- **Auto-learning only on success**: Don't remember failed builds
+- **Atomic writes**: Prevent corruption from interrupted writes
+- **Graceful degradation**: Works perfectly without config file
+- **Zero configuration**: Creates config automatically on first build
+- **Error isolation**: Config failures never break builds (warnings only)
+
+**Benefits:**
+- ✅ **Consistent builds**: Remembers what worked last time
+- ✅ **No repeated flags**: Don't need `--simulator` every time
+- ✅ **Project-specific**: Each project remembers its own preference
+- ✅ **Learns from you**: Updates automatically based on successful choices
+- ✅ **Manual override**: Can set `preferred_simulator` for strict preference
+- ✅ **Safe**: Atomic writes, error handling, never breaks builds
 
 **Algorithm (Two-Tier Progressive Disclosure):**
 

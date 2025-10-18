@@ -33,6 +33,48 @@ bash scripts/sim_health_check.sh
 - Python 3
 - IDB (optional but recommended)
 
+## Configuration (Optional)
+
+The skill **automatically learns your simulator preferences**. No setup required!
+
+### Auto-Learning Behavior
+
+After each successful build, the skill remembers which simulator was used:
+
+```json
+# Created at: .claude/skills/ios-simulator-skill/config.json
+{
+  "device": {
+    "last_used_simulator": "iPhone 16 Pro",
+    "last_used_at": "2025-10-18T13:36:18Z"
+  }
+}
+```
+
+**Next time you build without `--simulator`, it uses the remembered device automatically.**
+
+### Simulator Selection Priority
+
+1. `--simulator` CLI flag ← One-off override
+2. `preferred_simulator` in config ← Manual preference (always used)
+3. `last_used_simulator` in config ← Auto-learned from successful builds
+4. Auto-detect first available iPhone
+5. Generic iOS Simulator ← Fallback
+
+### Manual Preference (Optional)
+
+To always use a specific simulator, edit the config:
+
+```json
+{
+  "device": {
+    "preferred_simulator": "iPhone 15 Pro Max"
+  }
+}
+```
+
+**Config location**: `.claude/skills/ios-simulator-skill/config.json` (created automatically on first build)
+
 ## Quick Navigation
 
 **First time?** → Start with screen mapping
