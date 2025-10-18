@@ -4,6 +4,28 @@
 
 Efficient iOS app building, navigation, and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
 
+## 📥 Installation
+
+**Download the latest release** from the [releases page](https://github.com/conorluddy/ios-simulator-skill/releases) and extract to your Claude skills directory:
+
+```bash
+# Download latest release (replace vX.X.X with actual version)
+curl -L https://github.com/conorluddy/ios-simulator-skill/releases/download/vX.X.X/ios-simulator-skill-vX.X.X.zip -o skill.zip
+
+# Extract to your project's skills directory
+unzip skill.zip -d .claude/skills/ios-simulator-skill
+
+# OR extract to your personal skills directory
+unzip skill.zip -d ~/.claude/skills/ios-simulator-skill
+
+# Verify installation
+ls .claude/skills/ios-simulator-skill/SKILL.md
+```
+
+**What you get:** A clean, focused skill package with just the scripts and examples - no development tooling.
+
+---
+
 ## Features
 
 🎯 **12 Production Scripts** - Complete toolkit for iOS development and testing

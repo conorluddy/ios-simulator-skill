@@ -13,7 +13,6 @@ include = '\.pyi?$'
 extend-exclude = '''
 /(
     \.git
-  | \.mypy_cache
   | \.ruff_cache
   | \.venv
   | build
@@ -70,48 +69,3 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["xcode"]
-
-[tool.mypy]
-python_version = "3.12"
-files = ["skill/scripts/**/*.py"]
-
-# Pragmatic type checking - catches real errors without being overly strict
-# Focus on finding actual bugs rather than complete type coverage
-warn_return_any = false
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_any_generics = false
-disallow_subclassing_any = false
-disallow_untyped_calls = false
-disallow_incomplete_defs = false  # Allow gradual typing
-check_untyped_defs = false  # Allow untyped code
-disallow_untyped_decorators = false
-warn_redundant_casts = false
-warn_unused_ignores = false
-warn_no_return = true  # Catch missing returns
-warn_unreachable = false  # Some unreachable code is intentional
-strict_equality = false
-strict_concatenate = false
-
-# Helpful baseline checks
-no_implicit_optional = false
-no_implicit_reexport = false
-
-# Ignore missing imports for third-party tools
-ignore_missing_imports = true
-
-# Allow expressions with Any type
-allow_untyped_globals = true
-allow_redefinition = true
-
-# Exclude specific files with type issues (TODO: fix these)
-exclude = [
-    "skill/scripts/keyboard.py",
-    "skill/scripts/screen_mapper.py",
-    "skill/scripts/navigator.py",
-    "skill/scripts/log_monitor.py",
-    "skill/scripts/app_state_capture.py",
-    "skill/scripts/accessibility_audit.py",
-    "skill/scripts/visual_diff.py",
-    "skill/scripts/xcode/xcresult.py",
-]

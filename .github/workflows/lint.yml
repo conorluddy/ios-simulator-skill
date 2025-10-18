@@ -17,7 +17,7 @@ on:
 
 jobs:
   lint:
-    name: Run Black, Ruff, and mypy
+    name: Run Black and Ruff
     runs-on: ubuntu-latest
 
     steps:
@@ -45,12 +45,6 @@ jobs:
           echo "🔍 Linting code with Ruff..."
           ruff check skill/scripts/ skill/examples/
 
-      # TODO: Re-enable mypy after adding proper type annotations
-      # - name: Run mypy (type checker)
-      #   run: |
-      #     echo "🔒 Type checking with mypy..."
-      #     mypy skill/scripts/
-
       - name: Summary
         if: success()
         run: |
@@ -58,4 +52,3 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Black: Code formatting is correct" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Ruff: No linting issues found" >> $GITHUB_STEP_SUMMARY
-          echo "- ⏭️  mypy: Disabled (TODO: add type annotations)" >> $GITHUB_STEP_SUMMARY

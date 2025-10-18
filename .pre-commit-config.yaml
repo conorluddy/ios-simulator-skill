@@ -21,16 +21,6 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
         files: ^skill/scripts/.*\.py$
 
-  # mypy - Static type checker (disabled for now, TODO: fix type annotations)
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.13.0
-  #   hooks:
-  #     - id: mypy
-  #       name: Type check with mypy
-  #       language_version: python3.12
-  #       files: ^skill/scripts/.*\.py$
-  #       additional_dependencies: []
-
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

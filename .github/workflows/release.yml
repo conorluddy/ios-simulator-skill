@@ -20,10 +20,7 @@ jobs:
         run: |
           echo "Validating skill/ directory structure..."
           test -f skill/SKILL.md || { echo "ERROR: skill/SKILL.md not found"; exit 1; }
-          test -f skill/CLAUDE.md || { echo "ERROR: skill/CLAUDE.md not found"; exit 1; }
-          test -f skill/README.md || { echo "ERROR: skill/README.md not found"; exit 1; }
           test -d skill/scripts || { echo "ERROR: skill/scripts directory not found"; exit 1; }
-          test -d skill/references || { echo "ERROR: skill/references directory not found"; exit 1; }
           test -d skill/examples || { echo "ERROR: skill/examples directory not found"; exit 1; }
           echo "✅ Skill structure validated successfully"
 
