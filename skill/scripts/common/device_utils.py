@@ -12,12 +12,10 @@ Used by:
 - Multiple scripts (15+ locations) - IDB command building
 """
 
-from typing import Optional
-
 
 def build_simctl_command(
     operation: str,
-    udid: Optional[str] = None,
+    udid: str | None = None,
     *args,
 ) -> list[str]:
     """
@@ -64,7 +62,7 @@ def build_simctl_command(
 
 def build_idb_command(
     operation: str,
-    udid: Optional[str] = None,
+    udid: str | None = None,
     *args,
 ) -> list[str]:
     """

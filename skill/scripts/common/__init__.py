@@ -18,12 +18,10 @@ from .idb_utils import (
 )
 
 __all__ = [
-    # IDB utilities
-    "get_accessibility_tree",
-    "flatten_tree",
-    "count_elements",
-    "get_screen_size",
-    # Device utilities
-    "build_simctl_command",
     "build_idb_command",
+    "build_simctl_command",
+    "count_elements",
+    "flatten_tree",
+    "get_accessibility_tree",
+    "get_screen_size",
 ]

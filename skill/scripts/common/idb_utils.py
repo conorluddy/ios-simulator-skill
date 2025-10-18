@@ -17,10 +17,9 @@ Used by:
 import json
 import subprocess
 import sys
-from typing import Optional
 
 
-def get_accessibility_tree(udid: Optional[str] = None, nested: bool = True) -> dict:
+def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict:
     """
     Fetch accessibility tree from IDB.
 
@@ -69,7 +68,7 @@ def get_accessibility_tree(udid: Optional[str] = None, nested: bool = True) -> d
         sys.exit(1)
 
 
-def flatten_tree(node: dict, depth: int = 0, elements: Optional[list] = None) -> list[dict]:
+def flatten_tree(node: dict, depth: int = 0, elements: list[dict] | None = None) -> list[dict]:
     """
     Flatten nested accessibility tree into list of elements.
 
@@ -144,7 +143,7 @@ def count_elements(node: dict) -> int:
     return count
 
 
-def get_screen_size(udid: Optional[str] = None) -> tuple[int, int]:
+def get_screen_size(udid: str | None = None) -> tuple[int, int]:
     """
     Get screen dimensions from accessibility tree.
 
