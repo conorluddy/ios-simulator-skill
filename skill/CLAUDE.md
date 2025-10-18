@@ -34,53 +34,70 @@ All 12 core scripts are **fully implemented and production-ready**:
 
 **Total:** ~5,045 lines of production code
 
-### ⏳ Ready for Release
+### ✅ Production Ready
 
 - ✅ All scripts tested and working
 - ✅ Complete documentation
 - ✅ Reference guides prepared
-- ⏳ Git repository initialization
+- ✅ Repository structure finalized
+- ✅ Linting and CI/CD workflows configured
 - ⏳ First GitHub release
 - ⏳ Marketplace publication
 
-## Skill Format Requirements
+## Repository Structure
 
-### Directory Structure
+**This skill is distributed from a GitHub repository with the following structure:**
 
 ```
-ios-simulator-skill/
-├── SKILL.md                 # REQUIRED: Entry point with YAML frontmatter
-├── CLAUDE.md                # Developer guide (this file)
-├── README.md                # User-facing overview
-├── LICENSE                  # MIT
-├── scripts/                 # 12 executable production scripts
-│   ├── build_and_test.py  # Main CLI (286 lines)
-│   ├── xcode/              # Modular architecture (884 lines)
-│   │   ├── __init__.py    # Module exports
-│   │   ├── builder.py     # Build execution (231 lines)
-│   │   ├── xcresult.py    # Result parsing (220 lines)
-│   │   ├── reporter.py    # Output formatting (239 lines)
-│   │   └── cache.py       # Cache management (177 lines)
-│   ├── log_monitor.py
-│   ├── sim_health_check.sh
-│   ├── screen_mapper.py
-│   ├── navigator.py
-│   ├── gesture.py
-│   ├── keyboard.py
-│   ├── app_launcher.py
-│   ├── accessibility_audit.py
-│   ├── visual_diff.py
-│   ├── test_recorder.py
-│   └── app_state_capture.py
-├── references/             # Deep documentation
-│   ├── accessibility_checklist.md
-│   ├── troubleshooting.md
-│   ├── test_patterns.md
-│   ├── idb_quick.md
-│   └── simctl_quick.md
-└── examples/               # Complete usage examples
-    └── login_flow.py
+ios-simulator-skill/                 # Development repository
+│
+├── skill/                           # ← DISTRIBUTABLE SKILL (users get this)
+│   ├── SKILL.md                    # REQUIRED: Entry point with YAML frontmatter
+│   ├── CLAUDE.md                   # Developer guide (this file)
+│   ├── README.md                   # User-facing overview
+│   ├── scripts/                    # 12 executable production scripts
+│   │   ├── build_and_test.py      # Main CLI (286 lines)
+│   │   ├── xcode/                  # Modular architecture (1054 lines)
+│   │   │   ├── __init__.py        # Module exports
+│   │   │   ├── builder.py         # Build execution (231 lines)
+│   │   │   ├── xcresult.py        # Result parsing (220 lines)
+│   │   │   ├── reporter.py        # Output formatting (239 lines)
+│   │   │   ├── cache.py           # Cache management (177 lines)
+│   │   │   └── config.py          # Configuration (170 lines)
+│   │   ├── log_monitor.py         # (494 lines)
+│   │   ├── sim_health_check.sh    # (239 lines)
+│   │   ├── screen_mapper.py       # (317 lines)
+│   │   ├── navigator.py           # (413 lines)
+│   │   ├── gesture.py             # (380 lines)
+│   │   ├── keyboard.py            # (410 lines)
+│   │   ├── app_launcher.py        # (394 lines)
+│   │   ├── accessibility_audit.py # (306 lines)
+│   │   ├── visual_diff.py         # (252 lines)
+│   │   ├── test_recorder.py       # (258 lines)
+│   │   └── app_state_capture.py   # (334 lines)
+│   ├── references/                 # Deep documentation
+│   │   ├── accessibility_checklist.md
+│   │   ├── troubleshooting.md
+│   │   ├── test_patterns.md
+│   │   ├── idb_quick.md
+│   │   └── simctl_quick.md
+│   └── examples/                   # Complete usage examples
+│       └── login_flow.py
+│
+├── .github/workflows/              # CI/CD (not distributed)
+│   ├── release.yml                # Auto-package skill/ on release
+│   ├── lint.yml                   # Run linters on PRs
+│   └── validate-version.yml       # Version consistency checks
+│
+├── pyproject.toml                  # Linting config (dev only)
+├── .pre-commit-config.yaml         # Git hooks (dev only)
+├── .gitignore
+├── LICENSE.md                      # MIT License
+├── README.md                       # Development guide
+└── SPECIFICATION.md
 ```
+
+**Distribution:** Users download `ios-simulator-skill-vX.X.X.zip` from GitHub releases, which contains only the `skill/` directory contents. Development tooling (linting, CI/CD) stays in the repository.
 
 ### SKILL.md Requirements
 

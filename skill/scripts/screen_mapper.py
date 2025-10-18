@@ -47,7 +47,6 @@ import argparse
 import json
 import subprocess
 import sys
-from typing import Dict, List, Optional, Set
 from collections import defaultdict
 
 
@@ -72,12 +71,21 @@ class ScreenMapper:
     # Element types we care about for navigation
     # These are the accessibility element types that indicate user interaction points
     INTERACTIVE_TYPES = {
-        'Button', 'Link', 'TextField', 'SecureTextField',
-        'Cell', 'Switch', 'Slider', 'Stepper', 'SegmentedControl',
-        'TabBar', 'NavigationBar', 'Toolbar'
+        "Button",
+        "Link",
+        "TextField",
+        "SecureTextField",
+        "Cell",
+        "Switch",
+        "Slider",
+        "Stepper",
+        "SegmentedControl",
+        "TabBar",
+        "NavigationBar",
+        "Toolbar",
     }
 
-    def __init__(self, udid: Optional[str] = None):
+    def __init__(self, udid: str | None = None):
         """
         Initialize screen mapper.
 
@@ -90,7 +98,7 @@ class ScreenMapper:
         """
         self.udid = udid
 
-    def get_accessibility_tree(self) -> Dict:
+    def get_accessibility_tree(self) -> dict:
         """
         Fetch accessibility tree from iOS simulator via IDB.
 
@@ -106,9 +114,9 @@ class ScreenMapper:
             - We extract the first element as the root
             - Tree structure: Each node has 'type', 'AXLabel', 'AXValue', 'children', etc.
         """
-        cmd = ['idb', 'ui', 'describe-all', '--json', '--nested']
+        cmd = ["idb", "ui", "describe-all", "--json", "--nested"]
         if self.udid:
-            cmd.extend(['--udid', self.udid])
+            cmd.extend(["--udid", self.udid])
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -125,103 +133,101 @@ class ScreenMapper:
             print("Error: Invalid JSON from idb")
             sys.exit(1)
 
-    def analyze_tree(self, node: Dict, depth: int = 0) -> Dict:
+    def analyze_tree(self, node: dict, depth: int = 0) -> dict:
         """Analyze accessibility tree for navigation info."""
         analysis = {
-            'elements_by_type': defaultdict(list),
-            'total_elements': 0,
-            'interactive_elements': 0,
-            'text_fields': [],
-            'buttons': [],
-            'navigation': {},
-            'screen_name': None,
-            'focusable': 0
+            "elements_by_type": defaultdict(list),
+            "total_elements": 0,
+            "interactive_elements": 0,
+            "text_fields": [],
+            "buttons": [],
+            "navigation": {},
+            "screen_name": None,
+            "focusable": 0,
         }
 
         self._analyze_recursive(node, analysis, depth)
 
         # Post-process for clean output
-        analysis['elements_by_type'] = dict(analysis['elements_by_type'])
+        analysis["elements_by_type"] = dict(analysis["elements_by_type"])
 
         return analysis
 
-    def _analyze_recursive(self, node: Dict, analysis: Dict, depth: int):
+    def _analyze_recursive(self, node: dict, analysis: dict, depth: int):
         """Recursively analyze tree nodes."""
-        elem_type = node.get('type')
-        label = node.get('AXLabel', '')
-        value = node.get('AXValue', '')
-        identifier = node.get('AXUniqueId', '')
+        elem_type = node.get("type")
+        label = node.get("AXLabel", "")
+        value = node.get("AXValue", "")
+        identifier = node.get("AXUniqueId", "")
 
         # Count element
         if elem_type:
-            analysis['total_elements'] += 1
+            analysis["total_elements"] += 1
 
             # Track by type
             if elem_type in self.INTERACTIVE_TYPES:
-                analysis['interactive_elements'] += 1
+                analysis["interactive_elements"] += 1
 
                 # Store concise info (label only, not full node)
                 elem_info = label or value or identifier or "Unnamed"
-                analysis['elements_by_type'][elem_type].append(elem_info)
+                analysis["elements_by_type"][elem_type].append(elem_info)
 
                 # Special handling for common types
-                if elem_type == 'Button':
-                    analysis['buttons'].append(elem_info)
-                elif elem_type in ('TextField', 'SecureTextField'):
-                    analysis['text_fields'].append({
-                        'type': elem_type,
-                        'label': elem_info,
-                        'has_value': bool(value)
-                    })
-                elif elem_type == 'NavigationBar':
-                    analysis['navigation']['nav_title'] = label or "Navigation"
-                elif elem_type == 'TabBar':
+                if elem_type == "Button":
+                    analysis["buttons"].append(elem_info)
+                elif elem_type in ("TextField", "SecureTextField"):
+                    analysis["text_fields"].append(
+                        {"type": elem_type, "label": elem_info, "has_value": bool(value)}
+                    )
+                elif elem_type == "NavigationBar":
+                    analysis["navigation"]["nav_title"] = label or "Navigation"
+                elif elem_type == "TabBar":
                     # Count tab items
-                    tab_count = len(node.get('children', []))
-                    analysis['navigation']['tab_count'] = tab_count
+                    tab_count = len(node.get("children", []))
+                    analysis["navigation"]["tab_count"] = tab_count
 
             # Track focusable elements
-            if node.get('enabled', False) and elem_type in self.INTERACTIVE_TYPES:
-                analysis['focusable'] += 1
+            if node.get("enabled", False) and elem_type in self.INTERACTIVE_TYPES:
+                analysis["focusable"] += 1
 
         # Try to identify screen name from view controller
-        if not analysis['screen_name'] and identifier:
-            if 'ViewController' in identifier or 'Screen' in identifier:
-                analysis['screen_name'] = identifier
+        if not analysis["screen_name"] and identifier:
+            if "ViewController" in identifier or "Screen" in identifier:
+                analysis["screen_name"] = identifier
 
         # Process children
-        for child in node.get('children', []):
+        for child in node.get("children", []):
             self._analyze_recursive(child, analysis, depth + 1)
 
-    def format_summary(self, analysis: Dict, verbose: bool = False) -> str:
+    def format_summary(self, analysis: dict, verbose: bool = False) -> str:
         """Format analysis as token-efficient summary."""
         lines = []
 
         # Screen identification (1 line)
-        screen = analysis['screen_name'] or "Unknown Screen"
-        total = analysis['total_elements']
-        interactive = analysis['interactive_elements']
+        screen = analysis["screen_name"] or "Unknown Screen"
+        total = analysis["total_elements"]
+        interactive = analysis["interactive_elements"]
         lines.append(f"Screen: {screen} ({total} elements, {interactive} interactive)")
 
         # Buttons summary (1 line)
-        if analysis['buttons']:
-            button_list = ', '.join(f'"{b}"' for b in analysis['buttons'][:5])
-            if len(analysis['buttons']) > 5:
+        if analysis["buttons"]:
+            button_list = ", ".join(f'"{b}"' for b in analysis["buttons"][:5])
+            if len(analysis["buttons"]) > 5:
                 button_list += f" +{len(analysis['buttons']) - 5} more"
             lines.append(f"Buttons: {button_list}")
 
         # Text fields summary (1 line)
-        if analysis['text_fields']:
-            field_count = len(analysis['text_fields'])
-            field_types = [f['type'] for f in analysis['text_fields']]
-            filled = sum(1 for f in analysis['text_fields'] if f['has_value'])
+        if analysis["text_fields"]:
+            field_count = len(analysis["text_fields"])
+            [f["type"] for f in analysis["text_fields"]]
+            filled = sum(1 for f in analysis["text_fields"] if f["has_value"])
             lines.append(f"TextFields: {field_count} ({filled} filled)")
 
         # Navigation summary (1 line)
         nav_parts = []
-        if 'nav_title' in analysis['navigation']:
+        if "nav_title" in analysis["navigation"]:
             nav_parts.append(f"NavBar: \"{analysis['navigation']['nav_title']}\"")
-        if 'tab_count' in analysis['navigation']:
+        if "tab_count" in analysis["navigation"]:
             nav_parts.append(f"TabBar: {analysis['navigation']['tab_count']} tabs")
         if nav_parts:
             lines.append(f"Navigation: {', '.join(nav_parts)}")
@@ -232,7 +238,7 @@ class ScreenMapper:
         # Verbose mode adds element type breakdown
         if verbose:
             lines.append("\nElements by type:")
-            for elem_type, items in analysis['elements_by_type'].items():
+            for elem_type, items in analysis["elements_by_type"].items():
                 if items:  # Only show types that exist
                     lines.append(f"  {elem_type}: {len(items)}")
                     for item in items[:3]:  # Show first 3
@@ -240,25 +246,25 @@ class ScreenMapper:
                     if len(items) > 3:
                         lines.append(f"    ... +{len(items) - 3} more")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def get_navigation_hints(self, analysis: Dict) -> List[str]:
+    def get_navigation_hints(self, analysis: dict) -> list[str]:
         """Generate navigation hints based on screen analysis."""
         hints = []
 
         # Check for common patterns
-        if 'Login' in str(analysis.get('buttons', [])):
+        if "Login" in str(analysis.get("buttons", [])):
             hints.append("Login screen detected - find TextFields for credentials")
 
-        if analysis['text_fields']:
-            unfilled = [f for f in analysis['text_fields'] if not f['has_value']]
+        if analysis["text_fields"]:
+            unfilled = [f for f in analysis["text_fields"] if not f["has_value"]]
             if unfilled:
                 hints.append(f"{len(unfilled)} empty text field(s) - may need input")
 
-        if not analysis['buttons'] and not analysis['text_fields']:
+        if not analysis["buttons"] and not analysis["text_fields"]:
             hints.append("No interactive elements - try swiping or going back")
 
-        if 'tab_count' in analysis.get('navigation', {}):
+        if "tab_count" in analysis.get("navigation", {}):
             hints.append(f"Tab bar available with {analysis['navigation']['tab_count']} tabs")
 
         return hints
@@ -266,28 +272,11 @@ class ScreenMapper:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Map current screen UI elements'
-    )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Show detailed element breakdown'
-    )
-    parser.add_argument(
-        '--json',
-        action='store_true',
-        help='Output raw JSON analysis'
-    )
-    parser.add_argument(
-        '--hints',
-        action='store_true',
-        help='Include navigation hints'
-    )
-    parser.add_argument(
-        '--udid',
-        help='Device UDID'
-    )
+    parser = argparse.ArgumentParser(description="Map current screen UI elements")
+    parser.add_argument("--verbose", action="store_true", help="Show detailed element breakdown")
+    parser.add_argument("--json", action="store_true", help="Output raw JSON analysis")
+    parser.add_argument("--hints", action="store_true", help="Include navigation hints")
+    parser.add_argument("--udid", help="Device UDID")
 
     args = parser.parse_args()
 
@@ -314,5 +303,5 @@ def main():
                     print(f"  - {hint}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

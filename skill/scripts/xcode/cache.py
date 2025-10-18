@@ -7,7 +7,6 @@ Handles storage, retrieval, and lifecycle of xcresult bundles for progressive di
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class XCResultCache:
@@ -19,9 +18,9 @@ class XCResultCache:
     """
 
     # Default cache directory
-    DEFAULT_CACHE_DIR = Path.home() / '.ios-simulator-skill' / 'xcresults'
+    DEFAULT_CACHE_DIR = Path.home() / ".ios-simulator-skill" / "xcresults"
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         """
         Initialize cache manager.
 
@@ -41,7 +40,7 @@ class XCResultCache:
         Returns:
             ID string like "xcresult-20251018-143052"
         """
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return f"{prefix}-{timestamp}"
 
     def get_path(self, xcresult_id: str) -> Path:
@@ -55,7 +54,7 @@ class XCResultCache:
             Path to xcresult bundle
         """
         # Handle both with and without .xcresult extension
-        if xcresult_id.endswith('.xcresult'):
+        if xcresult_id.endswith(".xcresult"):
             return self.cache_dir / xcresult_id
         return self.cache_dir / f"{xcresult_id}.xcresult"
 
@@ -71,7 +70,7 @@ class XCResultCache:
         """
         return self.get_path(xcresult_id).exists()
 
-    def save(self, source_path: Path, xcresult_id: Optional[str] = None) -> str:
+    def save(self, source_path: Path, xcresult_id: str | None = None) -> str:
         """
         Save xcresult bundle to cache.
 
@@ -100,7 +99,7 @@ class XCResultCache:
 
         return xcresult_id
 
-    def list(self, limit: int = 10) -> List[Dict]:
+    def list(self, limit: int = 10) -> list[dict]:
         """
         List recent xcresult bundles.
 
@@ -115,19 +114,19 @@ class XCResultCache:
 
         results = []
         for path in sorted(
-            self.cache_dir.glob('*.xcresult'),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            self.cache_dir.glob("*.xcresult"), key=lambda p: p.stat().st_mtime, reverse=True
         )[:limit]:
             # Calculate bundle size
-            size_bytes = sum(f.stat().st_size for f in path.rglob('*') if f.is_file())
+            size_bytes = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
 
-            results.append({
-                'id': path.stem,
-                'path': str(path),
-                'created': datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
-                'size_mb': round(size_bytes / (1024 * 1024), 2)
-            })
+            results.append(
+                {
+                    "id": path.stem,
+                    "path": str(path),
+                    "created": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+                    "size_mb": round(size_bytes / (1024 * 1024), 2),
+                }
+            )
 
         return results
 
@@ -146,9 +145,7 @@ class XCResultCache:
 
         # Get all bundles sorted by modification time
         all_bundles = sorted(
-            self.cache_dir.glob('*.xcresult'),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            self.cache_dir.glob("*.xcresult"), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
         # Remove old bundles
@@ -173,5 +170,35 @@ class XCResultCache:
         if not path.exists():
             return 0.0
 
-        size_bytes = sum(f.stat().st_size for f in path.rglob('*') if f.is_file())
+        size_bytes = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
         return round(size_bytes / (1024 * 1024), 2)
+
+    def save_stderr(self, xcresult_id: str, stderr: str) -> None:
+        """
+        Save stderr output alongside xcresult bundle.
+
+        Args:
+            xcresult_id: XCResult ID
+            stderr: stderr output from xcodebuild
+        """
+        if not stderr:
+            return
+
+        stderr_path = self.cache_dir / f"{xcresult_id}.stderr"
+        stderr_path.write_text(stderr, encoding="utf-8")
+
+    def get_stderr(self, xcresult_id: str) -> str:
+        """
+        Retrieve cached stderr output.
+
+        Args:
+            xcresult_id: XCResult ID
+
+        Returns:
+            stderr content or empty string if not found
+        """
+        stderr_path = self.cache_dir / f"{xcresult_id}.stderr"
+        if not stderr_path.exists():
+            return ""
+
+        return stderr_path.read_text(encoding="utf-8")

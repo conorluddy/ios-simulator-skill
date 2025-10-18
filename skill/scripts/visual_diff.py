@@ -13,7 +13,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Tuple, Optional
 
 try:
     from PIL import Image, ImageChops, ImageDraw
@@ -34,7 +33,7 @@ class VisualDiffer:
         """
         self.threshold = threshold
 
-    def compare(self, baseline_path: str, current_path: str) -> Dict:
+    def compare(self, baseline_path: str, current_path: str) -> dict:
         """
         Compare two images and return difference metrics.
 
@@ -59,16 +58,16 @@ class VisualDiffer:
         # Verify dimensions match
         if baseline.size != current.size:
             return {
-                'error': 'Image dimensions do not match',
-                'baseline_size': baseline.size,
-                'current_size': current.size
+                "error": "Image dimensions do not match",
+                "baseline_size": baseline.size,
+                "current_size": current.size,
             }
 
         # Convert to RGB if needed
-        if baseline.mode != 'RGB':
-            baseline = baseline.convert('RGB')
-        if current.mode != 'RGB':
-            current = current.convert('RGB')
+        if baseline.mode != "RGB":
+            baseline = baseline.convert("RGB")
+        if current.mode != "RGB":
+            current = current.convert("RGB")
 
         # Calculate difference
         diff = ImageChops.difference(baseline, current)
@@ -82,39 +81,34 @@ class VisualDiffer:
         passed = diff_percentage <= (self.threshold * 100)
 
         return {
-            'dimensions': baseline.size,
-            'total_pixels': total_pixels,
-            'different_pixels': diff_pixels,
-            'difference_percentage': round(diff_percentage, 2),
-            'threshold_percentage': self.threshold * 100,
-            'passed': passed,
-            'verdict': 'PASS' if passed else 'FAIL'
+            "dimensions": baseline.size,
+            "total_pixels": total_pixels,
+            "different_pixels": diff_pixels,
+            "difference_percentage": round(diff_percentage, 2),
+            "threshold_percentage": self.threshold * 100,
+            "passed": passed,
+            "verdict": "PASS" if passed else "FAIL",
         }
 
     def _count_different_pixels(self, diff_image: Image.Image) -> int:
         """Count number of pixels that are different."""
         # Convert to grayscale for easier processing
-        diff_gray = diff_image.convert('L')
+        diff_gray = diff_image.convert("L")
 
         # Count non-zero pixels (different)
         pixels = diff_gray.getdata()
         return sum(1 for pixel in pixels if pixel > 10)  # Threshold for noise
 
-    def generate_diff_image(
-        self,
-        baseline_path: str,
-        current_path: str,
-        output_path: str
-    ) -> None:
+    def generate_diff_image(self, baseline_path: str, current_path: str, output_path: str) -> None:
         """Generate highlighted difference image."""
-        baseline = Image.open(baseline_path).convert('RGB')
-        current = Image.open(current_path).convert('RGB')
+        baseline = Image.open(baseline_path).convert("RGB")
+        current = Image.open(current_path).convert("RGB")
 
         # Create difference image
         diff = ImageChops.difference(baseline, current)
 
         # Enhance differences with red overlay
-        diff_enhanced = Image.new('RGB', baseline.size)
+        diff_enhanced = Image.new("RGB", baseline.size)
         for x in range(baseline.size[0]):
             for y in range(baseline.size[1]):
                 diff_pixel = diff.getpixel((x, y))
@@ -128,10 +122,7 @@ class VisualDiffer:
         diff_enhanced.save(output_path)
 
     def generate_side_by_side(
-        self,
-        baseline_path: str,
-        current_path: str,
-        output_path: str
+        self, baseline_path: str, current_path: str, output_path: str
     ) -> None:
         """Generate side-by-side comparison image."""
         baseline = Image.open(baseline_path)
@@ -140,7 +131,7 @@ class VisualDiffer:
         # Create combined image
         width = baseline.size[0] * 2 + 10  # 10px separator
         height = max(baseline.size[1], current.size[1])
-        combined = Image.new('RGB', (width, height), color=(128, 128, 128))
+        combined = Image.new("RGB", (width, height), color=(128, 128, 128))
 
         # Paste images
         combined.paste(baseline, (0, 0))
@@ -151,32 +142,22 @@ class VisualDiffer:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Compare screenshots for visual differences'
+    parser = argparse.ArgumentParser(description="Compare screenshots for visual differences")
+    parser.add_argument("baseline", help="Path to baseline screenshot")
+    parser.add_argument("current", help="Path to current screenshot")
+    parser.add_argument(
+        "--output",
+        default=".",
+        help="Output directory for diff artifacts (default: current directory)",
     )
     parser.add_argument(
-        'baseline',
-        help='Path to baseline screenshot'
-    )
-    parser.add_argument(
-        'current',
-        help='Path to current screenshot'
-    )
-    parser.add_argument(
-        '--output',
-        default='.',
-        help='Output directory for diff artifacts (default: current directory)'
-    )
-    parser.add_argument(
-        '--threshold',
+        "--threshold",
         type=float,
         default=0.01,
-        help='Acceptable difference threshold (0.01 = 1%%, default: 0.01)'
+        help="Acceptable difference threshold (0.01 = 1%%, default: 0.01)",
     )
     parser.add_argument(
-        '--details',
-        action='store_true',
-        help='Show detailed output (increases tokens)'
+        "--details", action="store_true", help="Show detailed output (increases tokens)"
     )
 
     args = parser.parse_args()
@@ -192,15 +173,15 @@ def main():
     result = differ.compare(args.baseline, args.current)
 
     # Handle dimension mismatch
-    if 'error' in result:
+    if "error" in result:
         print(f"Error: {result['error']}")
         print(f"Baseline: {result['baseline_size']}")
         print(f"Current: {result['current_size']}")
         sys.exit(1)
 
     # Generate artifacts
-    diff_image_path = output_dir / 'diff.png'
-    comparison_image_path = output_dir / 'side-by-side.png'
+    diff_image_path = output_dir / "diff.png"
+    comparison_image_path = output_dir / "side-by-side.png"
 
     try:
         differ.generate_diff_image(args.baseline, args.current, str(diff_image_path))
@@ -212,42 +193,43 @@ def main():
     if args.details:
         # Detailed output
         report = {
-            'summary': {
-                'baseline': args.baseline,
-                'current': args.current,
-                'threshold': args.threshold,
-                'passed': result['passed']
+            "summary": {
+                "baseline": args.baseline,
+                "current": args.current,
+                "threshold": args.threshold,
+                "passed": result["passed"],
             },
-            'results': result,
-            'artifacts': {
-                'diff_image': str(diff_image_path),
-                'comparison_image': str(comparison_image_path)
-            }
+            "results": result,
+            "artifacts": {
+                "diff_image": str(diff_image_path),
+                "comparison_image": str(comparison_image_path),
+            },
         }
         print(json.dumps(report, indent=2))
     else:
         # Minimal output (default)
         print(f"Difference: {result['difference_percentage']}% ({result['verdict']})")
-        if result['different_pixels'] > 0:
+        if result["different_pixels"] > 0:
             print(f"Changed pixels: {result['different_pixels']:,}")
         print(f"Artifacts saved to: {output_dir}/")
 
     # Save JSON report
-    report_path = output_dir / 'diff-report.json'
-    with open(report_path, 'w') as f:
-        json.dump({
-            'baseline': os.path.basename(args.baseline),
-            'current': os.path.basename(args.current),
-            'results': result,
-            'artifacts': {
-                'diff': 'diff.png',
-                'comparison': 'side-by-side.png'
-            }
-        }, f, indent=2)
+    report_path = output_dir / "diff-report.json"
+    with open(report_path, "w") as f:
+        json.dump(
+            {
+                "baseline": os.path.basename(args.baseline),
+                "current": os.path.basename(args.current),
+                "results": result,
+                "artifacts": {"diff": "diff.png", "comparison": "side-by-side.png"},
+            },
+            f,
+            indent=2,
+        )
 
     # Exit with error if test failed
-    sys.exit(0 if result['passed'] else 1)
+    sys.exit(0 if result["passed"] else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

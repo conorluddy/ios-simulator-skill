@@ -8,7 +8,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
 
 from .cache import XCResultCache
 from .config import Config
@@ -23,12 +22,12 @@ class BuildRunner:
 
     def __init__(
         self,
-        project_path: Optional[str] = None,
-        workspace_path: Optional[str] = None,
-        scheme: Optional[str] = None,
+        project_path: str | None = None,
+        workspace_path: str | None = None,
+        scheme: str | None = None,
         configuration: str = "Debug",
-        simulator: Optional[str] = None,
-        cache: Optional[XCResultCache] = None
+        simulator: str | None = None,
+        cache: XCResultCache | None = None,
     ):
         """
         Initialize build runner.
@@ -48,40 +47,35 @@ class BuildRunner:
         self.simulator = simulator
         self.cache = cache or XCResultCache()
 
-    def auto_detect_scheme(self) -> Optional[str]:
+    def auto_detect_scheme(self) -> str | None:
         """
         Auto-detect build scheme from project/workspace.
 
         Returns:
             Detected scheme name or None
         """
-        cmd = ['xcodebuild', '-list']
+        cmd = ["xcodebuild", "-list"]
 
         if self.workspace_path:
-            cmd.extend(['-workspace', self.workspace_path])
+            cmd.extend(["-workspace", self.workspace_path])
         elif self.project_path:
-            cmd.extend(['-project', self.project_path])
+            cmd.extend(["-project", self.project_path])
         else:
             return None
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
             # Parse schemes from output
             in_schemes_section = False
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 line = line.strip()
 
-                if 'Schemes:' in line:
+                if "Schemes:" in line:
                     in_schemes_section = True
                     continue
 
-                if in_schemes_section and line and not line.startswith('Build'):
+                if in_schemes_section and line and not line.startswith("Build"):
                     # First scheme in list
                     return line
 
@@ -126,13 +120,12 @@ class BuildRunner:
                 # Check if preferred simulator exists
                 if self._simulator_exists(preferred):
                     return f"platform=iOS Simulator,name={preferred}"
+                print(f"Warning: Preferred simulator '{preferred}' not available", file=sys.stderr)
+                if config.should_fallback_to_any_iphone():
+                    print("Falling back to auto-detection...", file=sys.stderr)
                 else:
-                    print(f"Warning: Preferred simulator '{preferred}' not available", file=sys.stderr)
-                    if config.should_fallback_to_any_iphone():
-                        print("Falling back to auto-detection...", file=sys.stderr)
-                    else:
-                        # Strict mode: don't fallback
-                        return f"platform=iOS Simulator,name={preferred}"
+                    # Strict mode: don't fallback
+                    return f"platform=iOS Simulator,name={preferred}"
 
         except Exception as e:
             print(f"Warning: Could not load config: {e}", file=sys.stderr)
@@ -152,23 +145,19 @@ class BuildRunner:
         """
         try:
             result = subprocess.run(
-                ['xcrun', 'simctl', 'list', 'devices', 'available', 'iOS'],
+                ["xcrun", "simctl", "list", "devices", "available", "iOS"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             # Check if simulator name appears in available devices
-            for line in result.stdout.split('\n'):
-                if name in line and '(' in line:
-                    return True
-
-            return False
+            return any(name in line and "(" in line for line in result.stdout.split("\n"))
 
         except subprocess.CalledProcessError:
             return False
 
-    def _extract_simulator_name_from_destination(self, destination: str) -> Optional[str]:
+    def _extract_simulator_name_from_destination(self, destination: str) -> str | None:
         """
         Extract simulator name from destination string.
 
@@ -179,7 +168,7 @@ class BuildRunner:
             Simulator name or None
         """
         # Pattern: name=<simulator name>
-        match = re.search(r'name=([^,]+)', destination)
+        match = re.search(r"name=([^,]+)", destination)
         if match:
             return match.group(1).strip()
         return None
@@ -193,18 +182,18 @@ class BuildRunner:
         """
         try:
             result = subprocess.run(
-                ['xcrun', 'simctl', 'list', 'devices', 'available', 'iOS'],
+                ["xcrun", "simctl", "list", "devices", "available", "iOS"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             # Parse available simulators, prefer latest iPhone
             # Looking for lines like: "iPhone 16 Pro (12345678-1234-1234-1234-123456789012) (Shutdown)"
-            for line in result.stdout.split('\n'):
-                if 'iPhone' in line and '(' in line:
+            for line in result.stdout.split("\n"):
+                if "iPhone" in line and "(" in line:
                     # Extract device name
-                    name = line.split('(')[0].strip()
+                    name = line.split("(")[0].strip()
                     if name:
                         return f"platform=iOS Simulator,name={name}"
 
@@ -215,7 +204,7 @@ class BuildRunner:
             print(f"Warning: Could not auto-detect simulator: {e}", file=sys.stderr)
             return "generic/platform=iOS Simulator"
 
-    def build(self, clean: bool = False) -> Tuple[bool, str, str]:
+    def build(self, clean: bool = False) -> tuple[bool, str, str]:
         """
         Build the project.
 
@@ -237,35 +226,38 @@ class BuildRunner:
         xcresult_path = self.cache.get_path(xcresult_id)
 
         # Build command
-        cmd = ['xcodebuild', '-quiet']  # Suppress verbose output
+        cmd = ["xcodebuild", "-quiet"]  # Suppress verbose output
 
         if clean:
-            cmd.append('clean')
+            cmd.append("clean")
 
-        cmd.append('build')
+        cmd.append("build")
 
         if self.workspace_path:
-            cmd.extend(['-workspace', self.workspace_path])
+            cmd.extend(["-workspace", self.workspace_path])
         elif self.project_path:
-            cmd.extend(['-project', self.project_path])
+            cmd.extend(["-project", self.project_path])
         else:
             print("Error: No project or workspace specified", file=sys.stderr)
             return (False, "", "")
 
-        cmd.extend([
-            '-scheme', self.scheme,
-            '-configuration', self.configuration,
-            '-destination', self.get_simulator_destination(),
-            '-resultBundlePath', str(xcresult_path)
-        ])
+        cmd.extend(
+            [
+                "-scheme",
+                self.scheme,
+                "-configuration",
+                self.configuration,
+                "-destination",
+                self.get_simulator_destination(),
+                "-resultBundlePath",
+                str(xcresult_path),
+            ]
+        )
 
         # Execute build
         try:
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False  # Don't raise on non-zero exit
+                cmd, capture_output=True, text=True, check=False  # Don't raise on non-zero exit
             )
 
             success = result.returncode == 0
@@ -303,7 +295,7 @@ class BuildRunner:
             print(f"Error executing build: {e}", file=sys.stderr)
             return (False, "", str(e))
 
-    def test(self, test_suite: Optional[str] = None) -> Tuple[bool, str, str]:
+    def test(self, test_suite: str | None = None) -> tuple[bool, str, str]:
         """
         Run tests.
 
@@ -325,33 +317,33 @@ class BuildRunner:
         xcresult_path = self.cache.get_path(xcresult_id)
 
         # Build command
-        cmd = ['xcodebuild', '-quiet', 'test']
+        cmd = ["xcodebuild", "-quiet", "test"]
 
         if self.workspace_path:
-            cmd.extend(['-workspace', self.workspace_path])
+            cmd.extend(["-workspace", self.workspace_path])
         elif self.project_path:
-            cmd.extend(['-project', self.project_path])
+            cmd.extend(["-project", self.project_path])
         else:
             print("Error: No project or workspace specified", file=sys.stderr)
             return (False, "", "")
 
-        cmd.extend([
-            '-scheme', self.scheme,
-            '-destination', self.get_simulator_destination(),
-            '-resultBundlePath', str(xcresult_path)
-        ])
+        cmd.extend(
+            [
+                "-scheme",
+                self.scheme,
+                "-destination",
+                self.get_simulator_destination(),
+                "-resultBundlePath",
+                str(xcresult_path),
+            ]
+        )
 
         if test_suite:
-            cmd.extend(['-only-testing', test_suite])
+            cmd.extend(["-only-testing", test_suite])
 
         # Execute tests
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
             success = result.returncode == 0
 

@@ -1,5 +1,6 @@
 ---
 name: ios-simulator-skill
+version: 1.0.0
 description: Build, test, and automate iOS apps with 12 production-ready scripts including ultra token-efficient build automation, real-time log monitoring, and accessibility-driven UI navigation.
 ---
 

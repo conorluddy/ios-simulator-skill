@@ -1,0 +1,61 @@
+name: Lint Python Code
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'skill/scripts/**/*.py'
+      - 'skill/examples/**/*.py'
+      - 'pyproject.toml'
+      - '.github/workflows/lint.yml'
+
+  push:
+    branches: [main]
+    paths:
+      - 'skill/scripts/**/*.py'
+      - 'skill/examples/**/*.py'
+
+jobs:
+  lint:
+    name: Run Black, Ruff, and mypy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black ruff
+
+      - name: Run Black (formatter check)
+        run: |
+          echo "🎨 Checking code formatting with Black..."
+          black --check --diff skill/scripts/ skill/examples/
+
+      - name: Run Ruff (linter)
+        run: |
+          echo "🔍 Linting code with Ruff..."
+          ruff check skill/scripts/ skill/examples/
+
+      # TODO: Re-enable mypy after adding proper type annotations
+      # - name: Run mypy (type checker)
+      #   run: |
+      #     echo "🔒 Type checking with mypy..."
+      #     mypy skill/scripts/
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## ✅ All Linting Checks Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Black: Code formatting is correct" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Ruff: No linting issues found" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏭️  mypy: Disabled (TODO: add type annotations)" >> $GITHUB_STEP_SUMMARY

@@ -39,13 +39,13 @@ import sys
 from pathlib import Path
 
 # Import our modular components
-from xcode import XCResultCache, XCResultParser, OutputFormatter, BuildRunner
+from xcode import BuildRunner, OutputFormatter, XCResultCache, XCResultParser
 
 
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Build and test Xcode projects with progressive disclosure',
+        description="Build and test Xcode projects with progressive disclosure",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -63,43 +63,49 @@ Examples:
 
   # List recent builds
   python scripts/build_and_test.py --list-xcresults
-        """
+        """,
     )
 
     # Build/test mode arguments
-    build_group = parser.add_argument_group('Build/Test Options')
+    build_group = parser.add_argument_group("Build/Test Options")
     project_group = build_group.add_mutually_exclusive_group()
-    project_group.add_argument('--project', help='Path to .xcodeproj file')
-    project_group.add_argument('--workspace', help='Path to .xcworkspace file')
+    project_group.add_argument("--project", help="Path to .xcodeproj file")
+    project_group.add_argument("--workspace", help="Path to .xcworkspace file")
 
-    build_group.add_argument('--scheme', help='Build scheme (auto-detected if not specified)')
-    build_group.add_argument('--configuration', default='Debug',
-                            choices=['Debug', 'Release'],
-                            help='Build configuration (default: Debug)')
-    build_group.add_argument('--simulator', help='Simulator name (default: iPhone 15)')
-    build_group.add_argument('--clean', action='store_true', help='Clean before building')
-    build_group.add_argument('--test', action='store_true', help='Run tests')
-    build_group.add_argument('--suite', help='Specific test suite to run')
+    build_group.add_argument("--scheme", help="Build scheme (auto-detected if not specified)")
+    build_group.add_argument(
+        "--configuration",
+        default="Debug",
+        choices=["Debug", "Release"],
+        help="Build configuration (default: Debug)",
+    )
+    build_group.add_argument("--simulator", help="Simulator name (default: iPhone 15)")
+    build_group.add_argument("--clean", action="store_true", help="Clean before building")
+    build_group.add_argument("--test", action="store_true", help="Run tests")
+    build_group.add_argument("--suite", help="Specific test suite to run")
 
     # Progressive disclosure arguments
-    disclosure_group = parser.add_argument_group('Progressive Disclosure Options')
-    disclosure_group.add_argument('--get-errors', metavar='XCRESULT_ID',
-                                 help='Get error details from xcresult')
-    disclosure_group.add_argument('--get-warnings', metavar='XCRESULT_ID',
-                                 help='Get warning details from xcresult')
-    disclosure_group.add_argument('--get-log', metavar='XCRESULT_ID',
-                                 help='Get build log from xcresult')
-    disclosure_group.add_argument('--get-all', metavar='XCRESULT_ID',
-                                 help='Get all details from xcresult')
-    disclosure_group.add_argument('--list-xcresults', action='store_true',
-                                 help='List recent xcresult bundles')
+    disclosure_group = parser.add_argument_group("Progressive Disclosure Options")
+    disclosure_group.add_argument(
+        "--get-errors", metavar="XCRESULT_ID", help="Get error details from xcresult"
+    )
+    disclosure_group.add_argument(
+        "--get-warnings", metavar="XCRESULT_ID", help="Get warning details from xcresult"
+    )
+    disclosure_group.add_argument(
+        "--get-log", metavar="XCRESULT_ID", help="Get build log from xcresult"
+    )
+    disclosure_group.add_argument(
+        "--get-all", metavar="XCRESULT_ID", help="Get all details from xcresult"
+    )
+    disclosure_group.add_argument(
+        "--list-xcresults", action="store_true", help="List recent xcresult bundles"
+    )
 
     # Output options
-    output_group = parser.add_argument_group('Output Options')
-    output_group.add_argument('--verbose', action='store_true',
-                             help='Show detailed output')
-    output_group.add_argument('--json', action='store_true',
-                             help='Output as JSON')
+    output_group = parser.add_argument_group("Output Options")
+    output_group.add_argument("--verbose", action="store_true", help="Show detailed output")
+    output_group.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -111,39 +117,41 @@ Examples:
         xcresults = cache.list()
         if args.json:
             import json
+
             print(json.dumps(xcresults, indent=2))
+        elif not xcresults:
+            print("No xcresult bundles found")
         else:
-            if not xcresults:
-                print("No xcresult bundles found")
-            else:
-                print(f"Recent XCResult bundles ({len(xcresults)}):")
+            print(f"Recent XCResult bundles ({len(xcresults)}):")
+            print()
+            for xc in xcresults:
+                print(f"  {xc['id']}")
+                print(f"    Created: {xc['created']}")
+                print(f"    Size: {xc['size_mb']} MB")
                 print()
-                for xc in xcresults:
-                    print(f"  {xc['id']}")
-                    print(f"    Created: {xc['created']}")
-                    print(f"    Size: {xc['size_mb']} MB")
-                    print()
         return 0
 
     # Handle retrieval modes
-    xcresult_id = (args.get_errors or args.get_warnings or
-                   args.get_log or args.get_all)
+    xcresult_id = args.get_errors or args.get_warnings or args.get_log or args.get_all
 
     if xcresult_id:
         xcresult_path = cache.get_path(xcresult_id)
 
         if not xcresult_path or not xcresult_path.exists():
             print(f"Error: XCResult bundle not found: {xcresult_id}", file=sys.stderr)
-            print(f"Use --list-xcresults to see available bundles", file=sys.stderr)
+            print("Use --list-xcresults to see available bundles", file=sys.stderr)
             return 1
 
-        parser = XCResultParser(xcresult_path)
+        # Load cached stderr for progressive disclosure
+        cached_stderr = cache.get_stderr(xcresult_id)
+        parser = XCResultParser(xcresult_path, stderr=cached_stderr)
 
         # Get errors
         if args.get_errors:
             errors = parser.get_errors()
             if args.json:
                 import json
+
                 print(json.dumps(errors, indent=2))
             else:
                 print(OutputFormatter.format_errors(errors))
@@ -154,6 +162,7 @@ Examples:
             warnings = parser.get_warnings()
             if args.json:
                 import json
+
                 print(json.dumps(warnings, indent=2))
             else:
                 print(OutputFormatter.format_warnings(warnings))
@@ -178,13 +187,14 @@ Examples:
 
             if args.json:
                 import json
+
                 data = {
-                    'xcresult_id': xcresult_id,
-                    'error_count': error_count,
-                    'warning_count': warning_count,
-                    'errors': errors,
-                    'warnings': warnings,
-                    'log_preview': build_log[:1000] if build_log else None
+                    "xcresult_id": xcresult_id,
+                    "error_count": error_count,
+                    "warning_count": warning_count,
+                    "errors": errors,
+                    "warnings": warnings,
+                    "log_preview": build_log[:1000] if build_log else None,
                 }
                 print(json.dumps(data, indent=2))
             else:
@@ -206,8 +216,8 @@ Examples:
     if not args.project and not args.workspace:
         # Try to auto-detect in current directory
         cwd = Path.cwd()
-        projects = list(cwd.glob('*.xcodeproj'))
-        workspaces = list(cwd.glob('*.xcworkspace'))
+        projects = list(cwd.glob("*.xcodeproj"))
+        workspaces = list(cwd.glob("*.xcworkspace"))
 
         if workspaces:
             args.workspace = str(workspaces[0])
@@ -223,7 +233,7 @@ Examples:
         scheme=args.scheme,
         configuration=args.configuration,
         simulator=args.simulator,
-        cache=cache
+        cache=cache,
     )
 
     # Execute build or test
@@ -235,6 +245,10 @@ Examples:
     if not xcresult_id and not stderr:
         print("Error: Build/test failed without creating xcresult or error output", file=sys.stderr)
         return 1
+
+    # Save stderr to cache for progressive disclosure
+    if xcresult_id and stderr:
+        cache.save_stderr(xcresult_id, stderr)
 
     # Parse results
     xcresult_path = cache.get_path(xcresult_id) if xcresult_id else None
@@ -261,20 +275,21 @@ Examples:
             warning_count=warning_count,
             xcresult_id=xcresult_id or "N/A",
             errors=errors,
-            warnings=warnings
+            warnings=warnings,
         )
         print(output)
     elif args.json:
         # JSON mode
         data = {
-            'success': success,
-            'xcresult_id': xcresult_id or None,
-            'error_count': error_count,
-            'warning_count': warning_count
+            "success": success,
+            "xcresult_id": xcresult_id or None,
+            "error_count": error_count,
+            "warning_count": warning_count,
         }
         if hints:
-            data['hints'] = hints
+            data["hints"] = hints
         import json
+
         print(json.dumps(data, indent=2))
     else:
         # Minimal mode (default)
@@ -283,7 +298,7 @@ Examples:
             error_count=error_count,
             warning_count=warning_count,
             xcresult_id=xcresult_id or "N/A",
-            hints=hints
+            hints=hints,
         )
         print(output)
 
@@ -291,5 +306,5 @@ Examples:
     return 0 if success else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

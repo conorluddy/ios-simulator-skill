@@ -5,8 +5,6 @@ Provides multiple output formats with progressive disclosure support.
 """
 
 import json
-import sys
-from typing import Dict, List, Optional, Set
 
 
 class OutputFormatter:
@@ -22,8 +20,8 @@ class OutputFormatter:
         error_count: int,
         warning_count: int,
         xcresult_id: str,
-        test_info: Optional[Dict] = None,
-        hints: Optional[List[str]] = None
+        test_info: dict | None = None,
+        hints: list[str] | None = None,
     ) -> str:
         """
         Format ultra-minimal output (5-10 tokens).
@@ -47,26 +45,30 @@ class OutputFormatter:
 
         if test_info:
             # Test mode
-            total = test_info.get('total', 0)
-            passed = test_info.get('passed', 0)
-            failed = test_info.get('failed', 0)
-            duration = test_info.get('duration', 0.0)
+            total = test_info.get("total", 0)
+            passed = test_info.get("passed", 0)
+            failed = test_info.get("failed", 0)
+            duration = test_info.get("duration", 0.0)
 
             test_status = "PASS" if failed == 0 else "FAIL"
-            lines.append(f"Tests: {test_status} ({passed}/{total} passed, {duration:.1f}s) [{xcresult_id}]")
+            lines.append(
+                f"Tests: {test_status} ({passed}/{total} passed, {duration:.1f}s) [{xcresult_id}]"
+            )
         else:
             # Build mode
-            lines.append(f"Build: {status} ({error_count} errors, {warning_count} warnings) [{xcresult_id}]")
+            lines.append(
+                f"Build: {status} ({error_count} errors, {warning_count} warnings) [{xcresult_id}]"
+            )
 
         # Add hints if provided and build failed
         if hints and status == "FAILED":
             lines.append("")
             lines.extend(hints)
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     @staticmethod
-    def format_errors(errors: List[Dict], limit: int = 10) -> str:
+    def format_errors(errors: list[dict], limit: int = 10) -> str:
         """
         Format error details.
 
@@ -84,18 +86,18 @@ class OutputFormatter:
         lines.append("")
 
         for i, error in enumerate(errors[:limit], 1):
-            message = error.get('message', 'Unknown error')
-            location = error.get('location', {})
+            message = error.get("message", "Unknown error")
+            location = error.get("location", {})
 
             # Format location
             loc_parts = []
-            if location.get('file'):
-                file_path = location['file'].replace('file://', '')
+            if location.get("file"):
+                file_path = location["file"].replace("file://", "")
                 loc_parts.append(file_path)
-            if location.get('line'):
+            if location.get("line"):
                 loc_parts.append(f"line {location['line']}")
 
-            location_str = ':'.join(loc_parts) if loc_parts else 'unknown location'
+            location_str = ":".join(loc_parts) if loc_parts else "unknown location"
 
             lines.append(f"{i}. {message}")
             lines.append(f"   Location: {location_str}")
@@ -104,10 +106,10 @@ class OutputFormatter:
         if len(errors) > limit:
             lines.append(f"... and {len(errors) - limit} more errors")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     @staticmethod
-    def format_warnings(warnings: List[Dict], limit: int = 10) -> str:
+    def format_warnings(warnings: list[dict], limit: int = 10) -> str:
         """
         Format warning details.
 
@@ -125,18 +127,18 @@ class OutputFormatter:
         lines.append("")
 
         for i, warning in enumerate(warnings[:limit], 1):
-            message = warning.get('message', 'Unknown warning')
-            location = warning.get('location', {})
+            message = warning.get("message", "Unknown warning")
+            location = warning.get("location", {})
 
             # Format location
             loc_parts = []
-            if location.get('file'):
-                file_path = location['file'].replace('file://', '')
+            if location.get("file"):
+                file_path = location["file"].replace("file://", "")
                 loc_parts.append(file_path)
-            if location.get('line'):
+            if location.get("line"):
                 loc_parts.append(f"line {location['line']}")
 
-            location_str = ':'.join(loc_parts) if loc_parts else 'unknown location'
+            location_str = ":".join(loc_parts) if loc_parts else "unknown location"
 
             lines.append(f"{i}. {message}")
             lines.append(f"   Location: {location_str}")
@@ -145,7 +147,7 @@ class OutputFormatter:
         if len(warnings) > limit:
             lines.append(f"... and {len(warnings) - limit} more warnings")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     @staticmethod
     def format_log(log: str, lines: int = 50) -> str:
@@ -162,17 +164,17 @@ class OutputFormatter:
         if not log:
             return "No build log available."
 
-        log_lines = log.strip().split('\n')
+        log_lines = log.strip().split("\n")
 
         if len(log_lines) <= lines:
             return log
 
         # Show last N lines
         excerpt = log_lines[-lines:]
-        return f"... (showing last {lines} lines of {len(log_lines)})\n\n" + '\n'.join(excerpt)
+        return f"... (showing last {lines} lines of {len(log_lines)})\n\n" + "\n".join(excerpt)
 
     @staticmethod
-    def format_json(data: Dict) -> str:
+    def format_json(data: dict) -> str:
         """
         Format data as JSON.
 
@@ -185,7 +187,7 @@ class OutputFormatter:
         return json.dumps(data, indent=2)
 
     @staticmethod
-    def generate_hints(errors: List[Dict]) -> List[str]:
+    def generate_hints(errors: list[dict]) -> list[str]:
         """
         Generate actionable hints based on error types.
 
@@ -196,29 +198,31 @@ class OutputFormatter:
             List of hint strings
         """
         hints = []
-        error_types: Set[str] = set()
+        error_types: set[str] = set()
 
         # Collect error types
         for error in errors:
-            error_type = error.get('type', 'unknown')
+            error_type = error.get("type", "unknown")
             error_types.add(error_type)
 
         # Generate hints based on error types
-        if 'provisioning' in error_types:
+        if "provisioning" in error_types:
             hints.append("Provisioning profile issue detected:")
             hints.append("  • Ensure you have a valid provisioning profile for iOS Simulator")
-            hints.append("  • For simulator builds, use CODE_SIGN_IDENTITY=\"\" CODE_SIGNING_REQUIRED=NO")
+            hints.append(
+                '  • For simulator builds, use CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO'
+            )
             hints.append("  • Or specify simulator explicitly: --simulator 'iPhone 16 Pro'")
 
-        if 'signing' in error_types:
+        if "signing" in error_types:
             hints.append("Code signing issue detected:")
             hints.append("  • For simulator builds, code signing is not required")
             hints.append("  • Ensure build settings target iOS Simulator, not physical device")
             hints.append("  • Check destination: platform=iOS Simulator,name=<device>")
 
-        if not error_types or 'build' in error_types:
+        if not error_types or "build" in error_types:
             # Generic hints when error type is unknown
-            if any('destination' in error.get('message', '').lower() for error in errors):
+            if any("destination" in error.get("message", "").lower() for error in errors):
                 hints.append("Device selection issue detected:")
                 hints.append("  • List available simulators: xcrun simctl list devices available")
                 hints.append("  • Specify simulator: --simulator 'iPhone 16 Pro'")
@@ -231,9 +235,9 @@ class OutputFormatter:
         error_count: int,
         warning_count: int,
         xcresult_id: str,
-        errors: Optional[List[Dict]] = None,
-        warnings: Optional[List[Dict]] = None,
-        test_info: Optional[Dict] = None
+        errors: list[dict] | None = None,
+        warnings: list[dict] | None = None,
+        test_info: dict | None = None,
     ) -> str:
         """
         Format verbose output with error/warning details.
@@ -254,10 +258,10 @@ class OutputFormatter:
 
         # Header
         if test_info:
-            total = test_info.get('total', 0)
-            passed = test_info.get('passed', 0)
-            failed = test_info.get('failed', 0)
-            duration = test_info.get('duration', 0.0)
+            total = test_info.get("total", 0)
+            passed = test_info.get("passed", 0)
+            failed = test_info.get("failed", 0)
+            duration = test_info.get("duration", 0.0)
 
             test_status = "PASS" if failed == 0 else "FAIL"
             lines.append(f"Tests: {test_status}")
@@ -284,4 +288,4 @@ class OutputFormatter:
         # Summary
         lines.append(f"Summary: {error_count} errors, {warning_count} warnings")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)

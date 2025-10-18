@@ -32,15 +32,12 @@ Usage Examples:
 
 import argparse
 import json
-import os
 import re
 import signal
 import subprocess
 import sys
-from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 
 class LogMonitor:
@@ -48,9 +45,9 @@ class LogMonitor:
 
     def __init__(
         self,
-        app_bundle_id: Optional[str] = None,
-        device_udid: Optional[str] = None,
-        severity_filter: Optional[List[str]] = None
+        app_bundle_id: str | None = None,
+        device_udid: str | None = None,
+        severity_filter: list[str] | None = None,
     ):
         """
         Initialize log monitor.
@@ -62,13 +59,13 @@ class LogMonitor:
         """
         self.app_bundle_id = app_bundle_id
         self.device_udid = device_udid or "booted"
-        self.severity_filter = severity_filter or ['error', 'warning', 'info', 'debug']
+        self.severity_filter = severity_filter or ["error", "warning", "info", "debug"]
 
         # Log storage
-        self.log_lines: List[str] = []
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-        self.info_messages: List[str] = []
+        self.log_lines: list[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.info_messages: list[str] = []
 
         # Statistics
         self.error_count = 0
@@ -78,10 +75,10 @@ class LogMonitor:
         self.total_lines = 0
 
         # Deduplication
-        self.seen_messages: Set[str] = set()
+        self.seen_messages: set[str] = set()
 
         # Process control
-        self.log_process: Optional[subprocess.Popen] = None
+        self.log_process: subprocess.Popen | None = None
         self.interrupted = False
 
     def parse_time_duration(self, duration_str: str) -> float:
@@ -94,23 +91,25 @@ class LogMonitor:
         Returns:
             Duration in seconds
         """
-        match = re.match(r'(\d+)([smh])', duration_str.lower())
+        match = re.match(r"(\d+)([smh])", duration_str.lower())
         if not match:
-            raise ValueError(f"Invalid duration format: {duration_str}. Use format like '30s', '5m', '1h'")
+            raise ValueError(
+                f"Invalid duration format: {duration_str}. Use format like '30s', '5m', '1h'"
+            )
 
         value, unit = match.groups()
         value = int(value)
 
-        if unit == 's':
+        if unit == "s":
             return value
-        elif unit == 'm':
+        if unit == "m":
             return value * 60
-        elif unit == 'h':
+        if unit == "h":
             return value * 3600
 
         return 0
 
-    def classify_log_line(self, line: str) -> Optional[str]:
+    def classify_log_line(self, line: str) -> str | None:
         """
         Classify log line by severity.
 
@@ -124,42 +123,33 @@ class LogMonitor:
 
         # Error patterns
         error_patterns = [
-            r'\berror\b',
-            r'\bfault\b',
-            r'\bfailed\b',
-            r'\bexception\b',
-            r'\bcrash\b',
-            r'❌'
+            r"\berror\b",
+            r"\bfault\b",
+            r"\bfailed\b",
+            r"\bexception\b",
+            r"\bcrash\b",
+            r"❌",
         ]
 
         # Warning patterns
-        warning_patterns = [
-            r'\bwarning\b',
-            r'\bwarn\b',
-            r'\bdeprecated\b',
-            r'⚠️'
-        ]
+        warning_patterns = [r"\bwarning\b", r"\bwarn\b", r"\bdeprecated\b", r"⚠️"]
 
         # Info patterns
-        info_patterns = [
-            r'\binfo\b',
-            r'\bnotice\b',
-            r'ℹ️'
-        ]
+        info_patterns = [r"\binfo\b", r"\bnotice\b", r"ℹ️"]
 
         for pattern in error_patterns:
             if re.search(pattern, line_lower):
-                return 'error'
+                return "error"
 
         for pattern in warning_patterns:
             if re.search(pattern, line_lower):
-                return 'warning'
+                return "warning"
 
         for pattern in info_patterns:
             if re.search(pattern, line_lower):
-                return 'info'
+                return "info"
 
-        return 'debug'
+        return "debug"
 
     def deduplicate_message(self, line: str) -> bool:
         """
@@ -172,9 +162,9 @@ class LogMonitor:
             True if this is a new message, False if duplicate
         """
         # Create signature by removing timestamps and process IDs
-        signature = re.sub(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}', '', line)
-        signature = re.sub(r'\[\d+\]', '', signature)
-        signature = re.sub(r'\s+', ' ', signature).strip()
+        signature = re.sub(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}", "", line)
+        signature = re.sub(r"\[\d+\]", "", signature)
+        signature = re.sub(r"\s+", " ", signature).strip()
 
         if signature in self.seen_messages:
             return False
@@ -203,18 +193,17 @@ class LogMonitor:
             return
 
         # Deduplicate (for errors and warnings)
-        if severity in ['error', 'warning']:
-            if not self.deduplicate_message(line):
-                return
+        if severity in ["error", "warning"] and not self.deduplicate_message(line):
+            return
 
         # Store by severity
-        if severity == 'error':
+        if severity == "error":
             self.error_count += 1
             self.errors.append(line)
-        elif severity == 'warning':
+        elif severity == "warning":
             self.warning_count += 1
             self.warnings.append(line)
-        elif severity == 'info':
+        elif severity == "info":
             self.info_count += 1
             if len(self.info_messages) < 20:  # Keep only recent info
                 self.info_messages.append(line)
@@ -224,8 +213,8 @@ class LogMonitor:
     def stream_logs(
         self,
         follow: bool = False,
-        duration: Optional[float] = None,
-        last_minutes: Optional[float] = None
+        duration: float | None = None,
+        last_minutes: float | None = None,
     ) -> bool:
         """
         Stream logs from simulator.
@@ -239,19 +228,19 @@ class LogMonitor:
             True if successful
         """
         # Build log stream command
-        cmd = ['xcrun', 'simctl', 'spawn', self.device_udid, 'log', 'stream']
+        cmd = ["xcrun", "simctl", "spawn", self.device_udid, "log", "stream"]
 
         # Add filters
         if self.app_bundle_id:
             # Filter by process name (extracted from bundle ID)
-            app_name = self.app_bundle_id.split('.')[-1]
-            cmd.extend(['--predicate', f'processImagePath CONTAINS "{app_name}"'])
+            app_name = self.app_bundle_id.split(".")[-1]
+            cmd.extend(["--predicate", f'processImagePath CONTAINS "{app_name}"'])
 
         # Add time filter for historical logs
         if last_minutes:
             start_time = datetime.now() - timedelta(minutes=last_minutes)
-            time_str = start_time.strftime('%Y-%m-%d %H:%M:%S')
-            cmd.extend(['--start', time_str])
+            time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+            cmd.extend(["--start", time_str])
 
         # Setup signal handler for graceful interruption
         def signal_handler(sig, frame):
@@ -268,14 +257,14 @@ class LogMonitor:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1  # Line buffered
+                bufsize=1,  # Line buffered
             )
 
             # Track start time for duration
             start_time = datetime.now()
 
             # Process log lines
-            for line in iter(self.log_process.stdout.readline, ''):
+            for line in iter(self.log_process.stdout.readline, ""):
                 if not line:
                     break
 
@@ -324,11 +313,13 @@ class LogMonitor:
         if self.app_bundle_id:
             lines.append(f"Logs for: {self.app_bundle_id}")
         else:
-            lines.append(f"Logs for: All processes")
+            lines.append("Logs for: All processes")
 
         # Statistics
         lines.append(f"Total lines: {self.total_lines}")
-        lines.append(f"Errors: {self.error_count}, Warnings: {self.warning_count}, Info: {self.info_count}")
+        lines.append(
+            f"Errors: {self.error_count}, Warnings: {self.warning_count}, Info: {self.info_count}"
+        )
 
         # Top issues
         if self.errors:
@@ -347,23 +338,23 @@ class LogMonitor:
             for line in self.log_lines[-50:]:  # Last 50 lines
                 lines.append(line)
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def get_json_output(self) -> Dict:
+    def get_json_output(self) -> dict:
         """Get log results as JSON."""
         return {
-            'app_bundle_id': self.app_bundle_id,
-            'device_udid': self.device_udid,
-            'statistics': {
-                'total_lines': self.total_lines,
-                'errors': self.error_count,
-                'warnings': self.warning_count,
-                'info': self.info_count,
-                'debug': self.debug_count
+            "app_bundle_id": self.app_bundle_id,
+            "device_udid": self.device_udid,
+            "statistics": {
+                "total_lines": self.total_lines,
+                "errors": self.error_count,
+                "warnings": self.warning_count,
+                "info": self.info_count,
+                "debug": self.debug_count,
             },
-            'errors': self.errors[:20],  # Limit to 20
-            'warnings': self.warnings[:20],
-            'sample_logs': self.log_lines[-50:]  # Last 50 lines
+            "errors": self.errors[:20],  # Limit to 20
+            "warnings": self.warnings[:20],
+            "sample_logs": self.log_lines[-50:],  # Last 50 lines
         }
 
     def save_logs(self, output_dir: str) -> str:
@@ -381,17 +372,17 @@ class LogMonitor:
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        app_name = self.app_bundle_id.split('.')[-1] if self.app_bundle_id else 'simulator'
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        app_name = self.app_bundle_id.split(".")[-1] if self.app_bundle_id else "simulator"
         log_file = output_path / f"{app_name}-{timestamp}.log"
 
         # Write all log lines
-        with open(log_file, 'w') as f:
-            f.write('\n'.join(self.log_lines))
+        with open(log_file, "w") as f:
+            f.write("\n".join(self.log_lines))
 
         # Also save JSON summary
         json_file = output_path / f"{app_name}-{timestamp}-summary.json"
-        with open(json_file, 'w') as f:
+        with open(json_file, "w") as f:
             json.dump(self.get_json_output(), f, indent=2)
 
         return str(log_file)
@@ -400,7 +391,7 @@ class LogMonitor:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Monitor and analyze iOS simulator logs',
+        description="Monitor and analyze iOS simulator logs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -415,40 +406,45 @@ Examples:
 
   # Save logs to file
   python scripts/log_monitor.py --app com.myapp.MyApp --duration 1m --output logs/
-        """
+        """,
     )
 
     # Filtering options
-    parser.add_argument('--app', dest='app_bundle_id',
-                       help='App bundle ID to filter logs (e.g., com.myapp.MyApp)')
-    parser.add_argument('--device-udid', help='Device UDID (uses booted if not specified)')
-    parser.add_argument('--severity', help='Comma-separated severity levels (error,warning,info,debug)')
+    parser.add_argument(
+        "--app", dest="app_bundle_id", help="App bundle ID to filter logs (e.g., com.myapp.MyApp)"
+    )
+    parser.add_argument("--device-udid", help="Device UDID (uses booted if not specified)")
+    parser.add_argument(
+        "--severity", help="Comma-separated severity levels (error,warning,info,debug)"
+    )
 
     # Time options
     time_group = parser.add_mutually_exclusive_group()
-    time_group.add_argument('--follow', action='store_true',
-                           help='Follow mode (continuous streaming)')
-    time_group.add_argument('--duration', help='Capture duration (e.g., 30s, 5m, 1h)')
-    time_group.add_argument('--last', dest='last_minutes',
-                           help='Show logs from last N minutes (e.g., 5m)')
+    time_group.add_argument(
+        "--follow", action="store_true", help="Follow mode (continuous streaming)"
+    )
+    time_group.add_argument("--duration", help="Capture duration (e.g., 30s, 5m, 1h)")
+    time_group.add_argument(
+        "--last", dest="last_minutes", help="Show logs from last N minutes (e.g., 5m)"
+    )
 
     # Output options
-    parser.add_argument('--output', help='Save logs to directory')
-    parser.add_argument('--verbose', action='store_true', help='Show detailed output')
-    parser.add_argument('--json', action='store_true', help='Output as JSON')
+    parser.add_argument("--output", help="Save logs to directory")
+    parser.add_argument("--verbose", action="store_true", help="Show detailed output")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
     # Parse severity filter
     severity_filter = None
     if args.severity:
-        severity_filter = [s.strip().lower() for s in args.severity.split(',')]
+        severity_filter = [s.strip().lower() for s in args.severity.split(",")]
 
     # Initialize monitor
     monitor = LogMonitor(
         app_bundle_id=args.app_bundle_id,
         device_udid=args.device_udid,
-        severity_filter=severity_filter
+        severity_filter=severity_filter,
     )
 
     # Parse duration
@@ -462,15 +458,11 @@ Examples:
         last_minutes = monitor.parse_time_duration(args.last_minutes) / 60
 
     # Stream logs
-    print(f"Monitoring logs...", file=sys.stderr)
+    print("Monitoring logs...", file=sys.stderr)
     if args.app_bundle_id:
         print(f"App: {args.app_bundle_id}", file=sys.stderr)
 
-    success = monitor.stream_logs(
-        follow=args.follow,
-        duration=duration,
-        last_minutes=last_minutes
-    )
+    success = monitor.stream_logs(follow=args.follow, duration=duration, last_minutes=last_minutes)
 
     if not success:
         sys.exit(1)
@@ -490,5 +482,5 @@ Examples:
     sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

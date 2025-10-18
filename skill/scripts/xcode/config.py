@@ -8,7 +8,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class Config:
@@ -26,11 +26,11 @@ class Config:
             "preferred_os_version": None,
             "fallback_to_any_iphone": True,
             "last_used_simulator": None,
-            "last_used_at": None
+            "last_used_at": None,
         }
     }
 
-    def __init__(self, data: Dict[str, Any], config_path: Path):
+    def __init__(self, data: dict[str, Any], config_path: Path):
         """
         Initialize config.
 
@@ -42,7 +42,7 @@ class Config:
         self.config_path = config_path
 
     @staticmethod
-    def load(project_dir: Optional[Path] = None) -> 'Config':
+    def load(project_dir: Path | None = None) -> "Config":
         """
         Load config from project directory.
 
@@ -55,12 +55,12 @@ class Config:
         if project_dir is None:
             project_dir = Path.cwd()
 
-        config_path = project_dir / '.claude' / 'skills' / 'ios-simulator-skill' / 'config.json'
+        config_path = project_dir / ".claude" / "skills" / "ios-simulator-skill" / "config.json"
 
         # Load existing config
         if config_path.exists():
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path) as f:
                     data = json.load(f)
 
                 # Merge with defaults (in case new fields added)
@@ -69,7 +69,7 @@ class Config:
 
             except json.JSONDecodeError as e:
                 print(f"Warning: Invalid JSON in {config_path}: {e}", file=sys.stderr)
-                print(f"Using default config", file=sys.stderr)
+                print("Using default config", file=sys.stderr)
                 return Config(Config.DEFAULT_CONFIG.copy(), config_path)
             except Exception as e:
                 print(f"Warning: Could not load config: {e}", file=sys.stderr)
@@ -79,7 +79,7 @@ class Config:
         return Config(Config.DEFAULT_CONFIG.copy(), config_path)
 
     @staticmethod
-    def _merge_with_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
+    def _merge_with_defaults(data: dict[str, Any]) -> dict[str, Any]:
         """
         Merge user config with defaults.
 
@@ -92,8 +92,8 @@ class Config:
         merged = Config.DEFAULT_CONFIG.copy()
 
         # Deep merge device section
-        if 'device' in data:
-            merged['device'].update(data['device'])
+        if "device" in data:
+            merged["device"].update(data["device"])
 
         return merged
 
@@ -109,11 +109,11 @@ class Config:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Atomic write: temp file + rename
-            temp_path = self.config_path.with_suffix('.tmp')
+            temp_path = self.config_path.with_suffix(".tmp")
 
-            with open(temp_path, 'w') as f:
+            with open(temp_path, "w") as f:
                 json.dump(self.data, f, indent=2)
-                f.write('\n')  # Trailing newline
+                f.write("\n")  # Trailing newline
 
             # Atomic rename
             temp_path.replace(self.config_path)
@@ -128,10 +128,10 @@ class Config:
         Args:
             name: Simulator name (e.g., "iPhone 16 Pro")
         """
-        self.data['device']['last_used_simulator'] = name
-        self.data['device']['last_used_at'] = datetime.utcnow().isoformat() + 'Z'
+        self.data["device"]["last_used_simulator"] = name
+        self.data["device"]["last_used_at"] = datetime.utcnow().isoformat() + "Z"
 
-    def get_preferred_simulator(self) -> Optional[str]:
+    def get_preferred_simulator(self) -> str | None:
         """
         Get preferred simulator.
 
@@ -143,15 +143,15 @@ class Config:
             2. last_used_simulator (auto-learned)
             3. None (use auto-detection)
         """
-        device = self.data.get('device', {})
+        device = self.data.get("device", {})
 
         # Manual preference takes priority
-        if device.get('preferred_simulator'):
-            return device['preferred_simulator']
+        if device.get("preferred_simulator"):
+            return device["preferred_simulator"]
 
         # Auto-learned preference
-        if device.get('last_used_simulator'):
-            return device['last_used_simulator']
+        if device.get("last_used_simulator"):
+            return device["last_used_simulator"]
 
         return None
 
@@ -162,4 +162,4 @@ class Config:
         Returns:
             True if should fallback, False otherwise
         """
-        return self.data.get('device', {}).get('fallback_to_any_iphone', True)
+        return self.data.get("device", {}).get("fallback_to_any_iphone", True)
