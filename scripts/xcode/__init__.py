@@ -8,10 +8,12 @@ from .cache import XCResultCache
 from .xcresult import XCResultParser
 from .reporter import OutputFormatter
 from .builder import BuildRunner
+from .config import Config
 
 __all__ = [
     'XCResultCache',
     'XCResultParser',
     'OutputFormatter',
-    'BuildRunner'
+    'BuildRunner',
+    'Config'
 ]

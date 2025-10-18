@@ -4,12 +4,14 @@ Xcode build execution.
 Handles xcodebuild command construction and execution with xcresult generation.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
 from .cache import XCResultCache
+from .config import Config
 
 
 class BuildRunner:
@@ -92,14 +94,95 @@ class BuildRunner:
         """
         Get xcodebuild destination string.
 
+        Uses config preferences with fallback to auto-detection.
+
+        Priority:
+            1. --simulator CLI flag (self.simulator)
+            2. Config preferred_simulator
+            3. Config last_used_simulator
+            4. Auto-detect first iPhone
+            5. Generic iOS Simulator
+
         Returns:
             Destination string for -destination flag
         """
+        # Priority 1: CLI flag
         if self.simulator:
             return f"platform=iOS Simulator,name={self.simulator}"
-        else:
-            # Auto-detect best available simulator
-            return self._auto_detect_simulator()
+
+        # Priority 2-3: Config preferences
+        try:
+            # Determine project directory from project/workspace path
+            project_dir = None
+            if self.project_path:
+                project_dir = Path(self.project_path).parent
+            elif self.workspace_path:
+                project_dir = Path(self.workspace_path).parent
+
+            config = Config.load(project_dir=project_dir)
+            preferred = config.get_preferred_simulator()
+
+            if preferred:
+                # Check if preferred simulator exists
+                if self._simulator_exists(preferred):
+                    return f"platform=iOS Simulator,name={preferred}"
+                else:
+                    print(f"Warning: Preferred simulator '{preferred}' not available", file=sys.stderr)
+                    if config.should_fallback_to_any_iphone():
+                        print("Falling back to auto-detection...", file=sys.stderr)
+                    else:
+                        # Strict mode: don't fallback
+                        return f"platform=iOS Simulator,name={preferred}"
+
+        except Exception as e:
+            print(f"Warning: Could not load config: {e}", file=sys.stderr)
+
+        # Priority 4-5: Auto-detect
+        return self._auto_detect_simulator()
+
+    def _simulator_exists(self, name: str) -> bool:
+        """
+        Check if simulator with given name exists and is available.
+
+        Args:
+            name: Simulator name (e.g., "iPhone 16 Pro")
+
+        Returns:
+            True if simulator exists and is available
+        """
+        try:
+            result = subprocess.run(
+                ['xcrun', 'simctl', 'list', 'devices', 'available', 'iOS'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            # Check if simulator name appears in available devices
+            for line in result.stdout.split('\n'):
+                if name in line and '(' in line:
+                    return True
+
+            return False
+
+        except subprocess.CalledProcessError:
+            return False
+
+    def _extract_simulator_name_from_destination(self, destination: str) -> Optional[str]:
+        """
+        Extract simulator name from destination string.
+
+        Args:
+            destination: Destination string (e.g., "platform=iOS Simulator,name=iPhone 16 Pro")
+
+        Returns:
+            Simulator name or None
+        """
+        # Pattern: name=<simulator name>
+        match = re.search(r'name=([^,]+)', destination)
+        if match:
+            return match.group(1).strip()
+        return None
 
     def _auto_detect_simulator(self) -> str:
         """
@@ -192,6 +275,28 @@ class BuildRunner:
                 print("Warning: xcresult bundle was not created", file=sys.stderr)
                 return (success, "", result.stderr)
 
+            # Auto-update config with last used simulator (on success only)
+            if success:
+                try:
+                    # Determine project directory from project/workspace path
+                    project_dir = None
+                    if self.project_path:
+                        project_dir = Path(self.project_path).parent
+                    elif self.workspace_path:
+                        project_dir = Path(self.workspace_path).parent
+
+                    config = Config.load(project_dir=project_dir)
+                    destination = self.get_simulator_destination()
+                    simulator_name = self._extract_simulator_name_from_destination(destination)
+
+                    if simulator_name:
+                        config.update_last_used_simulator(simulator_name)
+                        config.save()
+
+                except Exception as e:
+                    # Don't fail build if config update fails
+                    print(f"Warning: Could not update config: {e}", file=sys.stderr)
+
             return (success, xcresult_id, result.stderr)
 
         except Exception as e:
@@ -254,6 +359,28 @@ class BuildRunner:
             if not xcresult_path.exists():
                 print("Warning: xcresult bundle was not created", file=sys.stderr)
                 return (success, "", result.stderr)
+
+            # Auto-update config with last used simulator (on success only)
+            if success:
+                try:
+                    # Determine project directory from project/workspace path
+                    project_dir = None
+                    if self.project_path:
+                        project_dir = Path(self.project_path).parent
+                    elif self.workspace_path:
+                        project_dir = Path(self.workspace_path).parent
+
+                    config = Config.load(project_dir=project_dir)
+                    destination = self.get_simulator_destination()
+                    simulator_name = self._extract_simulator_name_from_destination(destination)
+
+                    if simulator_name:
+                        config.update_last_used_simulator(simulator_name)
+                        config.save()
+
+                except Exception as e:
+                    # Don't fail test if config update fails
+                    print(f"Warning: Could not update config: {e}", file=sys.stderr)
 
             return (success, xcresult_id, result.stderr)
 
