@@ -4,6 +4,11 @@
 
 Efficient iOS app building, navigation, and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
 
+> [!NOTE]  
+> This repo was a spike into seeing how skills work, but I still prefer [XC-MCP](https://github.com/conorluddy/xc-mcp) for its predictability
+
+
+
 ## 📥 Installation
 
 **Download the latest release** from the [releases page](https://github.com/conorluddy/ios-simulator-skill/releases) and extract to your Claude skills directory:
