@@ -1,6 +1,7 @@
 # iOS Simulator Claude Skill
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/conorluddy/ios-simulator-skill)
 
 Efficient iOS app building, navigation, and testing using accessibility-first automation. Optimized for AI agents with minimal token output and maximum capability.
 
