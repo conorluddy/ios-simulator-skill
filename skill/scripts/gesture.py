@@ -179,10 +179,11 @@ class GestureController:
         if self.udid:
             cmd.extend(["--udid", self.udid])
 
+        # Add duration parameter for long press
+        cmd.extend(["--duration", str(int(duration * 1000))])
+
         try:
             subprocess.run(cmd, capture_output=True, check=True)
-            # Simulate hold with delay
-            time.sleep(duration)
             return True
         except subprocess.CalledProcessError:
             return False
