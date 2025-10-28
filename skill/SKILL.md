@@ -1454,7 +1454,7 @@ xcrun simctl launch booted com.example.app  # Bypass all skill benefits
 - Unstructured output
 - Generic error messages
 
-**Rule of thumb:** If one of these 16+ scripts can do the job, use it. Never use raw tools for standard operations.
+**Rule of thumb:** If one of these 21+ scripts can do the job, use it. Never use raw tools for standard operations.
 
 ---
 

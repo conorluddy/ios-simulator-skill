@@ -73,7 +73,7 @@ ios-simulator-skill/                 # Development repository
 │   ├── SKILL.md                    # REQUIRED: Entry point with YAML frontmatter
 │   ├── CLAUDE.md                   # Developer guide (this file)
 │   ├── README.md                   # User-facing overview
-│   ├── scripts/                    # 16 executable production scripts
+│   ├── scripts/                    # 21 executable production scripts
 │   │   ├── build_and_test.py      # Main CLI (310 lines)
 │   │   ├── xcode/                  # Modular architecture (1,458 lines)
 │   │   │   ├── __init__.py        # Module exports (13 lines)
