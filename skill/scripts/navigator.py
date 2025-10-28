@@ -60,7 +60,13 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from common import flatten_tree, get_accessibility_tree
+from common import (
+    flatten_tree,
+    get_accessibility_tree,
+    get_device_screen_size,
+    resolve_udid,
+    transform_screenshot_coords,
+)
 
 
 @dataclass
@@ -302,13 +308,40 @@ def main():
     parser.add_argument("--tap-at", help="Tap at coordinates (x,y)")
     parser.add_argument("--enter-text", help="Enter text into element")
 
+    # Coordinate transformation
+    parser.add_argument(
+        "--screenshot-coords",
+        action="store_true",
+        help="Interpret tap coordinates as from a screenshot (requires --screenshot-width/height)",
+    )
+    parser.add_argument(
+        "--screenshot-width",
+        type=int,
+        help="Screenshot width for coordinate transformation",
+    )
+    parser.add_argument(
+        "--screenshot-height",
+        type=int,
+        help="Screenshot height for coordinate transformation",
+    )
+
     # Other options
-    parser.add_argument("--udid", help="Device UDID")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
     parser.add_argument("--list", action="store_true", help="List all tappable elements")
 
     args = parser.parse_args()
 
-    navigator = Navigator(udid=args.udid)
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    navigator = Navigator(udid=udid)
 
     # List mode
     if args.list:
@@ -338,6 +371,29 @@ def main():
             sys.exit(1)
 
         x, y = int(coords[0]), int(coords[1])
+
+        # Handle coordinate transformation if requested
+        if args.screenshot_coords:
+            if not args.screenshot_width or not args.screenshot_height:
+                print(
+                    "Error: --screenshot-coords requires --screenshot-width and --screenshot-height"
+                )
+                sys.exit(1)
+
+            device_w, device_h = get_device_screen_size(udid)
+            x, y = transform_screenshot_coords(
+                x,
+                y,
+                args.screenshot_width,
+                args.screenshot_height,
+                device_w,
+                device_h,
+            )
+            print(
+                f"Transformed screenshot coords ({coords[0]}, {coords[1]}) "
+                f"to device coords ({x}, {y})"
+            )
+
         if navigator.tap_at(x, y):
             print(f"Tapped at ({x}, {y})")
         else:

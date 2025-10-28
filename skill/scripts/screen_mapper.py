@@ -49,7 +49,7 @@ import subprocess
 import sys
 from collections import defaultdict
 
-from common import get_accessibility_tree
+from common import get_accessibility_tree, resolve_udid
 
 
 class ScreenMapper:
@@ -251,12 +251,22 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Show detailed element breakdown")
     parser.add_argument("--json", action="store_true", help="Output raw JSON analysis")
     parser.add_argument("--hints", action="store_true", help="Include navigation hints")
-    parser.add_argument("--udid", help="Device UDID")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
 
     args = parser.parse_args()
 
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Create mapper and analyze
-    mapper = ScreenMapper(udid=args.udid)
+    mapper = ScreenMapper(udid=udid)
     tree = mapper.get_accessibility_tree()
     analysis = mapper.analyze_tree(tree)
 

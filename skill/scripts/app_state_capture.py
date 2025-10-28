@@ -15,22 +15,37 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from common import count_elements, get_accessibility_tree
+from common import (
+    capture_screenshot,
+    count_elements,
+    get_accessibility_tree,
+    resolve_udid,
+)
 
 
 class AppStateCapture:
     """Captures comprehensive app state for debugging."""
 
-    def __init__(self, app_bundle_id: str | None = None, udid: str | None = None):
+    def __init__(
+        self,
+        app_bundle_id: str | None = None,
+        udid: str | None = None,
+        inline: bool = False,
+        screenshot_size: str = "half",
+    ):
         """
         Initialize state capture.
 
         Args:
             app_bundle_id: Optional app bundle ID for log filtering
             udid: Optional device UDID (uses booted if not specified)
+            inline: If True, return screenshots as base64 (for vision-based automation)
+            screenshot_size: 'full', 'half', 'quarter', 'thumb' (default: 'half')
         """
         self.app_bundle_id = app_bundle_id
         self.udid = udid
+        self.inline = inline
+        self.screenshot_size = screenshot_size
 
     def capture_screenshot(self, output_path: Path) -> bool:
         """Capture screenshot of current screen."""
@@ -149,55 +164,104 @@ class AppStateCapture:
         except subprocess.CalledProcessError:
             return {}
 
-    def capture_all(self, output_dir: str, log_lines: int = 100) -> dict:
+    def capture_all(
+        self, output_dir: str, log_lines: int = 100, app_name: str | None = None
+    ) -> dict:
         """
         Capture complete app state.
 
         Args:
             output_dir: Directory to save artifacts
             log_lines: Number of log lines to capture
+            app_name: App name for semantic naming (for inline mode)
 
         Returns:
             Summary of captured state
         """
-        # Create output directory
+        # Create output directory (only if not in inline mode)
         output_path = Path(output_dir)
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        capture_dir = output_path / f"app-state-{timestamp}"
-        capture_dir.mkdir(parents=True, exist_ok=True)
+        if not self.inline:
+            capture_dir = output_path / f"app-state-{timestamp}"
+            capture_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            capture_dir = None
 
-        summary = {"timestamp": datetime.now().isoformat(), "output_dir": str(capture_dir)}
+        summary = {
+            "timestamp": datetime.now().isoformat(),
+            "screenshot_mode": "inline" if self.inline else "file",
+        }
 
-        # Capture screenshot
-        screenshot_path = capture_dir / "screenshot.png"
-        if self.capture_screenshot(screenshot_path):
-            summary["screenshot"] = "screenshot.png"
+        if capture_dir:
+            summary["output_dir"] = str(capture_dir)
+
+        # Capture screenshot using new unified utility
+        screenshot_result = capture_screenshot(
+            self.udid,
+            size=self.screenshot_size,
+            inline=self.inline,
+            app_name=app_name,
+        )
+
+        if self.inline:
+            # Inline mode: store base64
+            summary["screenshot"] = {
+                "mode": "inline",
+                "base64": screenshot_result["base64_data"],
+                "width": screenshot_result["width"],
+                "height": screenshot_result["height"],
+                "size_preset": self.screenshot_size,
+            }
+        else:
+            # File mode: save to disk
+            screenshot_path = capture_dir / "screenshot.png"
+            # Move temp file to target location
+            import shutil
+
+            shutil.move(screenshot_result["file_path"], screenshot_path)
+            summary["screenshot"] = {
+                "mode": "file",
+                "file": "screenshot.png",
+                "size_bytes": screenshot_result["size_bytes"],
+            }
 
         # Capture accessibility tree
-        accessibility_path = capture_dir / "accessibility-tree.json"
-        tree_info = self.capture_accessibility_tree(accessibility_path)
-        summary["accessibility"] = tree_info
+        if not self.inline or capture_dir:
+            accessibility_path = (capture_dir or output_path) / "accessibility-tree.json"
+        else:
+            accessibility_path = None
+
+        if accessibility_path:
+            tree_info = self.capture_accessibility_tree(accessibility_path)
+            summary["accessibility"] = tree_info
 
         # Capture logs (if app ID provided)
         if self.app_bundle_id:
-            logs_path = capture_dir / "app-logs.txt"
-            log_info = self.capture_logs(logs_path, log_lines)
-            summary["logs"] = log_info
+            if not self.inline or capture_dir:
+                logs_path = (capture_dir or output_path) / "app-logs.txt"
+            else:
+                logs_path = None
+
+            if logs_path:
+                log_info = self.capture_logs(logs_path, log_lines)
+                summary["logs"] = log_info
 
         # Get device info
         device_info = self.capture_device_info()
         if device_info:
             summary["device"] = device_info
-            # Save device info
-            with open(capture_dir / "device-info.json", "w") as f:
-                json.dump(device_info, f, indent=2)
+            # Save device info (file mode only)
+            if capture_dir:
+                with open(capture_dir / "device-info.json", "w") as f:
+                    json.dump(device_info, f, indent=2)
 
-        # Save summary
-        with open(capture_dir / "summary.json", "w") as f:
-            json.dump(summary, f, indent=2)
+        # Save summary (file mode only)
+        if capture_dir:
+            with open(capture_dir / "summary.json", "w") as f:
+                json.dump(summary, f, indent=2)
 
-        # Create markdown summary
-        self._create_summary_md(capture_dir, summary)
+            # Create markdown summary
+            self._create_summary_md(capture_dir, summary)
 
         return summary
 
@@ -260,19 +324,54 @@ def main():
     parser.add_argument(
         "--log-lines", type=int, default=100, help="Number of log lines to capture (default: 100)"
     )
-    parser.add_argument("--udid", help="Device UDID (uses booted if not specified)")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
+    parser.add_argument(
+        "--inline",
+        action="store_true",
+        help="Return screenshots as base64 (inline mode for vision-based automation)",
+    )
+    parser.add_argument(
+        "--size",
+        choices=["full", "half", "quarter", "thumb"],
+        default="half",
+        help="Screenshot size for token optimization (default: half)",
+    )
+    parser.add_argument("--app-name", help="App name for semantic screenshot naming")
 
     args = parser.parse_args()
 
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Create capturer
-    capturer = AppStateCapture(app_bundle_id=args.app_bundle_id, udid=args.udid)
+    capturer = AppStateCapture(
+        app_bundle_id=args.app_bundle_id,
+        udid=udid,
+        inline=args.inline,
+        screenshot_size=args.size,
+    )
 
     # Capture state
     try:
-        summary = capturer.capture_all(output_dir=args.output, log_lines=args.log_lines)
+        summary = capturer.capture_all(
+            output_dir=args.output, log_lines=args.log_lines, app_name=args.app_name
+        )
 
         # Token-efficient output
-        print(f"State captured: {summary['output_dir']}/")
+        if "output_dir" in summary:
+            print(f"State captured: {summary['output_dir']}/")
+        else:
+            # Inline mode
+            print(
+                f"State captured (inline mode): {summary['screenshot']['width']}x{summary['screenshot']['height']}"
+            )
 
         # Report any issues found
         if "logs" in summary and summary["logs"].get("captured"):

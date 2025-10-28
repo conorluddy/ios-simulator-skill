@@ -62,7 +62,12 @@ import subprocess
 import sys
 import time
 
-from common import get_screen_size
+from common import (
+    get_device_screen_size,
+    get_screen_size,
+    resolve_udid,
+    transform_screenshot_coords,
+)
 
 
 class GestureController:
@@ -270,11 +275,39 @@ def main():
         "--pinch", choices=["in", "out"], help="Pinch gesture (in=zoom out, out=zoom in)"
     )
     parser.add_argument("--refresh", action="store_true", help="Pull to refresh gesture")
-    parser.add_argument("--udid", help="Device UDID")
+
+    # Coordinate transformation
+    parser.add_argument(
+        "--screenshot-coords",
+        action="store_true",
+        help="Interpret swipe coordinates as from a screenshot (requires --screenshot-width/height)",
+    )
+    parser.add_argument(
+        "--screenshot-width",
+        type=int,
+        help="Screenshot width for coordinate transformation",
+    )
+    parser.add_argument(
+        "--screenshot-height",
+        type=int,
+        help="Screenshot height for coordinate transformation",
+    )
+
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
 
     args = parser.parse_args()
 
-    controller = GestureController(udid=args.udid)
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    controller = GestureController(udid=udid)
 
     # Execute requested gesture
     if args.swipe:
@@ -288,6 +321,33 @@ def main():
         # Custom swipe
         start = tuple(map(int, args.swipe_from.split(",")))
         end = tuple(map(int, args.swipe_to.split(",")))
+
+        # Handle coordinate transformation if requested
+        if args.screenshot_coords:
+            if not args.screenshot_width or not args.screenshot_height:
+                print(
+                    "Error: --screenshot-coords requires --screenshot-width and --screenshot-height"
+                )
+                sys.exit(1)
+
+            device_w, device_h = get_device_screen_size(udid)
+            start = transform_screenshot_coords(
+                start[0],
+                start[1],
+                args.screenshot_width,
+                args.screenshot_height,
+                device_w,
+                device_h,
+            )
+            end = transform_screenshot_coords(
+                end[0],
+                end[1],
+                args.screenshot_width,
+                args.screenshot_height,
+                device_w,
+                device_h,
+            )
+            print("Transformed screenshot coords to device coords")
 
         if controller.swipe_between(start, end):
             print(f"Swiped from {start} to {end}")
