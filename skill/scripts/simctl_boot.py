@@ -105,7 +105,8 @@ class SimulatorBooter:
                 # Check if device responds to simctl commands
                 result = subprocess.run(
                     ["xcrun", "simctl", "spawn", self.udid, "launchctl", "list"],
-                    check=False, capture_output=True,
+                    check=False,
+                    capture_output=True,
                     text=True,
                     timeout=5,
                 )
