@@ -15,7 +15,7 @@ import sys
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from common import flatten_tree, get_accessibility_tree
+from common import flatten_tree, get_accessibility_tree, resolve_udid
 
 
 @dataclass
@@ -229,7 +229,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Audit iOS simulator screen for accessibility issues"
     )
-    parser.add_argument("--udid", help="Device UDID (uses booted device if not specified)")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
     parser.add_argument("--output", help="Save JSON report to file")
     parser.add_argument(
         "--verbose", action="store_true", help="Include all issue details (increases output)"
@@ -237,8 +240,15 @@ def main():
 
     args = parser.parse_args()
 
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     # Perform audit
-    auditor = AccessibilityAuditor(udid=args.udid)
+    auditor = AccessibilityAuditor(udid=udid)
 
     try:
         result = auditor.audit(verbose=args.verbose)

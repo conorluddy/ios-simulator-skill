@@ -792,6 +792,69 @@ cmd = build_idb_command("ui tap", udid, "200", "400")
 subprocess.run(cmd)
 ```
 
+### Module: `cache_utils.py` (NEW)
+
+Provides progressive disclosure caching for large outputs.
+
+**Key Classes:**
+
+1. **`ProgressiveCache`**
+   - Saves large outputs with timestamped cache IDs
+   - 1-hour default TTL (configurable)
+   - Auto-cleanup of expired entries
+   - Used by: sim_list.py (simulator listings)
+   - Methods: save(), get(), list_entries(), cleanup(), clear()
+
+**Usage Example:**
+```python
+from common import get_cache
+
+cache = get_cache()
+
+# Save large output with cache ID
+cache_id = cache.save({'devices': [...]}, 'simulator-list')
+# Returns: 'sim-20251028-143052'
+
+# Retrieve later
+data = cache.get('sim-20251028-143052')
+```
+
+### Module: `screenshot_utils.py` (NEW)
+
+Provides unified screenshot handling with dual-mode support (file/inline) and semantic naming.
+
+**Key Functions:**
+
+1. **`capture_screenshot(udid, output_path=None, size='half', inline=False, app_name=None, screen_name=None, state=None)`**
+   - Unified screenshot capture with dual modes
+   - Size presets: 'full', 'half' (50% tokens), 'quarter', 'thumb'
+   - Inline mode returns base64 for vision-based automation
+   - File mode saves with semantic naming
+   - Used by: test_recorder.py, app_state_capture.py
+   - Returns: dict with mode-specific fields
+
+2. **`generate_screenshot_name(app_name=None, screen_name=None, state=None, timestamp=None)`**
+   - Generates semantic filenames: `{appName}_{screenName}_{state}_{timestamp}.png`
+   - Falls back to timestamp-only if names not provided
+   - Used by: test_recorder.py, app_state_capture.py
+
+3. **`resize_screenshot(input_path, output_path=None, size='half', quality=85)`**
+   - Resizes images for token optimization using PIL
+   - Returns: (output_path, width, height)
+
+**Usage Example:**
+```python
+from common import capture_screenshot
+
+# File mode (persistent)
+result = capture_screenshot('ABC123', app_name='MyApp')
+# Returns: {'mode': 'file', 'file_path': '...', 'size_bytes': 12345}
+
+# Inline mode (vision-based)
+result = capture_screenshot('ABC123', inline=True, size='half')
+# Returns: {'mode': 'inline', 'base64_data': '...', 'width': 195, 'height': 422}
+```
+
 ### Design Principles
 
 - **No Over-Abstraction**: Only code used in 2+ scripts is extracted
@@ -966,6 +1029,139 @@ xcrun simctl install booted <app-path>
 xcrun simctl uninstall booted <bundle-id>
 xcrun simctl listapps booted
 ```
+
+## New Design Patterns (Enhancements v1.1+)
+
+### Pattern 1: Auto-UDID Detection
+
+All navigation and interaction scripts now support optional `--udid`:
+
+**Before:**
+```bash
+# Always needed explicit UDID
+python scripts/navigator.py --find-text "Login" --tap --udid ABC123-XYZ
+```
+
+**Now:**
+```bash
+# Auto-detects booted simulator
+python scripts/navigator.py --find-text "Login" --tap
+```
+
+**Implementation:**
+```python
+from common import resolve_udid
+try:
+    udid = resolve_udid(args.udid)  # None if not provided
+except RuntimeError as e:
+    print(f"Error: {e}")
+    sys.exit(1)
+```
+
+**Affected Scripts:** navigator.py, gesture.py, keyboard.py, app_launcher.py, screen_mapper.py, accessibility_audit.py
+
+---
+
+### Pattern 2: Progressive Disclosure for Large Outputs
+
+Large outputs (simulator lists, build logs) are summarized with cache IDs:
+
+**Benefits:**
+- 96% token reduction (57k → 2k tokens)
+- User retrieves full details only when needed
+- Results cached for 1 hour with automatic expiration
+
+**Example:**
+```bash
+# Default: Concise summary (30 tokens)
+python scripts/sim_list.py
+# Output: Simulator Summary [cache-sim-20251028-143052]
+
+# On demand: Full details
+python scripts/sim_list.py --get-details cache-sim-20251028-143052
+```
+
+**Implementation:**
+```python
+from common import get_cache
+cache = get_cache()
+cache_id = cache.save(large_data, 'simulator-list')
+# User can call with cache_id later to retrieve
+```
+
+---
+
+### Pattern 3: Dual-Mode Screenshots (File vs Inline)
+
+Screenshots support both persistent file mode and vision-friendly inline mode:
+
+**File Mode (Default):**
+```bash
+# Creates persistent files for test documentation
+python scripts/test_recorder.py --test-name "LoginFlow"
+```
+
+**Inline Mode:**
+```bash
+# Returns base64 for agent vision analysis
+python scripts/test_recorder.py --test-name "LoginFlow" --inline --size half
+```
+
+**Size Presets for Token Optimization:**
+- `full` - Original resolution (100% tokens)
+- `half` - 50% dimensions, 25% tokens
+- `quarter` - 25% dimensions, 6% tokens
+- `thumb` - 10% dimensions, 1% tokens
+
+---
+
+### Pattern 4: Semantic Screenshot Naming
+
+Screenshots automatically follow naming convention:
+
+**Pattern:** `{appName}_{screenName}_{state}_{timestamp}.png`
+
+**Examples:**
+```bash
+# Semantic naming
+python scripts/test_recorder.py --step "Login" \
+  --screen-name "LoginView" --state "Empty" --app-name MyApp
+# Generates: MyApp_LoginView_Empty_20251028-143052.png
+
+# Fallback to timestamp-only
+python scripts/test_recorder.py --step "Step 1"
+# Generates: screenshot_20251028-143052.png
+```
+
+---
+
+### Pattern 5: Coordinate Transformation
+
+Allows tapping on downscaled screenshots with automatic coordinate conversion:
+
+```bash
+# Capture at half size (saves 75% tokens)
+python scripts/test_recorder.py --inline --size half
+# Returns: 195x422 pixels (half of 390x844)
+
+# Tap using screenshot coordinates
+python scripts/navigator.py --tap-at 100,200 \
+  --screenshot-coords \
+  --screenshot-width 195 --screenshot-height 422
+# Automatically transforms to device coordinates: (200, 400)
+```
+
+**Implementation:**
+```python
+from common import transform_screenshot_coords
+device_x, device_y = transform_screenshot_coords(
+    100, 200,  # Screenshot coords
+    195, 422,  # Screenshot dimensions
+    390, 844   # Device dimensions
+)
+```
+
+---
 
 ## Design Decisions & Rationale
 

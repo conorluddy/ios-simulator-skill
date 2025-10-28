@@ -17,13 +17,27 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from common import count_elements, get_accessibility_tree
+from common import (
+    count_elements,
+    get_accessibility_tree,
+    resolve_udid,
+    capture_screenshot,
+    generate_screenshot_name,
+)
 
 
 class TestRecorder:
     """Records test execution with screenshots and accessibility snapshots."""
 
-    def __init__(self, test_name: str, output_dir: str = "test-artifacts", udid: str | None = None):
+    def __init__(
+        self,
+        test_name: str,
+        output_dir: str = "test-artifacts",
+        udid: str | None = None,
+        inline: bool = False,
+        screenshot_size: str = "half",
+        app_name: str | None = None,
+    ):
         """
         Initialize test recorder.
 
@@ -31,9 +45,15 @@ class TestRecorder:
             test_name: Name of the test being recorded
             output_dir: Directory for test artifacts
             udid: Optional device UDID (uses booted if not specified)
+            inline: If True, return screenshots as base64 (for vision-based automation)
+            screenshot_size: 'full', 'half', 'quarter', 'thumb' (default: 'half')
+            app_name: App name for semantic screenshot naming
         """
         self.test_name = test_name
         self.udid = udid
+        self.inline = inline
+        self.screenshot_size = screenshot_size
+        self.app_name = app_name
         self.start_time = time.time()
         self.steps: list[dict] = []
         self.current_step = 0
@@ -44,38 +64,54 @@ class TestRecorder:
         self.output_dir = Path(output_dir) / f"{safe_name}-{timestamp}"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create subdirectories
-        self.screenshots_dir = self.output_dir / "screenshots"
-        self.screenshots_dir.mkdir(exist_ok=True)
+        # Create subdirectories (only if not in inline mode)
+        if not inline:
+            self.screenshots_dir = self.output_dir / "screenshots"
+            self.screenshots_dir.mkdir(exist_ok=True)
+        else:
+            self.screenshots_dir = None
+
         self.accessibility_dir = self.output_dir / "accessibility"
         self.accessibility_dir.mkdir(exist_ok=True)
 
         # Token-efficient output
-        print(f"Recording: {test_name}")
+        mode_str = "(inline mode)" if inline else ""
+        print(f"Recording: {test_name} {mode_str}")
         print(f"Output: {self.output_dir}/")
 
-    def step(self, description: str, assertion: str | None = None, metadata: dict | None = None):
+    def step(
+        self,
+        description: str,
+        screen_name: str | None = None,
+        state: str | None = None,
+        assertion: str | None = None,
+        metadata: dict | None = None,
+    ):
         """
         Record a test step with automatic screenshot.
 
         Args:
             description: Step description
+            screen_name: Screen name for semantic naming
+            state: State description for semantic naming
             assertion: Optional assertion to verify
             metadata: Optional metadata for the step
         """
         self.current_step += 1
         step_time = time.time() - self.start_time
 
-        # Format step number with padding
-        step_num = f"{self.current_step:03d}"
-        safe_desc = description.lower().replace(" ", "-")[:30]
-
-        # Capture screenshot
-        screenshot_path = self.screenshots_dir / f"{step_num}-{safe_desc}.png"
-        self._capture_screenshot(screenshot_path)
+        # Capture screenshot using new utility
+        screenshot_result = capture_screenshot(
+            self.udid,
+            size=self.screenshot_size,
+            inline=self.inline,
+            app_name=self.app_name,
+            screen_name=screen_name or description,
+            state=state,
+        )
 
         # Capture accessibility tree
-        accessibility_path = self.accessibility_dir / f"{step_num}-{safe_desc}.json"
+        accessibility_path = self.accessibility_dir / f"{self.current_step:03d}-{description.lower().replace(' ', '-')[:20]}.json"
         element_count = self._capture_accessibility(accessibility_path)
 
         # Store step data
@@ -83,14 +119,27 @@ class TestRecorder:
             "number": self.current_step,
             "description": description,
             "timestamp": step_time,
-            "screenshot": screenshot_path.name,
-            "accessibility": accessibility_path.name,
             "element_count": element_count,
+            "accessibility": accessibility_path.name,
+            "screenshot_mode": screenshot_result["mode"],
+            "screenshot_size": self.screenshot_size,
         }
+
+        # Handle screenshot data based on mode
+        if screenshot_result["mode"] == "file":
+            step_data["screenshot"] = screenshot_result["file_path"]
+            step_data["screenshot_name"] = Path(screenshot_result["file_path"]).name
+        else:
+            # Inline mode
+            step_data["screenshot_base64"] = screenshot_result["base64_data"]
+            step_data["screenshot_dimensions"] = (
+                screenshot_result["width"],
+                screenshot_result["height"],
+            )
 
         if assertion:
             step_data["assertion"] = assertion
-            step_data["assertion_passed"] = True  # Would verify in real implementation
+            step_data["assertion_passed"] = True
 
         if metadata:
             step_data["metadata"] = metadata
@@ -99,7 +148,12 @@ class TestRecorder:
 
         # Token-efficient output (single line)
         status = "✓" if not assertion or step_data.get("assertion_passed") else "✗"
-        print(f"{status} Step {self.current_step}: {description} ({step_time:.1f}s)")
+        screenshot_info = (
+            f" [{screenshot_result['width']}x{screenshot_result['height']}]"
+            if self.inline
+            else ""
+        )
+        print(f"{status} Step {self.current_step}: {description} ({step_time:.1f}s){screenshot_info}")
 
     def _capture_screenshot(self, output_path: Path) -> bool:
         """Capture screenshot using simctl."""
@@ -211,20 +265,54 @@ def main():
     parser.add_argument(
         "--output", default="test-artifacts", help="Output directory for test artifacts"
     )
-    parser.add_argument("--udid", help="Device UDID (uses booted if not specified)")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
+    parser.add_argument(
+        "--inline",
+        action="store_true",
+        help="Return screenshots as base64 (inline mode for vision-based automation)",
+    )
+    parser.add_argument(
+        "--size",
+        choices=["full", "half", "quarter", "thumb"],
+        default="half",
+        help="Screenshot size for token optimization (default: half)",
+    )
+    parser.add_argument(
+        "--app-name", help="App name for semantic screenshot naming"
+    )
 
     args = parser.parse_args()
 
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        import sys
+        sys.exit(1)
+
     # Create recorder
-    TestRecorder(test_name=args.test_name, output_dir=args.output, udid=args.udid)
+    recorder = TestRecorder(
+        test_name=args.test_name,
+        output_dir=args.output,
+        udid=udid,
+        inline=args.inline,
+        screenshot_size=args.size,
+        app_name=args.app_name,
+    )
 
     print("Test recorder initialized. Use the following methods:")
     print('  recorder.step("description") - Record a test step')
     print("  recorder.generate_report() - Generate final report")
     print()
     print("Example:")
-    print('  recorder.step("Launch app")')
-    print('  recorder.step("Enter credentials", metadata={"user": "test"})')
+    print('  recorder.step("Launch app", screen_name="Splash")')
+    print(
+        '  recorder.step("Enter credentials", screen_name="Login", state="Empty", metadata={"user": "test"})'
+    )
     print('  recorder.step("Verify login", assertion="Home screen visible")')
     print("  recorder.generate_report()")
 

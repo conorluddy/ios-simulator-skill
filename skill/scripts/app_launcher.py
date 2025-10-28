@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-from common import build_simctl_command
+from common import build_simctl_command, resolve_udid
 
 
 class AppLauncher:
@@ -235,11 +235,21 @@ def main():
     parser.add_argument(
         "--wait-for-debugger", action="store_true", help="Wait for debugger when launching"
     )
-    parser.add_argument("--udid", help="Device UDID")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
 
     args = parser.parse_args()
 
-    launcher = AppLauncher(udid=args.udid)
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    launcher = AppLauncher(udid=udid)
 
     # Execute requested action
     if args.launch:

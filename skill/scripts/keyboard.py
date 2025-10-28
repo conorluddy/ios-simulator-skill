@@ -68,6 +68,8 @@ Technical Details:
 import argparse
 import subprocess
 import sys
+
+from common import resolve_udid
 import time
 
 
@@ -313,11 +315,21 @@ def main():
     parser.add_argument("--clear", action="store_true", help="Clear current text field")
     parser.add_argument("--dismiss", action="store_true", help="Dismiss keyboard")
 
-    parser.add_argument("--udid", help="Device UDID")
+    parser.add_argument(
+        "--udid",
+        help="Device UDID (auto-detects booted simulator if not provided)",
+    )
 
     args = parser.parse_args()
 
-    controller = KeyboardController(udid=args.udid)
+    # Resolve UDID with auto-detection
+    try:
+        udid = resolve_udid(args.udid)
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    controller = KeyboardController(udid=udid)
 
     # Execute requested action
     if args.type:

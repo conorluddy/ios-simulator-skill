@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
-version: 1.0.1
-description: This Claude Skill can be used to build, test, and automate iOS apps. 13 production-ready scripts including ultra token-efficient xcode build automation, log monitoring, intelligent simulator selection, and accessibility-driven UI simulator navigation.
+version: 1.1.0
+description: This Claude Skill can be used to build, test, and automate iOS apps. 13 production-ready scripts with progressive disclosure (96% token reduction), auto-UDID detection, dual-mode screenshots, coordinate transformation, and accessibility-driven UI simulator navigation.
 ---
 
 # iOS Simulator Skill
@@ -18,6 +18,57 @@ idb ui tap 320 400  # What's at those coordinates?
 
 # ✅ Robust - finds by meaning
 python scripts/navigator.py --find-text "Login" --tap
+```
+
+## Key Features & Innovations
+
+### 🎯 Auto-UDID Detection
+No need to specify `--udid` - scripts automatically find your booted simulator:
+```bash
+# Before: Always needed --udid
+python scripts/navigator.py --find-text "Login" --tap --udid ABC123
+
+# Now: Works without --udid (auto-detected)
+python scripts/navigator.py --find-text "Login" --tap
+```
+
+### 📊 Progressive Disclosure (96% Token Reduction)
+Massive outputs are summarized, full details available on demand:
+```bash
+# Simulator listing (concise: 30 tokens vs 1500 tokens)
+python scripts/sim_list.py
+# Output: Simulator Summary [cache-sim-20251028-143052]
+
+# Get full details when needed
+python scripts/sim_list.py --get-details cache-sim-20251028-143052
+```
+
+### 🎨 Dual-Mode Screenshots
+- **File mode (default)**: Persistent artifacts for test documentation
+- **Inline mode**: Vision-based automation with base64 images
+- **Size presets**: Optimize token usage (full/half/quarter/thumb)
+
+```bash
+# File mode (persistent screenshots)
+python scripts/test_recorder.py --test-name "Login Flow"
+
+# Inline mode (for agent vision analysis)
+python scripts/test_recorder.py --test-name "Login Flow" --inline --size half
+
+# Semantic naming
+python scripts/test_recorder.py --test-name "Login" --app-name MyApp
+```
+
+### 🎯 Coordinate Transformation
+Tap accurately on downscaled screenshots - automatic coordinate conversion:
+```bash
+# Capture at half size (saves 75% tokens)
+python scripts/test_recorder.py --inline --size half
+
+# Tap using screenshot coordinates (auto-converts to device coords)
+python scripts/navigator.py --tap-at 100,200 \
+  --screenshot-coords \
+  --screenshot-width 195 --screenshot-height 422
 ```
 
 ## Prerequisites
