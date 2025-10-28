@@ -68,9 +68,9 @@ Technical Details:
 import argparse
 import subprocess
 import sys
+import time
 
 from common import resolve_udid
-import time
 
 
 class KeyboardController:

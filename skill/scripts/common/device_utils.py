@@ -17,7 +17,6 @@ Used by:
 import json
 import re
 import subprocess
-from typing import Optional, Tuple
 
 
 def build_simctl_command(
@@ -122,7 +121,7 @@ def build_idb_command(
     return cmd
 
 
-def get_booted_device_udid() -> Optional[str]:
+def get_booted_device_udid() -> str | None:
     """
     Auto-detect currently booted simulator UDID.
 
@@ -159,7 +158,7 @@ def get_booted_device_udid() -> Optional[str]:
         return None
 
 
-def resolve_udid(udid_arg: Optional[str]) -> str:
+def resolve_udid(udid_arg: str | None) -> str:
     """
     Resolve device UDID with auto-detection fallback.
 
@@ -199,7 +198,7 @@ def resolve_udid(udid_arg: Optional[str]) -> str:
     )
 
 
-def get_device_screen_size(udid: str) -> Tuple[int, int]:
+def get_device_screen_size(udid: str) -> tuple[int, int]:
     """
     Get actual screen dimensions for device via accessibility tree.
 
@@ -222,10 +221,7 @@ def get_device_screen_size(udid: str) -> Tuple[int, int]:
 
         # Parse JSON response
         data = json.loads(result.stdout)
-        if isinstance(data, list) and len(data) > 0:
-            tree = data[0]
-        else:
-            tree = data
+        tree = data[0] if isinstance(data, list) and len(data) > 0 else data
 
         # Get frame size from root element
         if tree and "frame" in tree:
@@ -248,7 +244,7 @@ def transform_screenshot_coords(
     screenshot_height: int,
     device_width: int,
     device_height: int,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """
     Transform screenshot coordinates to device coordinates.
 

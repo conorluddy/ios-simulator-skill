@@ -20,7 +20,7 @@ import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class ProgressiveCache:
@@ -30,7 +30,7 @@ class ProgressiveCache:
     Automatically cleans up expired entries.
     """
 
-    def __init__(self, cache_dir: Optional[str] = None, max_age_hours: int = 1):
+    def __init__(self, cache_dir: str | None = None, max_age_hours: int = 1):
         """Initialize cache system.
 
         Args:
@@ -46,7 +46,7 @@ class ProgressiveCache:
         # Create cache directory if needed
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def save(self, data: Dict[str, Any], cache_type: str) -> str:
+    def save(self, data: dict[str, Any], cache_type: str) -> str:
         """Save data to cache and return cache_id.
 
         Args:
@@ -81,7 +81,7 @@ class ProgressiveCache:
 
         return cache_id
 
-    def get(self, cache_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, cache_id: str) -> dict[str, Any] | None:
         """Retrieve data from cache by cache_id.
 
         Args:
@@ -106,13 +106,13 @@ class ProgressiveCache:
             return None
 
         try:
-            with open(cache_file, "r") as f:
+            with open(cache_file) as f:
                 entry = json.load(f)
                 return entry.get("data")
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return None
 
-    def list_entries(self, cache_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_entries(self, cache_type: str | None = None) -> list[dict[str, Any]]:
         """List available cache entries with metadata.
 
         Args:
@@ -135,7 +135,7 @@ class ProgressiveCache:
                 continue
 
             try:
-                with open(cache_file, "r") as f:
+                with open(cache_file) as f:
                     entry = json.load(f)
 
                     # Filter by type if specified
@@ -153,12 +153,12 @@ class ProgressiveCache:
                             "age_seconds": int(age_seconds),
                         }
                     )
-            except (json.JSONDecodeError, IOError, ValueError):
+            except (OSError, json.JSONDecodeError, ValueError):
                 continue
 
         return entries
 
-    def cleanup(self, max_age_hours: Optional[int] = None) -> int:
+    def cleanup(self, max_age_hours: int | None = None) -> int:
         """Remove expired cache entries.
 
         Args:
@@ -183,7 +183,7 @@ class ProgressiveCache:
 
         return deleted
 
-    def clear(self, cache_type: Optional[str] = None) -> int:
+    def clear(self, cache_type: str | None = None) -> int:
         """Clear all cache entries of a type.
 
         Args:
@@ -206,17 +206,17 @@ class ProgressiveCache:
             else:
                 # Clear by type
                 try:
-                    with open(cache_file, "r") as f:
+                    with open(cache_file) as f:
                         entry = json.load(f)
                         if entry.get("cache_type") == cache_type:
                             cache_file.unlink()
                             deleted += 1
-                except (json.JSONDecodeError, IOError):
+                except (OSError, json.JSONDecodeError):
                     pass
 
         return deleted
 
-    def _is_expired(self, cache_file: Path, max_age_hours: Optional[int] = None) -> bool:
+    def _is_expired(self, cache_file: Path, max_age_hours: int | None = None) -> bool:
         """Check if cache file is expired.
 
         Args:
@@ -230,20 +230,20 @@ class ProgressiveCache:
             max_age_hours = self.max_age_hours
 
         try:
-            with open(cache_file, "r") as f:
+            with open(cache_file) as f:
                 entry = json.load(f)
                 created_at = datetime.fromisoformat(entry.get("created_at", ""))
                 age = datetime.now() - created_at
                 return age > timedelta(hours=max_age_hours)
-        except (json.JSONDecodeError, IOError, ValueError):
+        except (OSError, json.JSONDecodeError, ValueError):
             return True
 
 
 # Global cache instance (lazy-loaded)
-_cache_instance: Optional[ProgressiveCache] = None
+_cache_instance: ProgressiveCache | None = None
 
 
-def get_cache(cache_dir: Optional[str] = None) -> ProgressiveCache:
+def get_cache(cache_dir: str | None = None) -> ProgressiveCache:
     """Get or create global cache instance.
 
     Args:

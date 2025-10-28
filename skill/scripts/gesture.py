@@ -63,10 +63,10 @@ import sys
 import time
 
 from common import (
+    get_device_screen_size,
     get_screen_size,
     resolve_udid,
     transform_screenshot_coords,
-    get_device_screen_size,
 )
 
 
@@ -347,7 +347,7 @@ def main():
                 device_w,
                 device_h,
             )
-            print(f"Transformed screenshot coords to device coords")
+            print("Transformed screenshot coords to device coords")
 
         if controller.swipe_between(start, end):
             print(f"Swiped from {start} to {end}")
