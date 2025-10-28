@@ -252,7 +252,7 @@ def get_cache(cache_dir: str | None = None) -> ProgressiveCache:
         ProgressiveCache instance
     """
     # Use cache_dir as key, or 'default' if None
-    key = cache_dir or 'default'
+    key = cache_dir or "default"
 
     if key not in _cache_instances:
         _cache_instances[key] = ProgressiveCache(cache_dir)
