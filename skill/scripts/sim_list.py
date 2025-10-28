@@ -41,7 +41,7 @@ import argparse
 import json
 import subprocess
 import sys
-from typing import Dict, List, Optional
+from typing import Any
 
 from common import get_cache
 
@@ -53,7 +53,7 @@ class SimulatorLister:
         """Initialize lister with cache."""
         self.cache = get_cache()
 
-    def list_simulators(self) -> Dict:
+    def list_simulators(self) -> dict:
         """
         Get list of all simulators.
 
@@ -75,12 +75,11 @@ class SimulatorLister:
                 check=True,
             )
 
-            data = json.loads(result.stdout)
-            return data
+            return json.loads(result.stdout)
         except (subprocess.CalledProcessError, json.JSONDecodeError):
             return {"devices": {}, "runtimes": []}
 
-    def parse_devices(self, sim_data: Dict) -> List[Dict]:
+    def parse_devices(self, sim_data: dict) -> list[dict]:
         """
         Parse simulator data into flat list.
 
@@ -109,7 +108,7 @@ class SimulatorLister:
 
         return devices
 
-    def get_concise_summary(self, devices: List[Dict]) -> Dict:
+    def get_concise_summary(self, devices: list[dict]) -> dict:
         """
         Generate concise summary with cache ID.
 
@@ -144,9 +143,9 @@ class SimulatorLister:
     def get_full_list(
         self,
         cache_id: str,
-        device_type: Optional[str] = None,
-        runtime: Optional[str] = None,
-    ) -> Optional[List[Dict]]:
+        device_type: str | None = None,
+        runtime: str | None = None,
+    ) -> list[dict] | None:
         """
         Retrieve full simulator list from cache.
 
@@ -172,7 +171,7 @@ class SimulatorLister:
 
         return devices
 
-    def suggest_simulators(self, limit: int = 4) -> List[Dict]:
+    def suggest_simulators(self, limit: int = 4) -> list[dict]:
         """
         Get simulator recommendations.
 
@@ -210,7 +209,7 @@ class SimulatorLister:
         return [s["device"] for s in scored[:limit]]
 
 
-def format_device(device: Dict) -> str:
+def format_device(device: dict) -> str:
     """Format device for display."""
     state_icon = "✓" if device["state"] == "Booted" else " "
     avail_icon = "●" if device["is_available"] else "○"
@@ -222,25 +221,19 @@ def format_device(device: Dict) -> str:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="List iOS simulators with progressive disclosure"
-    )
+    parser = argparse.ArgumentParser(description="List iOS simulators with progressive disclosure")
     parser.add_argument(
         "--get-details",
         metavar="CACHE_ID",
         help="Get full details for cached simulator list",
     )
-    parser.add_argument(
-        "--suggest", action="store_true", help="Get simulator recommendations"
-    )
+    parser.add_argument("--suggest", action="store_true", help="Get simulator recommendations")
     parser.add_argument(
         "--device-type",
         help="Filter by device type (iPhone, iPad, Apple Watch, etc.)",
     )
     parser.add_argument("--runtime", help="Filter by iOS version (e.g., iOS-18, iOS-17)")
-    parser.add_argument(
-        "--json", action="store_true", help="Output as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 

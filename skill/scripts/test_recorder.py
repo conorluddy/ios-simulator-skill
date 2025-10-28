@@ -18,11 +18,11 @@ from datetime import datetime
 from pathlib import Path
 
 from common import (
+    capture_screenshot,
     count_elements,
+    generate_screenshot_name,
     get_accessibility_tree,
     resolve_udid,
-    capture_screenshot,
-    generate_screenshot_name,
 )
 
 
@@ -111,7 +111,10 @@ class TestRecorder:
         )
 
         # Capture accessibility tree
-        accessibility_path = self.accessibility_dir / f"{self.current_step:03d}-{description.lower().replace(' ', '-')[:20]}.json"
+        accessibility_path = (
+            self.accessibility_dir
+            / f"{self.current_step:03d}-{description.lower().replace(' ', '-')[:20]}.json"
+        )
         element_count = self._capture_accessibility(accessibility_path)
 
         # Store step data
@@ -149,11 +152,11 @@ class TestRecorder:
         # Token-efficient output (single line)
         status = "✓" if not assertion or step_data.get("assertion_passed") else "✗"
         screenshot_info = (
-            f" [{screenshot_result['width']}x{screenshot_result['height']}]"
-            if self.inline
-            else ""
+            f" [{screenshot_result['width']}x{screenshot_result['height']}]" if self.inline else ""
         )
-        print(f"{status} Step {self.current_step}: {description} ({step_time:.1f}s){screenshot_info}")
+        print(
+            f"{status} Step {self.current_step}: {description} ({step_time:.1f}s){screenshot_info}"
+        )
 
     def _capture_screenshot(self, output_path: Path) -> bool:
         """Capture screenshot using simctl."""
@@ -280,9 +283,7 @@ def main():
         default="half",
         help="Screenshot size for token optimization (default: half)",
     )
-    parser.add_argument(
-        "--app-name", help="App name for semantic screenshot naming"
-    )
+    parser.add_argument("--app-name", help="App name for semantic screenshot naming")
 
     args = parser.parse_args()
 
@@ -292,10 +293,11 @@ def main():
     except RuntimeError as e:
         print(f"Error: {e}")
         import sys
+
         sys.exit(1)
 
     # Create recorder
-    recorder = TestRecorder(
+    TestRecorder(
         test_name=args.test_name,
         output_dir=args.output,
         udid=udid,
