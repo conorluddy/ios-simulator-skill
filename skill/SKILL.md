@@ -1,12 +1,12 @@
 ---
 name: ios-simulator-skill
-version: 1.2.0
-description: Build, test, and automate iOS apps. 16+ production-ready scripts with progressive disclosure (96% token reduction), auto-UDID detection, dual-mode screenshots, coordinate transformation, and accessibility-driven UI simulator navigation. Includes permission management, status bar control, push notifications, and clipboard operations.
+version: 1.3.0
+description: Build, test, and automate iOS apps. 21+ production-ready scripts with progressive disclosure (96% token reduction), auto-UDID detection, dual-mode screenshots, coordinate transformation, and accessibility-driven UI simulator navigation. Includes simulator lifecycle management, permission management, status bar control, push notifications, and clipboard operations.
 ---
 
 # iOS Simulator Skill
 
-Build, test, and automate iOS applications with progressive disclosure and accessibility-first navigation. This skill provides 16+ production-ready scripts for the complete iOS development lifecycle, including app testing, permissions management, and notification simulation.
+Build, test, and automate iOS applications with progressive disclosure and accessibility-first navigation. This skill provides 21+ production-ready scripts for the complete iOS development lifecycle, including simulator lifecycle management, app testing, permissions management, and notification simulation.
 
 ## What This Skill Does
 
@@ -160,7 +160,7 @@ To always use a specific simulator, edit the config:
 **First time?** → Start with screen mapping
 **Know what you want?** → Jump to the right script
 
-## 16+ Production Scripts
+## 21+ Production Scripts
 
 ### Build & Development (2 scripts)
 
@@ -941,6 +941,212 @@ Every permission change is logged with timestamp and scenario info for complete 
 
 ---
 
+### Device Lifecycle Management (5 scripts)
+
+#### 17. Simulator Boot - "Start simulators and wait for readiness"
+
+Boot simulators with optional readiness verification:
+
+```bash
+# Boot a simulator (quick, no wait)
+python scripts/simctl_boot.py --udid ABC123DEF456...
+
+# Boot and wait for device ready
+python scripts/simctl_boot.py --name "iPhone 16 Pro" --wait-ready
+
+# Boot all available simulators
+python scripts/simctl_boot.py --all
+
+# Boot all iPhone simulators
+python scripts/simctl_boot.py --type iPhone
+
+# With custom timeout
+python scripts/simctl_boot.py --name "iPad Air" --wait-ready --timeout 60
+```
+
+**Output:**
+```
+Device booted: iPhone 16 Pro (ABC123) [boot in 2.1s]
+Device booted and ready: iPhone 16 Pro (ABC123) [5.3s total]
+Boot summary: 3/4 succeeded, 1 failed
+```
+
+**Options:**
+- `--udid UDID` - Device UDID (can use device name instead)
+- `--name NAME` - Device name (alternative to --udid)
+- `--wait-ready` - Wait for device to reach ready state
+- `--timeout SECONDS` - Timeout for --wait-ready (default: 120)
+- `--all` - Boot all available simulators
+- `--type TYPE` - Boot all simulators of specific type (iPhone, iPad)
+- `--json` - Output as JSON
+
+**Use when:** Starting fresh test environment, CI/CD pipelines, or preparing multiple devices for testing.
+
+---
+
+#### 18. Simulator Shutdown - "Stop running simulators"
+
+Gracefully shut down simulators:
+
+```bash
+# Shutdown a simulator
+python scripts/simctl_shutdown.py --name "iPhone 16 Pro"
+
+# Shutdown with verification
+python scripts/simctl_shutdown.py --udid ABC123 --verify
+
+# Shutdown all booted simulators
+python scripts/simctl_shutdown.py --all
+
+# Shutdown all iPad simulators
+python scripts/simctl_shutdown.py --type iPad
+```
+
+**Output:**
+```
+Device shutdown: iPhone 16 Pro [0.8s]
+Device shutdown confirmed: iPhone 16 Pro [2.1s total]
+Shutdown summary: 3/3 succeeded, 0 failed
+```
+
+**Options:**
+- `--udid UDID` - Device UDID or name
+- `--name NAME` - Device name (alternative to --udid)
+- `--verify` - Verify shutdown completion before returning
+- `--timeout SECONDS` - Timeout for --verify (default: 30)
+- `--all` - Shutdown all booted simulators
+- `--type TYPE` - Shutdown simulators of specific type
+- `--json` - Output as JSON
+
+**Use when:** Cleaning up test environment, freeing system resources, or preparing for CI/CD teardown.
+
+---
+
+#### 19. Simulator Create - "Create new simulators dynamically"
+
+Create simulators on-demand with specified device type and iOS version:
+
+```bash
+# Create iPhone 16 Pro with latest iOS
+python scripts/simctl_create.py --device "iPhone 16 Pro"
+
+# Create with specific iOS version
+python scripts/simctl_create.py --device "iPhone 16 Pro" --runtime 18.0
+
+# Create with custom name
+python scripts/simctl_create.py --device "iPhone 15" --runtime 17.5 --name "CI-Bot"
+
+# List available device types
+python scripts/simctl_create.py --list-devices
+
+# List available iOS runtimes
+python scripts/simctl_create.py --list-runtimes
+```
+
+**Output:**
+```
+Device created: iPhone 16 Pro (iPhone16Pro-18.0) iOS 18.0 UDID: ABC123DEF...
+```
+
+**Options:**
+- `--device TYPE` - Device type (e.g., "iPhone 16 Pro", "iPad Air")
+- `--runtime VERSION` - iOS version (e.g., "18.0"). Defaults to latest.
+- `--name CUSTOM_NAME` - Custom device name (auto-generated if not provided)
+- `--list-devices` - Show available device types
+- `--list-runtimes` - Show available iOS runtimes
+- `--json` - Output as JSON
+
+**Use when:** Dynamic test environment provisioning, CI/CD setup, or creating device-specific test variants.
+
+---
+
+#### 20. Simulator Delete - "Permanently remove simulators"
+
+Delete simulators and free disk space:
+
+```bash
+# Delete a specific simulator
+python scripts/simctl_delete.py --name "iPhone 16 Pro"
+
+# Delete with skip confirmation (--yes for automation)
+python scripts/simctl_delete.py --udid ABC123 --yes
+
+# Delete all simulators
+python scripts/simctl_delete.py --all --yes
+
+# Delete all iPad simulators
+python scripts/simctl_delete.py --type iPad
+
+# Delete old simulators, keeping 3 per type
+python scripts/simctl_delete.py --old 3 --yes
+```
+
+**Output:**
+```
+Permanently delete simulator ABC123? (type 'yes' to confirm): yes
+Device deleted: ABC123 [disk space freed]
+Delete summary: 5/6 succeeded, 1 failed
+```
+
+**Options:**
+- `--udid UDID` - Device UDID or name
+- `--name NAME` - Device name (alternative to --udid)
+- `--yes` - Skip confirmation prompt (for automation)
+- `--all` - Delete all simulators
+- `--type TYPE` - Delete simulators of specific type
+- `--old KEEP_COUNT` - Delete older simulators, keeping N per type
+- `--json` - Output as JSON
+
+**Use when:** Cleaning up old test devices, freeing disk space, or CI/CD environment reset.
+
+---
+
+#### 21. Simulator Erase - "Factory reset simulators"
+
+Reset simulators to factory state without deletion (preserves device UUID):
+
+```bash
+# Erase a simulator (factory reset)
+python scripts/simctl_erase.py --name "iPhone 16 Pro"
+
+# Erase and verify completion
+python scripts/simctl_erase.py --udid ABC123 --verify
+
+# Erase all simulators
+python scripts/simctl_erase.py --all
+
+# Erase all currently booted simulators
+python scripts/simctl_erase.py --booted
+
+# Erase specific device type
+python scripts/simctl_erase.py --type iPhone
+```
+
+**Output:**
+```
+Device erased: iPhone 16 Pro [factory reset complete, 3.2s]
+Erase booted summary: 2/2 succeeded, 0 failed
+```
+
+**Benefits over delete+create:**
+- ✅ **Faster** - Reset in seconds vs minutes
+- ✅ **Preserves UDID** - CI/CD scripts using stored UDIDs continue working
+- ✅ **Same device** - Simulator remains at same iOS version
+
+**Options:**
+- `--udid UDID` - Device UDID or name
+- `--name NAME` - Device name (alternative to --udid)
+- `--verify` - Verify erase completion before returning
+- `--timeout SECONDS` - Timeout for --verify (default: 30)
+- `--all` - Erase all simulators
+- `--type TYPE` - Erase simulators of specific type
+- `--booted` - Erase all currently booted simulators
+- `--json` - Output as JSON
+
+**Use when:** Between test runs (faster than delete+create), resetting app data, or CI/CD cleanup.
+
+---
+
 ## Complete Workflow Examples
 
 ### Example 1: Login Automation
@@ -1079,6 +1285,17 @@ Want to...
 │
 ├─ Manage app permissions?
 │  └─ python scripts/privacy_manager.py --bundle-id com.app --grant camera
+│
+├─ Boot/stop simulators?
+│  ├─ python scripts/simctl_boot.py --name "iPhone 16 Pro"
+│  └─ python scripts/simctl_shutdown.py --name "iPhone 16 Pro"
+│
+├─ Create/delete simulators?
+│  ├─ python scripts/simctl_create.py --device "iPhone 16 Pro"
+│  └─ python scripts/simctl_delete.py --name "iPhone 16 Pro"
+│
+├─ Factory reset a simulator?
+│  └─ python scripts/simctl_erase.py --name "iPhone 16 Pro"
 │
 ├─ Pick which simulator to use?
 │  └─ python scripts/simulator_selector.py --suggest
