@@ -33,8 +33,8 @@ class PushNotificationSender:
         self,
         bundle_id: str,
         payload: dict | str,
-        test_name: str | None = None,
-        expected_behavior: str | None = None,
+        _test_name: str | None = None,
+        _expected_behavior: str | None = None,
     ) -> bool:
         """
         Send push notification to app.
@@ -71,9 +71,7 @@ class PushNotificationSender:
 
         # Create temp file with payload
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".json", delete=False
-            ) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
                 json.dump(payload_data, f)
                 temp_payload_path = f.name
 
@@ -88,7 +86,7 @@ class PushNotificationSender:
             cmd.extend([bundle_id, temp_payload_path])
 
             # Send notification
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
 
             # Clean up temp file
             Path(temp_payload_path).unlink()
@@ -147,9 +145,7 @@ class PushNotificationSender:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Send simulated push notification to iOS app"
-    )
+    parser = argparse.ArgumentParser(description="Send simulated push notification to iOS app")
 
     # Required
     parser.add_argument(
@@ -157,18 +153,10 @@ def main():
     )
 
     # Simple payload options
-    parser.add_argument(
-        "--title", help="Alert title (for simple notifications)"
-    )
-    parser.add_argument(
-        "--body", help="Alert body message"
-    )
-    parser.add_argument(
-        "--badge", type=int, help="Badge number"
-    )
-    parser.add_argument(
-        "--no-sound", action="store_true", help="Don't play notification sound"
-    )
+    parser.add_argument("--title", help="Alert title (for simple notifications)")
+    parser.add_argument("--body", help="Alert body message")
+    parser.add_argument("--badge", type=int, help="Badge number")
+    parser.add_argument("--no-sound", action="store_true", help="Don't play notification sound")
 
     # Custom payload
     parser.add_argument(
@@ -177,9 +165,7 @@ def main():
     )
 
     # Test tracking
-    parser.add_argument(
-        "--test-name", help="Test scenario name for tracking"
-    )
+    parser.add_argument("--test-name", help="Test scenario name for tracking")
     parser.add_argument(
         "--expected",
         help="Expected behavior after notification",
@@ -240,10 +226,13 @@ def main():
         print()
         print("Verify notification handling:")
         print("1. Check app log output: python scripts/log_monitor.py --app " + args.bundle_id)
-        print("2. Capture state: python scripts/app_state_capture.py --app-bundle-id " + args.bundle_id)
+        print(
+            "2. Capture state: python scripts/app_state_capture.py --app-bundle-id "
+            + args.bundle_id
+        )
 
     else:
-        print(f"Failed to send push notification")
+        print("Failed to send push notification")
         sys.exit(1)
 
 

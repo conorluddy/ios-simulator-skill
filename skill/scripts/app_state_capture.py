@@ -16,10 +16,10 @@ from datetime import datetime
 from pathlib import Path
 
 from common import (
+    capture_screenshot,
     count_elements,
     get_accessibility_tree,
     resolve_udid,
-    capture_screenshot,
 )
 
 
@@ -187,7 +187,10 @@ class AppStateCapture:
         else:
             capture_dir = None
 
-        summary = {"timestamp": datetime.now().isoformat(), "screenshot_mode": "inline" if self.inline else "file"}
+        summary = {
+            "timestamp": datetime.now().isoformat(),
+            "screenshot_mode": "inline" if self.inline else "file",
+        }
 
         if capture_dir:
             summary["output_dir"] = str(capture_dir)
@@ -336,9 +339,7 @@ def main():
         default="half",
         help="Screenshot size for token optimization (default: half)",
     )
-    parser.add_argument(
-        "--app-name", help="App name for semantic screenshot naming"
-    )
+    parser.add_argument("--app-name", help="App name for semantic screenshot naming")
 
     args = parser.parse_args()
 
@@ -368,7 +369,9 @@ def main():
             print(f"State captured: {summary['output_dir']}/")
         else:
             # Inline mode
-            print(f"State captured (inline mode): {summary['screenshot']['width']}x{summary['screenshot']['height']}")
+            print(
+                f"State captured (inline mode): {summary['screenshot']['width']}x{summary['screenshot']['height']}"
+            )
 
         # Report any issues found
         if "logs" in summary and summary["logs"].get("captured"):

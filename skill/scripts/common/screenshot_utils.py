@@ -21,7 +21,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 # Try to import PIL for resizing, but make it optional
 try:
@@ -33,10 +33,10 @@ except ImportError:
 
 
 def generate_screenshot_name(
-    app_name: Optional[str] = None,
-    screen_name: Optional[str] = None,
-    state: Optional[str] = None,
-    timestamp: Optional[str] = None,
+    app_name: str | None = None,
+    screen_name: str | None = None,
+    state: str | None = None,
+    timestamp: str | None = None,
     extension: str = "png",
 ) -> str:
     """Generate semantic screenshot filename.
@@ -75,7 +75,7 @@ def generate_screenshot_name(
     return f"{name}.{extension}"
 
 
-def get_size_preset(size: str = "half") -> Tuple[float, float]:
+def get_size_preset(size: str = "half") -> tuple[float, float]:
     """Get scale factors for size preset.
 
     Args:
@@ -99,10 +99,10 @@ def get_size_preset(size: str = "half") -> Tuple[float, float]:
 
 def resize_screenshot(
     input_path: str,
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
     size: str = "half",
     quality: int = 85,
-) -> Tuple[str, int, int]:
+) -> tuple[str, int, int]:
     """Resize screenshot for token optimization.
 
     Requires PIL (Pillow). Falls back gracefully without it.
@@ -146,14 +146,12 @@ def resize_screenshot(
         if HAS_PIL:
             img = Image.open(str(output_file))
             return (str(output_file), img.width, img.height)
-        else:
-            return (str(output_file), 0, 0)  # Dimensions unknown without PIL
+        return (str(output_file), 0, 0)  # Dimensions unknown without PIL
 
     # Need PIL to resize
     if not HAS_PIL:
         raise ValueError(
-            f"Size preset '{size}' requires PIL (Pillow). "
-            "Install with: pip3 install pillow"
+            f"Size preset '{size}' requires PIL (Pillow). " "Install with: pip3 install pillow"
         )
 
     # Open original image
@@ -183,13 +181,13 @@ def resize_screenshot(
 
 def capture_screenshot(
     udid: str,
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
     size: str = "half",
     inline: bool = False,
-    app_name: Optional[str] = None,
-    screen_name: Optional[str] = None,
-    state: Optional[str] = None,
-) -> Dict[str, Any]:
+    app_name: str | None = None,
+    screen_name: str | None = None,
+    state: str | None = None,
+) -> dict[str, Any]:
     """Capture screenshot with flexible output modes.
 
     Supports both file-based (persistent artifacts) and inline base64 modes
@@ -242,15 +240,13 @@ def capture_screenshot(
         temp_path = "/tmp/ios_simulator_screenshot.png"
         cmd = ["xcrun", "simctl", "io", udid, "screenshot", temp_path]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
 
         if inline:
             # Inline mode: resize and convert to base64
             # Resize if needed
             if size != "full" and HAS_PIL:
-                resized_path, width, height = resize_screenshot(
-                    temp_path, size=size
-                )
+                resized_path, width, height = resize_screenshot(temp_path, size=size)
             else:
                 resized_path = temp_path
                 # Get dimensions via PIL if available
@@ -278,49 +274,46 @@ def capture_screenshot(
                 "size_preset": size,
             }
 
+        # File mode: save to output path with semantic naming
+        if output_path is None:
+            output_path = generate_screenshot_name(app_name, screen_name, state)
+
+        # Resize if needed
+        if size != "full" and HAS_PIL:
+            final_path, width, height = resize_screenshot(temp_path, output_path, size)
         else:
-            # File mode: save to output path with semantic naming
-            if output_path is None:
-                output_path = generate_screenshot_name(app_name, screen_name, state)
+            # Just move temp to output
+            import shutil
 
-            # Resize if needed
-            if size != "full" and HAS_PIL:
-                final_path, width, height = resize_screenshot(
-                    temp_path, output_path, size
-                )
+            shutil.move(temp_path, output_path)
+            final_path = output_path
+
+            # Get dimensions via PIL if available
+            if HAS_PIL:
+                img = Image.open(final_path)
+                width, height = img.size
             else:
-                # Just move temp to output
-                import shutil
+                width, height = 390, 844  # Fallback
 
-                shutil.move(temp_path, output_path)
-                final_path = output_path
+        # Get file size
+        size_bytes = Path(final_path).stat().st_size
 
-                # Get dimensions via PIL if available
-                if HAS_PIL:
-                    img = Image.open(final_path)
-                    width, height = img.size
-                else:
-                    width, height = 390, 844  # Fallback
-
-            # Get file size
-            size_bytes = Path(final_path).stat().st_size
-
-            return {
-                "mode": "file",
-                "file_path": final_path,
-                "size_bytes": size_bytes,
-                "width": width,
-                "height": height,
-                "size_preset": size,
-            }
+        return {
+            "mode": "file",
+            "file_path": final_path,
+            "size_bytes": size_bytes,
+            "width": width,
+            "height": height,
+            "size_preset": size,
+        }
 
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to capture screenshot: {e.stderr}")
+        raise RuntimeError(f"Failed to capture screenshot: {e.stderr}") from e
     except Exception as e:
-        raise RuntimeError(f"Screenshot capture error: {str(e)}")
+        raise RuntimeError(f"Screenshot capture error: {e!s}") from e
 
 
-def format_screenshot_result(result: Dict[str, Any]) -> str:
+def format_screenshot_result(result: dict[str, Any]) -> str:
     """Format screenshot result for human-readable output.
 
     Args:
@@ -339,8 +332,7 @@ def format_screenshot_result(result: Dict[str, Any]) -> str:
             f"Dimensions: {result['width']}x{result['height']}\n"
             f"Size: {result['size_bytes']} bytes"
         )
-    else:
-        return (
-            f"Screenshot (inline): {result['width']}x{result['height']}\n"
-            f"Base64 length: {len(result['base64_data'])} chars"
-        )
+    return (
+        f"Screenshot (inline): {result['width']}x{result['height']}\n"
+        f"Base64 length: {len(result['base64_data'])} chars"
+    )

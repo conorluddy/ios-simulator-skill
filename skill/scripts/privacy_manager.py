@@ -199,14 +199,10 @@ class PrivacyManager:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Manage iOS app privacy and permissions"
-    )
+    parser = argparse.ArgumentParser(description="Manage iOS app privacy and permissions")
 
     # Required
-    parser.add_argument(
-        "--bundle-id", required=True, help="App bundle ID (e.g., com.example.app)"
-    )
+    parser.add_argument("--bundle-id", required=True, help="App bundle ID (e.g., com.example.app)")
 
     # Action (mutually exclusive)
     action_group = parser.add_mutually_exclusive_group(required=True)
@@ -232,9 +228,7 @@ def main():
         "--scenario",
         help="Test scenario name for audit trail",
     )
-    parser.add_argument(
-        "--step", type=int, help="Step number in test scenario"
-    )
+    parser.add_argument("--step", type=int, help="Step number in test scenario")
 
     # Device
     parser.add_argument(

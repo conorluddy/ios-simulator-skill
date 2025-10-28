@@ -54,22 +54,14 @@ class ClipboardManager:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Copy text to iOS simulator clipboard"
-    )
-    parser.add_argument(
-        "--copy", required=True, help="Text to copy to clipboard"
-    )
+    parser = argparse.ArgumentParser(description="Copy text to iOS simulator clipboard")
+    parser.add_argument("--copy", required=True, help="Text to copy to clipboard")
     parser.add_argument(
         "--udid",
         help="Device UDID (auto-detects booted simulator if not provided)",
     )
-    parser.add_argument(
-        "--test-name", help="Test scenario name for tracking"
-    )
-    parser.add_argument(
-        "--expected", help="Expected behavior after paste"
-    )
+    parser.add_argument("--test-name", help="Test scenario name for tracking")
+    parser.add_argument("--expected", help="Expected behavior after paste")
 
     args = parser.parse_args()
 
@@ -88,7 +80,7 @@ def main():
         output = f'Copied: "{args.copy}"'
 
         if args.test_name:
-            output += f' (test: {args.test_name})'
+            output += f" (test: {args.test_name})"
 
         print(output)
 
@@ -103,7 +95,7 @@ def main():
         print("   Or use Cmd+V gesture with: python scripts/keyboard.py --key cmd+v")
 
     else:
-        print(f"Failed to copy text to clipboard")
+        print("Failed to copy text to clipboard")
         sys.exit(1)
 
 

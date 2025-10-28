@@ -213,7 +213,15 @@ def main():
             sys.exit(1)
 
     # Custom mode
-    elif any([args.time, args.data_network, args.wifi_mode, args.battery_state, args.battery_level is not None]):
+    elif any(
+        [
+            args.time,
+            args.data_network,
+            args.wifi_mode,
+            args.battery_state,
+            args.battery_level is not None,
+        ]
+    ):
         if controller.override(
             time=args.time,
             data_network=args.data_network,
