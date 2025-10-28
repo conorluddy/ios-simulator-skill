@@ -16,7 +16,6 @@ Used by:
 """
 
 import json
-import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -38,7 +37,7 @@ class ProgressiveCache:
             max_age_hours: Max age for cache entries before expiration (default: 1 hour)
         """
         if cache_dir is None:
-            cache_dir = os.path.expanduser("~/.ios-simulator-skill/cache")
+            cache_dir = str(Path("~/.ios-simulator-skill/cache").expanduser())
 
         self.cache_dir = Path(cache_dir)
         self.max_age_hours = max_age_hours
@@ -239,8 +238,8 @@ class ProgressiveCache:
             return True
 
 
-# Global cache instance (lazy-loaded)
-_cache_instance: ProgressiveCache | None = None
+# Module-level cache instances (lazy-loaded)
+_cache_instances: dict[str, ProgressiveCache] = {}
 
 
 def get_cache(cache_dir: str | None = None) -> ProgressiveCache:
@@ -252,7 +251,10 @@ def get_cache(cache_dir: str | None = None) -> ProgressiveCache:
     Returns:
         ProgressiveCache instance
     """
-    global _cache_instance
-    if _cache_instance is None:
-        _cache_instance = ProgressiveCache(cache_dir)
-    return _cache_instance
+    # Use cache_dir as key, or 'default' if None
+    key = cache_dir or 'default'
+
+    if key not in _cache_instances:
+        _cache_instances[key] = ProgressiveCache(cache_dir)
+
+    return _cache_instances[key]
