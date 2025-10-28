@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **completed Agent Skill** for iOS simulator testing, fully distributed as a standalone package that users can install in Claude.ai, Claude Code, or via the Claude API. It provides comprehensive testing and automation capabilities through 16+ production-ready scripts wrapping Apple's `xcrun simctl` and Facebook's `idb` tools.
+This is a **completed Agent Skill** for iOS simulator testing, fully distributed as a standalone package that users can install in Claude.ai, Claude Code, or via the Claude API. It provides comprehensive testing and automation capabilities through 21+ production-ready scripts wrapping Apple's `xcrun simctl` and Facebook's `idb` tools.
 
 **Key Design Philosophy:**
 - Skills are **not MCP servers** - they don't create tool interfaces
@@ -16,7 +16,7 @@ This is a **completed Agent Skill** for iOS simulator testing, fully distributed
 
 ### ✅ Implementation Complete
 
-All 16 core scripts are **fully implemented and production-ready**:
+All 21 core scripts are **fully implemented and production-ready**:
 
 **Build & Development (2):**
 1. ✅ `build_and_test.py` (310 lines) - Build automation with progressive disclosure
@@ -43,7 +43,14 @@ All 16 core scripts are **fully implemented and production-ready**:
 15. ✅ `push_notification.py` (250 lines) - Push notification simulation
 16. ✅ `privacy_manager.py` (300 lines) - Permission management
 
-**Total:** ~6,700 lines of production code
+**Device Lifecycle Management (5):**
+17. ✅ `simctl_boot.py` (~150 lines) - Boot simulators with readiness wait
+18. ✅ `simctl_shutdown.py` (~100 lines) - Shutdown simulators gracefully
+19. ✅ `simctl_create.py` (~200 lines) - Create simulators dynamically
+20. ✅ `simctl_delete.py` (~300 lines) - Delete simulators with safety confirmation
+21. ✅ `simctl_erase.py` (~200 lines) - Factory reset simulators
+
+**Total:** ~8,500 lines of production code
 
 ### ✅ Production Ready
 
@@ -66,7 +73,7 @@ ios-simulator-skill/                 # Development repository
 │   ├── SKILL.md                    # REQUIRED: Entry point with YAML frontmatter
 │   ├── CLAUDE.md                   # Developer guide (this file)
 │   ├── README.md                   # User-facing overview
-│   ├── scripts/                    # 16 executable production scripts
+│   ├── scripts/                    # 21 executable production scripts
 │   │   ├── build_and_test.py      # Main CLI (310 lines)
 │   │   ├── xcode/                  # Modular architecture (1,458 lines)
 │   │   │   ├── __init__.py        # Module exports (13 lines)
@@ -89,7 +96,17 @@ ios-simulator-skill/                 # Development repository
 │   │   ├── clipboard.py           # Clipboard management (100 lines)
 │   │   ├── status_bar.py          # Status bar control (220 lines)
 │   │   ├── push_notification.py   # Push notification simulation (250 lines)
-│   │   └── privacy_manager.py     # Permission management (300 lines)
+│   │   ├── privacy_manager.py     # Permission management (300 lines)
+│   │   ├── simctl_boot.py         # Boot simulators with readiness (~150 lines)
+│   │   ├── simctl_shutdown.py     # Shutdown simulators gracefully (~100 lines)
+│   │   ├── simctl_create.py       # Create simulators dynamically (~200 lines)
+│   │   ├── simctl_delete.py       # Delete simulators with confirmation (~300 lines)
+│   │   ├── simctl_erase.py        # Factory reset simulators (~200 lines)
+│   │   └── common/                 # Shared utilities (400+ lines)
+│   │       ├── __init__.py        # Utility exports
+│   │       ├── device_utils.py    # Device listing, UDID resolution (~450 lines)
+│   │       ├── screenshot_utils.py # Screenshot capture and sizing (~346 lines)
+│   │       └── cache_utils.py     # Progressive disclosure caching (~258 lines)
 │   └── examples/                   # Complete usage examples
 │       └── login_flow.py
 │

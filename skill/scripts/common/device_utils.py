@@ -237,6 +237,159 @@ def get_device_screen_size(udid: str) -> tuple[int, int]:
         return (390, 844)
 
 
+def resolve_device_identifier(identifier: str) -> str:
+    """
+    Resolve device name or partial UDID to full UDID.
+
+    Supports multiple identifier formats:
+    - Full UDID: "ABC-123-DEF456..." (36 character UUID)
+    - Device name: "iPhone 16 Pro" (matches full name)
+    - Partial match: "iPhone 16" (matches first device containing this string)
+    - Special: "booted" (resolves to currently booted device)
+
+    Args:
+        identifier: Device UDID, name, or special value "booted"
+
+    Returns:
+        Full device UDID
+
+    Raises:
+        RuntimeError: If identifier cannot be resolved
+
+    Example:
+        udid = resolve_device_identifier("iPhone 16 Pro")
+        # Returns: "ABC123DEF456..."
+
+        udid = resolve_device_identifier("booted")
+        # Returns UDID of booted simulator
+    """
+    # Handle "booted" special case
+    if identifier.lower() == "booted":
+        booted = get_booted_device_udid()
+        if booted:
+            return booted
+        raise RuntimeError(
+            "No simulator is currently booted. "
+            "Boot a simulator first: xcrun simctl boot <device-udid>"
+        )
+
+    # Check if already a full UDID (36 character UUID format)
+    if re.match(r"^[A-F0-9\-]{36}$", identifier, re.IGNORECASE):
+        return identifier.upper()
+
+    # Try to match by device name
+    simulators = list_simulators(state=None)
+    exact_matches = [s for s in simulators if s["name"].lower() == identifier.lower()]
+    if exact_matches:
+        return exact_matches[0]["udid"]
+
+    # Try partial match
+    partial_matches = [s for s in simulators if identifier.lower() in s["name"].lower()]
+    if partial_matches:
+        return partial_matches[0]["udid"]
+
+    # No match found
+    raise RuntimeError(
+        f"Device '{identifier}' not found. "
+        f"Use 'xcrun simctl list devices' to see available simulators."
+    )
+
+
+def list_simulators(state: str | None = None) -> list[dict]:
+    """
+    List iOS simulators with optional state filtering.
+
+    Queries xcrun simctl and returns structured list of simulators.
+    Optionally filters by state (available, booted, all).
+
+    Args:
+        state: Optional filter - "available", "booted", or None for all
+
+    Returns:
+        List of simulator dicts with keys:
+        - "name": Device name (e.g., "iPhone 16 Pro")
+        - "udid": Device UDID (36 char UUID)
+        - "state": Device state ("Booted", "Shutdown", "Unavailable")
+        - "runtime": iOS version (e.g., "iOS 18.0", "unavailable")
+        - "type": Device type ("iPhone", "iPad", "Apple Watch", etc.)
+
+    Example:
+        # List all simulators
+        all_sims = list_simulators()
+        print(f"Total simulators: {len(all_sims)}")
+
+        # List only available simulators
+        available = list_simulators(state="available")
+        for sim in available:
+            print(f"{sim['name']} ({sim['state']}) - {sim['udid']}")
+
+        # List only booted simulators
+        booted = list_simulators(state="booted")
+        for sim in booted:
+            print(f"Booted: {sim['name']}")
+    """
+    try:
+        # Query simctl for device list
+        cmd = ["xcrun", "simctl", "list", "devices", "-j"]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+        data = json.loads(result.stdout)
+        simulators = []
+
+        # Parse JSON response
+        # Format: {"devices": {"iOS 18.0": [{...}, {...}], "iOS 17.0": [...], ...}}
+        for ios_version, devices in data.get("devices", {}).items():
+            for device in devices:
+                sim = {
+                    "name": device.get("name", "Unknown"),
+                    "udid": device.get("udid", ""),
+                    "state": device.get("state", "Unknown"),
+                    "runtime": ios_version,
+                    "type": _extract_device_type(device.get("name", "")),
+                }
+                simulators.append(sim)
+
+        # Apply state filtering
+        if state == "booted":
+            return [s for s in simulators if s["state"] == "Booted"]
+        if state == "available":
+            return [s for s in simulators if s["state"] == "Shutdown"]  # Available to boot
+        if state is None:
+            return simulators
+        return [s for s in simulators if s["state"].lower() == state.lower()]
+
+    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
+        raise RuntimeError(f"Failed to list simulators: {e}") from e
+
+
+def _extract_device_type(device_name: str) -> str:
+    """
+    Extract device type from device name.
+
+    Parses device name to determine type (iPhone, iPad, Watch, etc.).
+
+    Args:
+        device_name: Full device name (e.g., "iPhone 16 Pro")
+
+    Returns:
+        Device type string
+
+    Example:
+        _extract_device_type("iPhone 16 Pro")  # Returns "iPhone"
+        _extract_device_type("iPad Air")        # Returns "iPad"
+        _extract_device_type("Apple Watch Series 9") # Returns "Watch"
+    """
+    if "iPhone" in device_name:
+        return "iPhone"
+    if "iPad" in device_name:
+        return "iPad"
+    if "Watch" in device_name or "Apple Watch" in device_name:
+        return "Watch"
+    if "TV" in device_name or "Apple TV" in device_name:
+        return "TV"
+    return "Unknown"
+
+
 def transform_screenshot_coords(
     x: float,
     y: float,

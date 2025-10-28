@@ -1,6 +1,6 @@
 [project]
 name = "ios-simulator-skill"
-version = "1.2.0"
+version = "1.3.0"
 description = "Build, test, and automate iOS apps with accessibility-driven navigation"
 readme = "README.md"
 requires-python = ">=3.12"
