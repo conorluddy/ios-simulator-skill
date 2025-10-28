@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **completed Agent Skill** for iOS simulator testing, fully distributed as a standalone package that users can install in Claude.ai, Claude Code, or via the Claude API. It provides comprehensive testing and automation capabilities through 10 production-ready scripts wrapping Apple's `xcrun simctl` and Facebook's `idb` tools.
+This is a **completed Agent Skill** for iOS simulator testing, fully distributed as a standalone package that users can install in Claude.ai, Claude Code, or via the Claude API. It provides comprehensive testing and automation capabilities through 16+ production-ready scripts wrapping Apple's `xcrun simctl` and Facebook's `idb` tools.
 
 **Key Design Philosophy:**
 - Skills are **not MCP servers** - they don't create tool interfaces
@@ -16,23 +16,34 @@ This is a **completed Agent Skill** for iOS simulator testing, fully distributed
 
 ### ✅ Implementation Complete
 
-All 12 core scripts are **fully implemented and production-ready**:
+All 16 core scripts are **fully implemented and production-ready**:
 
+**Build & Development (2):**
 1. ✅ `build_and_test.py` (310 lines) - Build automation with progressive disclosure
    - ✅ `xcode/` module (1,458 lines) - Modular architecture for xcresult handling
 2. ✅ `log_monitor.py` (486 lines) - Real-time log monitoring
-3. ✅ `sim_health_check.sh` (239 lines) - Environment verification
-4. ✅ `screen_mapper.py` (307 lines) - UI element analysis
-5. ✅ `navigator.py` (412 lines) - Element finding and interaction
-6. ✅ `gesture.py` (353 lines) - Swipes, scrolls, gestures
-7. ✅ `keyboard.py` (379 lines) - Text input and hardware buttons
-8. ✅ `app_launcher.py` (363 lines) - App lifecycle control
-9. ✅ `accessibility_audit.py` (308 lines) - WCAG compliance checking
-10. ✅ `visual_diff.py` (235 lines) - Screenshot comparison
-11. ✅ `test_recorder.py` (246 lines) - Test documentation
-12. ✅ `app_state_capture.py` (305 lines) - Complete state snapshots
 
-**Total:** ~5,400 lines of production code
+**Navigation & Interaction (5):**
+3. ✅ `screen_mapper.py` (307 lines) - UI element analysis
+4. ✅ `navigator.py` (412 lines) - Element finding and interaction
+5. ✅ `gesture.py` (353 lines) - Swipes, scrolls, gestures
+6. ✅ `keyboard.py` (379 lines) - Text input and hardware buttons
+7. ✅ `app_launcher.py` (363 lines) - App lifecycle control
+
+**Testing & Analysis (5):**
+8. ✅ `accessibility_audit.py` (308 lines) - WCAG compliance checking
+9. ✅ `visual_diff.py` (235 lines) - Screenshot comparison
+10. ✅ `test_recorder.py` (246 lines) - Test documentation
+11. ✅ `app_state_capture.py` (305 lines) - Complete state snapshots
+12. ✅ `sim_health_check.sh` (239 lines) - Environment verification
+
+**Advanced Testing & Permissions (4):**
+13. ✅ `clipboard.py` (100 lines) - Clipboard management
+14. ✅ `status_bar.py` (220 lines) - Status bar control
+15. ✅ `push_notification.py` (250 lines) - Push notification simulation
+16. ✅ `privacy_manager.py` (300 lines) - Permission management
+
+**Total:** ~6,700 lines of production code
 
 ### ✅ Production Ready
 
@@ -55,7 +66,7 @@ ios-simulator-skill/                 # Development repository
 │   ├── SKILL.md                    # REQUIRED: Entry point with YAML frontmatter
 │   ├── CLAUDE.md                   # Developer guide (this file)
 │   ├── README.md                   # User-facing overview
-│   ├── scripts/                    # 12 executable production scripts
+│   ├── scripts/                    # 16 executable production scripts
 │   │   ├── build_and_test.py      # Main CLI (310 lines)
 │   │   ├── xcode/                  # Modular architecture (1,458 lines)
 │   │   │   ├── __init__.py        # Module exports (13 lines)
@@ -64,17 +75,21 @@ ios-simulator-skill/                 # Development repository
 │   │   │   ├── reporter.py        # Output formatting (291 lines)
 │   │   │   ├── cache.py           # Cache management (204 lines)
 │   │   │   └── config.py          # Configuration (165 lines)
-│   │   ├── log_monitor.py         # (486 lines)
-│   │   ├── sim_health_check.sh    # (239 lines)
-│   │   ├── screen_mapper.py       # (307 lines)
-│   │   ├── navigator.py           # (412 lines)
-│   │   ├── gesture.py             # (353 lines)
-│   │   ├── keyboard.py            # (379 lines)
-│   │   ├── app_launcher.py        # (363 lines)
-│   │   ├── accessibility_audit.py # (308 lines)
-│   │   ├── visual_diff.py         # (235 lines)
-│   │   ├── test_recorder.py       # (246 lines)
-│   │   └── app_state_capture.py   # (305 lines)
+│   │   ├── log_monitor.py         # Real-time log monitoring (486 lines)
+│   │   ├── screen_mapper.py       # UI element analysis (307 lines)
+│   │   ├── navigator.py           # Element finding & interaction (412 lines)
+│   │   ├── gesture.py             # Swipes, scrolls, gestures (353 lines)
+│   │   ├── keyboard.py            # Text input & buttons (379 lines)
+│   │   ├── app_launcher.py        # App lifecycle control (363 lines)
+│   │   ├── accessibility_audit.py # WCAG compliance (308 lines)
+│   │   ├── visual_diff.py         # Screenshot comparison (235 lines)
+│   │   ├── test_recorder.py       # Test documentation (246 lines)
+│   │   ├── app_state_capture.py   # State snapshots (305 lines)
+│   │   ├── sim_health_check.sh    # Environment verification (239 lines)
+│   │   ├── clipboard.py           # Clipboard management (100 lines)
+│   │   ├── status_bar.py          # Status bar control (220 lines)
+│   │   ├── push_notification.py   # Push notification simulation (250 lines)
+│   │   └── privacy_manager.py     # Permission management (300 lines)
 │   └── examples/                   # Complete usage examples
 │       └── login_flow.py
 │
@@ -695,6 +710,215 @@ app-state-TIMESTAMP/
 - Package availability checking
 - Actionable error messages
 - Optional dependency warnings
+
+---
+
+### Category 4: Advanced Testing & Permissions (4 scripts)
+
+**Purpose:** Enable comprehensive testing of app behaviors like permissions, notifications, clipboard, and status bar conditions.
+
+#### clipboard.py (100 lines)
+**What it does:** Copy text to simulator clipboard for testing paste flows.
+
+**Algorithm:**
+1. Accept text via `--copy` argument
+2. Build xcrun simctl command: `xcrun simctl pbcopy <udid> <text>`
+3. Execute command with capture_output
+4. Return success status
+
+**Output:** Single line confirmation with next steps guidance
+
+**Key features:**
+- Auto-UDID detection via `resolve_udid()`
+- Test scenario tracking (`--test-name`, `--expected`)
+- Token-efficient output
+- Guidance for paste verification
+
+**Integration points:**
+- Works with `navigator.py` to find text fields
+- Works with `keyboard.py` to perform paste (Cmd+V)
+- Designed for login flow testing (email/password paste)
+
+---
+
+#### status_bar.py (220 lines)
+**What it does:** Override simulator status bar for clean screenshots and testing specific conditions.
+
+**Core classes:**
+```python
+class StatusBarController:
+    PRESETS = {
+        "clean": {...},      # Screenshot-ready (9:41, 100% battery)
+        "testing": {...},    # Testing mode (11:11, 50% battery)
+        "low_battery": {...},# Low battery UI (20% battery)
+        "airplane": {...}    # Offline mode (no data/WiFi)
+    }
+
+    def override(time, data_network, wifi_mode, battery_state, battery_level)
+    def clear()
+```
+
+**Algorithms:**
+
+1. **Preset Application:**
+   - Load preset dictionary
+   - Extract all settings (time, network, battery)
+   - Call `override()` with unpacked settings
+   - Return success/failure
+
+2. **Custom Override:**
+   - Build xcrun command: `xcrun simctl status_bar <udid> override`
+   - Add optional parameters: `--time`, `--dataNetwork`, `--wifiMode`, `--batteryState`, `--batteryLevel`
+   - Execute command
+   - Return success status
+
+3. **Clear:**
+   - Build xcrun command: `xcrun simctl status_bar <udid> clear`
+   - Execute to restore defaults
+
+**Output:** Confirmation message with applied settings
+
+**Key features:**
+- Auto-UDID detection
+- 4 presets for common scenarios
+- Custom parameter support
+- Atomic operations (all-or-nothing)
+- Clear/restore functionality
+
+**Integration points:**
+- Used before `app_state_capture.py` for clean screenshots
+- Works with `visual_diff.py` for consistent baselines
+- Useful with `test_recorder.py` for documentation
+
+---
+
+#### push_notification.py (250 lines)
+**What it does:** Send simulated push notifications to test app notification handling.
+
+**Core classes:**
+```python
+class PushNotificationSender:
+    def send(bundle_id, payload, test_name, expected_behavior) -> bool
+    def send_simple(bundle_id, title, body, badge, sound) -> bool
+```
+
+**Algorithms:**
+
+1. **Payload Handling:**
+   - Accept payload as dict, JSON string, or file path
+   - If file: load JSON from file
+   - If string: try to parse as JSON, else error
+   - If dict: use directly
+   - Wrap in `{"aps": {...}}` if needed
+
+2. **Notification Sending:**
+   - Create temp file with JSON payload
+   - Build xcrun command: `xcrun simctl push <udid> <bundle-id> <payload-file>`
+   - Execute with subprocess
+   - Clean up temp file
+   - Return success status
+
+3. **Simple Mode:**
+   - Build payload dict from parameters
+   - Only include non-null fields
+   - Wrap in `{"aps": {...}}`
+   - Call `send()` with dict
+
+**Output:** Confirmation with notification details and verification guidance
+
+**Payload Structure:**
+```python
+{
+    "aps": {
+        "alert": {
+            "title": "...",
+            "body": "..."
+        },
+        "badge": 3,
+        "sound": "default"
+    }
+}
+```
+
+**Key features:**
+- Auto-UDID detection
+- Dual-mode: simple + custom JSON
+- Temp file creation for payloads
+- Test scenario tracking
+- Verification guidance (logs, state capture)
+
+**Integration points:**
+- Works with `log_monitor.py` to verify delivery
+- Works with `app_state_capture.py` to verify state changes
+- Complements `navigator.py` for deep link testing from notifications
+
+---
+
+#### privacy_manager.py (300 lines)
+**What it does:** Grant, revoke, and reset app permissions for comprehensive permission flow testing.
+
+**Core classes:**
+```python
+class PrivacyManager:
+    SUPPORTED_SERVICES = {
+        "camera": "Camera access",
+        "microphone": "Microphone access",
+        "location": "Location services",
+        ... (13 total)
+    }
+
+    def grant_permission(bundle_id, service, scenario, step) -> bool
+    def revoke_permission(bundle_id, service, scenario, step) -> bool
+    def reset_permission(bundle_id, service, scenario, step) -> bool
+
+    @staticmethod
+    def _log_audit(action, bundle_id, service, scenario, step) -> None
+```
+
+**Algorithms:**
+
+1. **Service Validation:**
+   - Check service against `SUPPORTED_SERVICES` dict
+   - Raise error if unknown service
+   - Support comma-separated list for batch operations
+
+2. **Permission Operation:**
+   - Build xcrun command: `xcrun simctl privacy <udid> <action> <service> <bundle-id>`
+   - Where action is "grant", "revoke", or "reset"
+   - Execute with subprocess
+   - If successful, log audit entry
+   - Return success status
+
+3. **Audit Logging:**
+   - Format: `[Audit] TIMESTAMP: ACTION SERVICE for BUNDLE_ID in SCENARIO (step N)`
+   - Print to stdout for transparency
+   - Supports test scenario tracking with scenario name + step number
+
+4. **Batch Operations:**
+   - Parse comma-separated services
+   - Execute permission operation for each
+   - Track all successes/failures
+   - Report summary
+
+**Output:** Per-service confirmation + summary
+
+**Supported Services (13):**
+- camera, microphone, location, contacts, photos, calendar, health
+- reminders, motion, keyboard, mediaLibrary, calls, siri
+
+**Key features:**
+- Auto-UDID detection
+- Three operations: grant, revoke, reset
+- Batch support (comma-separated services)
+- Audit trail logging with scenario/step tracking
+- Service enumeration (`--list`)
+- Full error handling and actionable messages
+
+**Integration points:**
+- Works with `navigator.py` to interact with permission dialogs
+- Works with `app_state_capture.py` to verify permission effects
+- Complements `log_monitor.py` to track permission-related logs
+- Audit trail useful for test documentation
 
 ---
 

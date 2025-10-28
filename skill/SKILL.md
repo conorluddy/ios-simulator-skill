@@ -1,12 +1,12 @@
 ---
 name: ios-simulator-skill
-version: 1.1.0
-description: This Claude Skill can be used to build, test, and automate iOS apps. 13 production-ready scripts with progressive disclosure (96% token reduction), auto-UDID detection, dual-mode screenshots, coordinate transformation, and accessibility-driven UI simulator navigation.
+version: 1.2.0
+description: Build, test, and automate iOS apps. 16+ production-ready scripts with progressive disclosure (96% token reduction), auto-UDID detection, dual-mode screenshots, coordinate transformation, and accessibility-driven UI simulator navigation. Includes permission management, status bar control, push notifications, and clipboard operations.
 ---
 
 # iOS Simulator Skill
 
-Build, test, and automate iOS applications with progressive disclosure and accessibility-first navigation. This skill provides 12 production-ready scripts for the complete iOS development lifecycle.
+Build, test, and automate iOS applications with progressive disclosure and accessibility-first navigation. This skill provides 16+ production-ready scripts for the complete iOS development lifecycle, including app testing, permissions management, and notification simulation.
 
 ## What This Skill Does
 
@@ -111,7 +111,7 @@ idb ui tap 320 400  # Which element is this? Will it work next week?
 python scripts/navigator.py --find-text "Login" --tap
 ```
 
-The 12 scripts in this skill cover all common workflows. **Only use raw tools if you need something not covered by these scripts.**
+These scripts cover all common workflows. **Only use raw tools if you need something not covered by these scripts.**
 
 ## Configuration (Optional)
 
@@ -160,7 +160,7 @@ To always use a specific simulator, edit the config:
 **First time?** → Start with screen mapping
 **Know what you want?** → Jump to the right script
 
-## 12 Production Scripts
+## 16+ Production Scripts
 
 ### Build & Development (2 scripts)
 
@@ -713,6 +713,234 @@ bash scripts/sim_health_check.sh
 
 ---
 
+### Advanced Testing & Permissions (4 scripts)
+
+#### 13. Clipboard Manager - "Copy text to clipboard for paste testing"
+
+Manage simulator clipboard for testing paste flows:
+
+```bash
+# Copy text to clipboard
+python scripts/clipboard.py --copy "user@test.com"
+
+# With test scenario tracking
+python scripts/clipboard.py --copy "password123" \
+  --test-name "Login Flow" \
+  --expected "Text pasted correctly in password field"
+```
+
+**Output:**
+```
+Copied: "user@test.com"
+
+Next steps:
+1. Tap text field with: python scripts/navigator.py --find-type TextField --tap
+2. Paste with: python scripts/keyboard.py --key cmd+v
+```
+
+**Options:**
+- `--copy TEXT` - Text to copy to clipboard (required)
+- `--test-name NAME` - Test scenario name for tracking
+- `--expected TEXT` - Expected behavior after paste
+- `--udid UDID` - Device UDID (auto-detected if not provided)
+
+**Use when:** You need to test paste flows without manually typing large amounts of text.
+
+---
+
+#### 14. Status Bar Controller - "Override status bar for screenshots and testing"
+
+Control simulator status bar appearance for clean screenshots or testing specific conditions:
+
+```bash
+# Apply preset configurations
+python scripts/status_bar.py --preset clean     # Perfect for screenshots
+python scripts/status_bar.py --preset testing   # For visual testing
+python scripts/status_bar.py --preset low-battery # Test low battery UI
+python scripts/status_bar.py --preset airplane  # Test no connectivity
+
+# Custom status bar settings
+python scripts/status_bar.py \
+  --time "9:41" \
+  --data-network 5g \
+  --battery-level 100 \
+  --battery-state charged
+
+# Clear and restore defaults
+python scripts/status_bar.py --clear
+```
+
+**Presets:**
+- `clean`: Time 9:41, 5G data, active WiFi, 100% battery (screenshot-ready)
+- `testing`: Time 11:11, 4G data, active WiFi, 50% battery (testing)
+- `low-battery`: 20% battery, discharging (low battery UI testing)
+- `airplane`: No data, WiFi failed, 100% battery (offline testing)
+
+**Custom Options:**
+- `--time HH:MM` - Set time (e.g., "9:41")
+- `--data-network` - none, 1x, 3g, 4g, 5g, lte, lte-a
+- `--wifi-mode` - active, searching, failed
+- `--battery-state` - charging, charged, discharging
+- `--battery-level` - 0-100 (percentage)
+- `--clear` - Restore defaults
+- `--udid UDID` - Device UDID (auto-detected if not provided)
+
+**Use when:** Creating clean screenshots for marketing, testing network/battery conditions, or documenting UI states.
+
+---
+
+#### 15. Push Notification Sender - "Send simulated push notifications"
+
+Send test push notifications to verify app notification handling:
+
+```bash
+# Simple notification with title and body
+python scripts/push_notification.py \
+  --bundle-id com.example.app \
+  --title "Order Confirmed" \
+  --body "Your order #12345 has been shipped"
+
+# Add badge number
+python scripts/push_notification.py \
+  --bundle-id com.example.app \
+  --title "Messages" \
+  --body "You have 3 new messages" \
+  --badge 3
+
+# Mute notification sound
+python scripts/push_notification.py \
+  --bundle-id com.example.app \
+  --title "Silent Update" \
+  --body "Available" \
+  --no-sound
+
+# Send custom JSON payload from file
+python scripts/push_notification.py \
+  --bundle-id com.example.app \
+  --payload notification.json
+
+# Send custom JSON payload inline
+python scripts/push_notification.py \
+  --bundle-id com.example.app \
+  --payload '{"aps": {"alert": "Custom", "badge": 5}}'
+
+# With test tracking
+python scripts/push_notification.py \
+  --bundle-id com.example.app \
+  --title "Alert" \
+  --body "Test notification" \
+  --test-name "Push Handling" \
+  --expected "App shows notification badge and sound plays"
+```
+
+**Output:**
+```
+Push notification sent (test: Push Handling)
+Expected: App shows notification badge and sound plays
+
+Notification details:
+  Title: Alert
+  Body: Test notification
+  Badge: 1
+
+Verify notification handling:
+1. Check app log output: python scripts/log_monitor.py --app com.example.app
+2. Capture state: python scripts/app_state_capture.py --app-bundle-id com.example.app
+```
+
+**Options:**
+- `--bundle-id ID` - Target app bundle ID (required)
+- `--title TEXT` - Notification title
+- `--body TEXT` - Notification body
+- `--badge NUM` - Badge number (e.g., 3)
+- `--no-sound` - Disable notification sound
+- `--payload FILE_OR_JSON` - Custom JSON payload
+- `--test-name NAME` - Test scenario name for tracking
+- `--expected TEXT` - Expected behavior after notification
+- `--udid UDID` - Device UDID (auto-detected if not provided)
+
+**Use when:** Testing push notification handling, badge updates, alert sounds, or deep link handling from notifications.
+
+---
+
+#### 16. Privacy & Permissions Manager - "Grant/revoke app permissions"
+
+Manage app permissions for comprehensive permission flow testing:
+
+```bash
+# Grant single permission
+python scripts/privacy_manager.py \
+  --bundle-id com.example.app \
+  --grant camera
+
+# Grant multiple permissions
+python scripts/privacy_manager.py \
+  --bundle-id com.example.app \
+  --grant camera,microphone,location
+
+# Revoke permission
+python scripts/privacy_manager.py \
+  --bundle-id com.example.app \
+  --revoke location
+
+# Reset to default state
+python scripts/privacy_manager.py \
+  --bundle-id com.example.app \
+  --reset photos
+
+# List supported services
+python scripts/privacy_manager.py --list
+
+# With test scenario tracking
+python scripts/privacy_manager.py \
+  --bundle-id com.example.app \
+  --grant camera \
+  --scenario "Camera Permission Flow" \
+  --step 1
+```
+
+**Supported Services (13 total):**
+- `camera` - Camera access
+- `microphone` - Microphone access
+- `location` - Location services
+- `contacts` - Contacts access
+- `photos` - Photos library access
+- `calendar` - Calendar access
+- `health` - Health data access
+- `reminders` - Reminders access
+- `motion` - Motion & fitness data
+- `keyboard` - Keyboard access
+- `mediaLibrary` - Media library access
+- `calls` - Call history access
+- `siri` - Siri access
+
+**Output:**
+```
+✓ Grant camera: Camera access
+✓ Grant microphone: Microphone access
+✓ Grant location: Location services
+
+Permissions granted: camera, microphone, location
+Test scenario: Camera Permission Flow (step 1)
+```
+
+**Options:**
+- `--bundle-id ID` - Target app bundle ID (required)
+- `--grant SERVICES` - Grant permission(s), comma-separated
+- `--revoke SERVICES` - Revoke permission(s), comma-separated
+- `--reset SERVICES` - Reset to default state, comma-separated
+- `--list` - List all supported services
+- `--scenario NAME` - Test scenario name for audit trail
+- `--step NUM` - Step number in test scenario
+- `--udid UDID` - Device UDID (auto-detected if not provided)
+
+**Audit Trail:**
+Every permission change is logged with timestamp and scenario info for complete test documentation.
+
+**Use when:** Testing permission request dialogs, verifying permission-dependent features, or testing permission flows across multiple steps.
+
+---
+
 ## Complete Workflow Examples
 
 ### Example 1: Login Automation
@@ -839,6 +1067,18 @@ Want to...
 │
 ├─ Debug a problem?
 │  └─ python scripts/app_state_capture.py --app-bundle-id com.app.id
+│
+├─ Copy text to clipboard?
+│  └─ python scripts/clipboard.py --copy "text"
+│
+├─ Override status bar?
+│  └─ python scripts/status_bar.py --preset clean
+│
+├─ Send a push notification?
+│  └─ python scripts/push_notification.py --bundle-id com.app --title "Alert"
+│
+├─ Manage app permissions?
+│  └─ python scripts/privacy_manager.py --bundle-id com.app --grant camera
 │
 ├─ Pick which simulator to use?
 │  └─ python scripts/simulator_selector.py --suggest
@@ -997,7 +1237,7 @@ xcrun simctl launch booted com.example.app  # Bypass all skill benefits
 - Unstructured output
 - Generic error messages
 
-**Rule of thumb:** If one of the 12 scripts can do the job, use it. Never use raw tools for standard operations.
+**Rule of thumb:** If one of these 16+ scripts can do the job, use it. Never use raw tools for standard operations.
 
 ---
 
@@ -1025,6 +1265,12 @@ python scripts/accessibility_audit.py --help
 python scripts/visual_diff.py --help
 python scripts/test_recorder.py --help
 python scripts/app_state_capture.py --help
+
+# Advanced Testing & Permissions
+python scripts/clipboard.py --help
+python scripts/status_bar.py --help
+python scripts/push_notification.py --help
+python scripts/privacy_manager.py --help
 
 # Environment
 bash scripts/sim_health_check.sh --help
