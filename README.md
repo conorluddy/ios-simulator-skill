@@ -2,6 +2,10 @@
 
 Production-ready automation for iOS app testing and building. 21 scripts optimized for both human developers and AI agents.
 
+This is basically a Skill version of my XCode MCP: https://github.com/conorluddy/xc-mcp
+
+MCPs load a lot of tokens into the context window when they're active, but also seem to work really well. Skills don't load in any context. I'll make a plugin next and try to find the balance...
+
 ## What It Does
 
 Instead of pixel-based navigation that breaks when UI changes:
