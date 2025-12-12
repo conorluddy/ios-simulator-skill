@@ -1,5 +1,8 @@
 # iOS Simulator Skill for Claude Code
 
+[![Run in Smithery](https://smithery.ai/badge/skills/conorluddy)](https://smithery.ai/skills?ns=conorluddy&utm_source=github&utm_medium=badge)
+
+
 Production-ready automation for iOS app testing and building. 21 scripts optimized for both human developers and AI agents.
 
 This is basically a Skill version of my XCode MCP: [https://github.com/conorluddy/xc-mcp](https://github.com/conorluddy/xc-mcp)
