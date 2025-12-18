@@ -1,3 +1,35 @@
+
+<div align="right">
+  <details>
+    <summary >🌐 Language</summary>
+    <div>
+      <div align="center">
+        <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=en">English</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=zh-CN">简体中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=zh-TW">繁體中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=ja">日本語</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=ko">한국어</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=hi">हिन्दी</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=th">ไทย</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=fr">Français</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=de">Deutsch</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=es">Español</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=it">Italiano</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=ru">Русский</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=pt">Português</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=nl">Nederlands</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=pl">Polski</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=ar">العربية</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=fa">فارسی</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=tr">Türkçe</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=vi">Tiếng Việt</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=id">Bahasa Indonesia</a>
+        | <a href="https://openaitx.github.io/view.html?user=conorluddy&project=ios-simulator-skill&lang=as">অসমীয়া</
+      </div>
+    </div>
+  </details>
+</div>
+
 # iOS Simulator Skill for Claude Code
 
 Production-ready automation for iOS app testing and building. 21 scripts optimized for both human developers and AI agents.
