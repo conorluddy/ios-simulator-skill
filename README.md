@@ -69,26 +69,26 @@ unzip skill.zip -d ~/.claude/skills/ios-simulator-skill
 
 ```bash
 # 1. Check environment
-bash ~/.claude/skills/ios-simulator-skill/scripts/sim_health_check.sh
+bash ~/.claude/skills/ios-simulator-skill/skill/scripts/sim_health_check.sh
 
 # 2. Launch your app
-python ~/.claude/skills/ios-simulator-skill/scripts/app_launcher.py --launch com.example.app
+python ~/.claude/skills/ios-simulator-skill/skill/scripts/app_launcher.py --launch com.example.app
 
 # 3. See what's on screen
-python ~/.claude/skills/ios-simulator-skill/scripts/screen_mapper.py
+python ~/.claude/skills/ios-simulator-skill/skill/scripts/screen_mapper.py
 # Output:
 # Screen: LoginViewController (45 elements, 7 interactive)
 # Buttons: "Login", "Cancel", "Forgot Password"
 # TextFields: 2 (0 filled)
 
 # 4. Tap login button
-python ~/.claude/skills/ios-simulator-skill/scripts/navigator.py --find-text "Login" --tap
+python ~/.claude/skills/ios-simulator-skill/skill/scripts/navigator.py --find-text "Login" --tap
 
 # 5. Enter text
-python ~/.claude/skills/ios-simulator-skill/scripts/navigator.py --find-type TextField --enter-text "user@test.com"
+python ~/.claude/skills/ios-simulator-skill/skill/scripts/navigator.py --find-type TextField --enter-text "user@test.com"
 
 # 6. Check accessibility
-python ~/.claude/skills/ios-simulator-skill/scripts/accessibility_audit.py
+python ~/.claude/skills/ios-simulator-skill/skill/scripts/accessibility_audit.py
 ```
 
 ## 21 Scripts Organized by Category
@@ -267,7 +267,7 @@ This efficiency keeps AI agent conversations focused and cost-effective.
 
 ```bash
 # Run health check
-bash ~/.claude/skills/ios-simulator-skill/scripts/sim_health_check.sh
+bash ~/.claude/skills/ios-simulator-skill/skill/scripts/sim_health_check.sh
 
 # Checks: macOS, Xcode, simctl, IDB, Python, simulators, packages
 ```
