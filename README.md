@@ -6,7 +6,7 @@ This is basically a Skill version of my XCode MCP: [https://github.com/conorludd
 
 
 > [!WARNING]
-> You want to take the `ios-simulator-skill` directory from this repo and drop it into your skills directory - not this entire repo. I'll update this soon with an easier approach.
+> You want to take the `ios-simulator-skill` directory from this repo and drop it into your skills directory - not this entire repo. I'll update this soon with an easier approach. Feel free to fork this and get Claude to adjust it to your specific needs.
 
 
 MCPs load a lot of tokens into the context window when they're active, but also seem to work really well. Skills don't load in any context. I'll make a plugin next and try to find the balance...
