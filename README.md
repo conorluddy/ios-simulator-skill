@@ -297,6 +297,9 @@ python scripts/navigator.py --find-text "Exact Button Text" --tap
 
 ## Contributing
 
+> [!WARNING]
+> I appreciate contributions, but please note that this repo and my other public repos are far down in the priority queue of what I'm working on, so I'll be slow to review anything. Your best bet is really just to fork the repo and customise it to your own needs.
+
 Contributions should:
 - Maintain token efficiency (minimal default output)
 - Follow accessibility-first design
