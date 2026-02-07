@@ -65,12 +65,12 @@ CHECKS_FAILED=0
 # Function to print check status
 check_passed() {
     echo -e "${GREEN}✓${NC} $1"
-    ((CHECKS_PASSED++))
+    CHECKS_PASSED=$((CHECKS_PASSED + 1))
 }
 
 check_failed() {
     echo -e "${RED}✗${NC} $1"
-    ((CHECKS_FAILED++))
+    CHECKS_FAILED=$((CHECKS_FAILED + 1))
 }
 
 check_warning() {
