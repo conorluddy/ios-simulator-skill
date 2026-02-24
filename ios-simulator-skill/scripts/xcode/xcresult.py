@@ -52,6 +52,53 @@ class XCResultParser:
         """
         return self._run_xcresulttool(["get", "test-results", "summary"])
 
+    def get_failed_tests(self) -> list[dict]:
+        """
+        Get failed test details from xcresult bundle.
+
+        Returns:
+            List of dicts with test_name and failure_message.
+            Returns [] if parsing fails or no failures found.
+        """
+        try:
+            data = self._run_xcresulttool(["get", "test-results", "tests"])
+            if not data:
+                return []
+
+            failed = []
+            # The structure varies by Xcode version — walk recursively
+            nodes = data if isinstance(data, list) else data.get("testNodes", [])
+            self._collect_failed_tests(nodes, failed)
+            return failed
+
+        except Exception as e:
+            print(f"Warning: Could not parse failed tests: {e}", file=sys.stderr)
+            return []
+
+    def _collect_failed_tests(self, nodes: list, failed: list[dict]) -> None:
+        """Recursively collect failed test cases from test node tree."""
+        if not isinstance(nodes, list):
+            return
+
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+
+            is_test_case = node.get("nodeType") == "Test Case"
+            is_failed = node.get("result") == "Failed"
+
+            if is_test_case and is_failed:
+                failed.append(
+                    {
+                        "test_name": node.get("name", "Unknown"),
+                        "failure_message": node.get("details", ""),
+                    }
+                )
+
+            # Recurse into children
+            children = node.get("children", [])
+            self._collect_failed_tests(children, failed)
+
     def get_build_log(self) -> str | None:
         """
         Get build log as plain text.

@@ -22,9 +22,14 @@ class OutputFormatter:
         xcresult_id: str,
         test_info: dict | None = None,
         hints: list[str] | None = None,
+        errors: list[dict] | None = None,
+        failed_tests: list[dict] | None = None,
     ) -> str:
         """
-        Format ultra-minimal output (5-10 tokens).
+        Format ultra-minimal output (5-10 tokens on success, more on failure).
+
+        On failure, automatically surfaces top errors/failed tests inline so agents
+        don't need a second round-trip with --get-errors.
 
         Args:
             status: Build status (SUCCESS/FAILED)
@@ -33,13 +38,11 @@ class OutputFormatter:
             xcresult_id: XCResult bundle ID
             test_info: Optional test results dict
             hints: Optional list of actionable hints
+            errors: Optional error list to surface on failure
+            failed_tests: Optional failed test list to surface on failure
 
         Returns:
             Minimal formatted string
-
-        Example:
-            Build: SUCCESS (0 errors, 3 warnings) [xcresult-20251018-143052]
-            Tests: PASS (12/12 passed, 4.2s) [xcresult-20251018-143052]
         """
         lines = []
 
@@ -60,10 +63,51 @@ class OutputFormatter:
                 f"Build: {status} ({error_count} errors, {warning_count} warnings) [{xcresult_id}]"
             )
 
+        # Surface errors inline on failure
+        if status == "FAILED" and errors:
+            lines.append("")
+            lines.append(OutputFormatter.format_errors(errors, limit=5))
+
+        # Surface failed tests inline on failure
+        if failed_tests:
+            lines.append("")
+            lines.append(OutputFormatter.format_test_failures(failed_tests, limit=5))
+
         # Add hints if provided and build failed
         if hints and status == "FAILED":
             lines.append("")
             lines.extend(hints)
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_test_failures(failed_tests: list[dict], limit: int = 5) -> str:
+        """
+        Format failed test details.
+
+        Args:
+            failed_tests: List of dicts with test_name and failure_message
+            limit: Maximum failures to show
+
+        Returns:
+            Formatted failure list
+        """
+        if not failed_tests:
+            return "No test failures found."
+
+        lines = [f"Failed tests ({len(failed_tests)}):"]
+        lines.append("")
+
+        for i, test in enumerate(failed_tests[:limit], 1):
+            name = test.get("test_name", "Unknown")
+            message = test.get("failure_message", "")
+            lines.append(f"{i}. {name}")
+            if message:
+                lines.append(f"   {message}")
+            lines.append("")
+
+        if len(failed_tests) > limit:
+            lines.append(f"... and {len(failed_tests) - limit} more failures")
 
         return "\n".join(lines)
 
