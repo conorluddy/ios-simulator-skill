@@ -51,7 +51,7 @@ jobs:
 
       - name: Check SKILL.md for version reference
         run: |
-          if ! grep -q "${{ steps.version.outputs.number }}" skill/SKILL.md; then
+          if ! grep -q "${{ steps.version.outputs.number }}" ios-simulator-skill/SKILL.md; then
             echo "⚠️  WARNING: Version ${{ steps.version.outputs.number }} not mentioned in SKILL.md"
             echo "Consider adding version info to the SKILL.md frontmatter or description"
           else

@@ -16,37 +16,33 @@ iOS Simulator Skill is a production-ready Agent Skill providing 21 scripts for i
 ## Project Structure
 
 ```
-ios-simulator-skill/
-├── skill/                          # Distributable package
-│   ├── SKILL.md                   # Entry point (table of contents)
-│   ├── CLAUDE.md                  # Developer guide
-│   ├── README.md                  # User-facing overview
-│   ├── scripts/                   # 21 production scripts
-│   │   ├── build_and_test.py
-│   │   ├── xcode/                 # Xcode integration module
-│   │   ├── log_monitor.py
-│   │   ├── screen_mapper.py
-│   │   ├── navigator.py
-│   │   ├── gesture.py
-│   │   ├── keyboard.py
-│   │   ├── app_launcher.py
-│   │   ├── accessibility_audit.py
-│   │   ├── visual_diff.py
-│   │   ├── test_recorder.py
-│   │   ├── app_state_capture.py
-│   │   ├── clipboard.py
-│   │   ├── status_bar.py
-│   │   ├── push_notification.py
-│   │   ├── privacy_manager.py
-│   │   ├── simctl_boot.py
-│   │   ├── simctl_shutdown.py
-│   │   ├── simctl_create.py
-│   │   ├── simctl_delete.py
-│   │   ├── simctl_erase.py
-│   │   ├── sim_health_check.sh
-│   │   └── common/                # Shared utilities
-│   ├── examples/
-│   └── references/
+ios-simulator-skill/            # Repository root
+├── ios-simulator-skill/        # Distributable package
+│   ├── SKILL.md               # Entry point (table of contents)
+│   └── scripts/               # 21 production scripts
+│       ├── build_and_test.py
+│       ├── xcode/             # Xcode integration module
+│       ├── log_monitor.py
+│       ├── screen_mapper.py
+│       ├── navigator.py
+│       ├── gesture.py
+│       ├── keyboard.py
+│       ├── app_launcher.py
+│       ├── accessibility_audit.py
+│       ├── visual_diff.py
+│       ├── test_recorder.py
+│       ├── app_state_capture.py
+│       ├── clipboard.py
+│       ├── status_bar.py
+│       ├── push_notification.py
+│       ├── privacy_manager.py
+│       ├── simctl_boot.py
+│       ├── simctl_shutdown.py
+│       ├── simctl_create.py
+│       ├── simctl_delete.py
+│       ├── simctl_erase.py
+│       ├── sim_health_check.sh
+│       └── common/            # Shared utilities
 ├── .github/workflows/
 ├── pyproject.toml
 └── README.md
@@ -197,7 +193,7 @@ New scripts should:
 1. Update version in SKILL.md frontmatter, pyproject.toml
 2. Verify CI passes (Black, Ruff)
 3. Create GitHub release with vX.X.X tag
-4. Attach zipped skill/ directory
+4. Attach zipped ios-simulator-skill/ directory
 
 ## Design Philosophy
 

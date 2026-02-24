@@ -4,7 +4,7 @@ This is the **development repository** for the iOS Simulator Skill. Users should
 
 ## What is This?
 
-A production-ready Claude Code skill providing 12 scripts for iOS simulator testing and automation with:
+A production-ready Claude Code skill providing 21+ scripts for iOS simulator testing and automation with:
 - 🏗️ **Ultra token-efficient build automation** with progressive disclosure
 - 🔍 **Real-time log monitoring** with intelligent filtering
 - 🎯 **Accessibility-driven navigation** (semantic, not pixel-based)
@@ -12,7 +12,7 @@ A production-ready Claude Code skill providing 12 scripts for iOS simulator test
 - 📸 **Visual regression testing**
 - 🎬 **Test recording and documentation**
 
-**Total:** ~5,200 lines of production Python code
+**Total:** ~10,000 lines of production Python code
 
 ## For Users: Installation
 
@@ -28,7 +28,7 @@ unzip skill.zip -d ~/.claude/skills/ios-simulator-skill
 # Restart Claude Code
 ```
 
-See [`skill/README.md`](skill/README.md) for usage documentation.
+See [`ios-simulator-skill/SKILL.md`](ios-simulator-skill/SKILL.md) for usage documentation.
 
 ## For Contributors: Development Setup
 
@@ -59,11 +59,11 @@ pre-commit run --all-files
 ### Development Workflow
 
 ```bash
-# Make changes to skill/scripts/
-vim skill/scripts/build_and_test.py
+# Make changes to ios-simulator-skill/scripts/
+vim ios-simulator-skill/scripts/build_and_test.py
 
 # Hooks run automatically on commit (Black, Ruff, mypy)
-git add skill/scripts/build_and_test.py
+git add ios-simulator-skill/scripts/build_and_test.py
 git commit -m "feat: improve build error reporting"
 
 # Push and create PR
@@ -73,7 +73,7 @@ git push origin feature-branch
 
 ### Linting Tools
 
-All code in `skill/scripts/` is checked with **STRICT** configuration:
+All code in `ios-simulator-skill/scripts/` is checked with **STRICT** configuration:
 
 - **Black** - Auto-formats to consistent style (line length: 100)
 - **Ruff** - Fast linter catching bugs, style issues, unused imports
@@ -85,13 +85,13 @@ Configuration in [`pyproject.toml`](pyproject.toml).
 
 ```bash
 # Format code
-black skill/scripts/
+black ios-simulator-skill/scripts/
 
 # Lint code (with auto-fix)
-ruff check --fix skill/scripts/
+ruff check --fix ios-simulator-skill/scripts/
 
 # Type check
-mypy skill/scripts/
+mypy ios-simulator-skill/scripts/
 
 # Or run all checks
 pre-commit run --all-files
@@ -100,23 +100,19 @@ pre-commit run --all-files
 ### Repository Structure
 
 ```
-ios-simulator-skill/
-├── skill/                      # 🎁 What users get (packaged in releases)
-│   ├── SKILL.md               # Entry point with YAML frontmatter
-│   ├── CLAUDE.md              # Developer guide for Claude
-│   ├── README.md              # User-facing documentation
-│   ├── scripts/               # 12 production scripts (~5,200 lines)
-│   ├── references/            # Deep documentation
-│   └── examples/              # Usage examples
+ios-simulator-skill/                   # Repository root
+├── ios-simulator-skill/               # Distributable package (packaged in releases)
+│   ├── SKILL.md                      # Entry point with YAML frontmatter
+│   └── scripts/                      # 21+ production scripts (~10,000 lines)
 │
-├── .github/workflows/         # CI/CD automation
-│   ├── release.yml           # Auto-package skill/ on release
-│   ├── lint.yml              # Run linters on PRs
-│   └── validate-version.yml  # Ensure version consistency
+├── .github/workflows/                 # CI/CD automation
+│   ├── release.yml                   # Auto-package on release
+│   ├── lint.yml                      # Run linters on PRs
+│   └── validate-version.yml          # Ensure version consistency
 │
-├── pyproject.toml             # Linting configuration
-├── .pre-commit-config.yaml    # Git hooks
-└── README.md                  # This file (dev guide)
+├── pyproject.toml                     # Linting configuration
+├── .pre-commit-config.yaml            # Git hooks
+└── README.md                          # This file (dev guide)
 ```
 
 ### Creating a Release
@@ -154,21 +150,21 @@ git push origin v1.1.0
 open -a Simulator
 
 # Run health check
-bash skill/scripts/sim_health_check.sh
+bash ios-simulator-skill/scripts/sim_health_check.sh
 
 # Test individual scripts
-python skill/scripts/build_and_test.py --help
-python skill/scripts/screen_mapper.py
+python ios-simulator-skill/scripts/build_and_test.py --help
+python ios-simulator-skill/scripts/screen_mapper.py
 
 # Test skill installation
 mkdir -p ~/.claude/skills/ios-simulator-skill-test
-cp -r skill/* ~/.claude/skills/ios-simulator-skill-test/
+cp -r ios-simulator-skill/* ~/.claude/skills/ios-simulator-skill-test/
 # Restart Claude Code and verify
 ```
 
 ## Code Style Guidelines
 
-From [`CLAUDE.md`](skill/CLAUDE.md):
+From [`CLAUDE.md`](CLAUDE.md):
 
 - **Jackson's Law**: Minimal code to solve the problem
 - **Guard clauses**: Validate inputs first, happy path last
@@ -182,7 +178,7 @@ From [`CLAUDE.md`](skill/CLAUDE.md):
 
 ### release.yml
 - **Trigger:** When release is published
-- **Actions:** Validate structure → Zip skill/ → Upload to release
+- **Actions:** Validate structure → Zip ios-simulator-skill/ → Upload to release
 
 ### lint.yml
 - **Trigger:** On PR to main (for Python files)
@@ -207,6 +203,6 @@ MIT License - see [LICENSE.md](LICENSE.md)
 
 ## Questions?
 
-- **Usage questions**: See [skill/README.md](skill/README.md)
+- **Usage questions**: See [ios-simulator-skill/SKILL.md](ios-simulator-skill/SKILL.md)
 - **Bug reports**: [Open an issue](https://github.com/YOUR_USERNAME/ios-simulator-skill/issues)
 - **Development questions**: [Open a discussion](https://github.com/YOUR_USERNAME/ios-simulator-skill/discussions)

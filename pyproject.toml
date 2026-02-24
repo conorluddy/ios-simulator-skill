@@ -24,7 +24,7 @@ extend-exclude = '''
 line-length = 100
 target-version = "py312"
 # Only check skill code, not root-level dev scripts
-include = ["skill/scripts/**/*.py", "skill/examples/**/*.py"]
+include = ["ios-simulator-skill/scripts/**/*.py"]
 
 [tool.ruff.lint]
 # Enable ALL recommended rules (strict mode)
