@@ -136,6 +136,11 @@ class Navigator:
 
         return elements
 
+    def list_elements(self, force_refresh: bool = False) -> list[Element]:
+        """Get flat list of all UI elements on current screen."""
+        tree = self.get_accessibility_tree(force_refresh)
+        return self._flatten_tree(tree)
+
     def find_element(
         self,
         text: str | None = None,
@@ -345,8 +350,7 @@ def main():
 
     # List mode
     if args.list:
-        tree = navigator.get_accessibility_tree()
-        elements = navigator._flatten_tree(tree)
+        elements = navigator.list_elements()
 
         # Filter to tappable elements
         tappable = [

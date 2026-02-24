@@ -6,7 +6,7 @@ Handles loading, validation, and auto-updating of project-local config files.
 
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -142,7 +142,7 @@ class Config:
             name: Simulator name (e.g., "iPhone 16 Pro")
         """
         self.data["device"]["last_used_simulator"] = name
-        self.data["device"]["last_used_at"] = datetime.utcnow().isoformat() + "Z"
+        self.data["device"]["last_used_at"] = datetime.now(UTC).isoformat()
 
     def get_preferred_simulator(self) -> str | None:
         """

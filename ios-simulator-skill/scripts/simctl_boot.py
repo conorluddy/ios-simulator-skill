@@ -17,7 +17,6 @@ import argparse
 import subprocess
 import sys
 import time
-from typing import Optional
 
 from common.device_utils import (
     get_booted_device_udid,
