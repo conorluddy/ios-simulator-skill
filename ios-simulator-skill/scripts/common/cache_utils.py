@@ -61,7 +61,7 @@ class ProgressiveCache:
         """
         # Generate cache_id with timestamp
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        cache_prefix = cache_type.split("-")[0]  # e.g., 'sim' from 'simulator-list'
+        cache_prefix = cache_type.split("-", maxsplit=1)[0]  # e.g., 'sim' from 'simulator-list'
         cache_id = f"{cache_prefix}-{timestamp}"
 
         # Save to file
