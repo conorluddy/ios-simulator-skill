@@ -18,15 +18,14 @@ jobs:
 
       - name: Validate skill structure
         run: |
-          echo "Validating skill/ directory structure..."
-          test -f skill/SKILL.md || { echo "ERROR: skill/SKILL.md not found"; exit 1; }
-          test -d skill/scripts || { echo "ERROR: skill/scripts directory not found"; exit 1; }
-          test -d skill/examples || { echo "ERROR: skill/examples directory not found"; exit 1; }
+          echo "Validating ios-simulator-skill/ directory structure..."
+          test -f ios-simulator-skill/SKILL.md || { echo "ERROR: ios-simulator-skill/SKILL.md not found"; exit 1; }
+          test -d ios-simulator-skill/scripts || { echo "ERROR: ios-simulator-skill/scripts directory not found"; exit 1; }
           echo "✅ Skill structure validated successfully"
 
       - name: Create skill package
         run: |
-          cd skill
+          cd ios-simulator-skill
           zip -r ../ios-simulator-skill-${{ github.ref_name }}.zip . \
             -x "*.pyc" \
             -x "__pycache__/*" \

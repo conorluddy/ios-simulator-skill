@@ -4,14 +4,14 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'skill/scripts/**/*.py'
+      - 'ios-simulator-skill/scripts/**/*.py'
       - 'pyproject.toml'
       - '.github/workflows/lint.yml'
 
   push:
     branches: [main]
     paths:
-      - 'skill/scripts/**/*.py'
+      - 'ios-simulator-skill/scripts/**/*.py'
 
 jobs:
   lint:
@@ -36,12 +36,12 @@ jobs:
       - name: Run Black (formatter check)
         run: |
           echo "🎨 Checking code formatting with Black..."
-          black --check --diff skill/scripts/
+          black --check --diff ios-simulator-skill/scripts/
 
       - name: Run Ruff (linter)
         run: |
           echo "🔍 Linting code with Ruff..."
-          ruff check skill/scripts/
+          ruff check ios-simulator-skill/scripts/
 
       - name: Summary
         if: success()
