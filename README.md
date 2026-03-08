@@ -266,6 +266,36 @@ All scripts minimize output by default:
 
 This efficiency keeps AI agent conversations focused and cost-effective.
 
+## Evaluation
+
+This skill is tested using [Claude Code evals](https://docs.claude.com/en/docs/claude-code/evals) — automated benchmarks that compare agent performance with and without the skill installed.
+
+### Results (Iteration 1)
+
+| Condition | Pass Rate |
+|-----------|-----------|
+| With skill | **100%** (3/3) |
+| Without skill | **46%** (≈1.4/3) |
+
+### What's Tested
+
+Three eval scenarios cover the skill's core capabilities:
+
+1. **Environment & Discovery** — Health check, list simulators, identify booted device
+2. **Build & Navigate** — Build an app, launch it, map the screen, tap a button
+3. **Test & Capture** — Accessibility audit, app state snapshot, status bar override
+
+Each eval checks that the agent uses skill scripts (not raw `xcrun simctl`), follows progressive disclosure, and completes all requested steps.
+
+### Running Evals
+
+```bash
+# From repo root
+claude evals run evals/evals.json --skill ios-simulator-skill
+```
+
+Eval definitions live in `evals/evals.json`.
+
 ## Troubleshooting
 
 ### Environment Issues
