@@ -29,6 +29,17 @@ python scripts/navigator.py --find-type TextField --enter-text "user@example.com
 
 All scripts support `--help` for detailed options and `--json` for machine-readable output.
 
+## Navigation Strategy
+
+**Always prefer the accessibility tree over screenshots for navigation.** The accessibility tree gives you element types, labels, frames, and tap targets — structured data that's cheaper and more reliable than image analysis.
+
+Use this priority:
+1. `screen_mapper.py` → structured element list (5-7 lines, ~10 tokens)
+2. `navigator.py --find-text/--find-type/--find-id` → semantic interaction
+3. Screenshots → only for visual verification, bug reports, or visual diff
+
+Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree costs 10–50 tokens in default mode.
+
 ## 21 Production Scripts
 
 ### Build & Development (2 scripts)
@@ -183,6 +194,8 @@ All scripts support `--help` for detailed options and `--json` for machine-reada
 **Output Formats**: Default is concise human-readable output. Use `--json` for machine-readable output in CI/CD.
 
 **Help**: All scripts support `--help` for detailed options and examples.
+
+**Screenshot Sizing**: Screenshots are resized to save tokens. Presets: `full` (3-4 tiles, ~5K tokens), `half` (1 tile, ~1.6K tokens, default), `quarter` (1 tile, ~800 tokens, less detail). Use `quarter` for quick visual checks, `half` for readable UI, `full` only when pixel-level detail matters. Scripts that capture screenshots (`app_state_capture.py`, `test_recorder.py`) default to `half`.
 
 ## Typical Workflow
 
