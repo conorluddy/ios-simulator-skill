@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/conorluddy/ios-simulator-skill)
+
 # iOS Simulator Skill for Claude Code
 
 Production-ready automation for iOS app testing and building. 21 scripts optimized for both human developers and AI agents.
