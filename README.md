@@ -2,7 +2,7 @@
 
 # iOS Simulator Skill for Claude Code
 
-Production-ready skill for building, testing, and automating iOS apps. 21 scripts optimized for both human developers and AI agents.
+Production-ready skill for building, testing, and automating iOS apps. 22 scripts optimized for both human developers and AI agents.
 
 ## Xcode Build + Simulator Automation
 
@@ -80,7 +80,7 @@ The accessibility tree gives structured data (element types, labels, frames, tap
 
 ### Screenshot Token Optimization
 
-When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 21 scripts is 3-5 lines — 96% reduction vs raw tool output.
+When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 22 scripts is 3-5 lines — 96% reduction vs raw tool output.
 
 | Task | Raw Tools | This Skill | Savings |
 |------|-----------|-----------|---------|
@@ -94,7 +94,7 @@ When screenshots are needed (visual verification, bug reports, diffs), the skill
 
 **Navigation & Interaction** — `screen_mapper.py`, `navigator.py`, `gesture.py`, `keyboard.py`, `app_launcher.py`
 
-**Testing & Analysis** — `accessibility_audit.py`, `visual_diff.py`, `test_recorder.py`, `app_state_capture.py`, `sim_health_check.sh`
+**Testing & Analysis** — `accessibility_audit.py`, `visual_diff.py`, `test_recorder.py`, `app_state_capture.py`, `sim_health_check.sh`, `model_inspector.py`
 
 **Permissions & Environment** — `clipboard.py`, `status_bar.py`, `push_notification.py`, `privacy_manager.py`
 
