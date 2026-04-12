@@ -88,19 +88,56 @@ When screenshots are needed (visual verification, bug reports, diffs), the skill
 | Find & tap button | 100+ lines | 1 line | 99% |
 | Login flow | 400+ lines | 15 lines | 96% |
 
-### All 21 Scripts
-
-**Build & Development** — `build_and_test.py`, `log_monitor.py`
-
-**Navigation & Interaction** — `screen_mapper.py`, `navigator.py`, `gesture.py`, `keyboard.py`, `app_launcher.py`
-
-**Testing & Analysis** — `accessibility_audit.py`, `visual_diff.py`, `test_recorder.py`, `app_state_capture.py`, `sim_health_check.sh`, `model_inspector.py`
-
-**Permissions & Environment** — `clipboard.py`, `status_bar.py`, `push_notification.py`, `privacy_manager.py`
-
-**Device Lifecycle** — `simctl_boot.py`, `simctl_shutdown.py`, `simctl_create.py`, `simctl_delete.py`, `simctl_erase.py`
+### All 22 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
+
+#### Build & Development
+
+| Script | What it does | Key flags |
+|--------|-------------|-----------|
+| `build_and_test.py` | Build Xcode projects, run tests, parse xcresult bundles | `--project`, `--scheme`, `--test`, `--get-errors`, `--get-warnings` |
+| `log_monitor.py` | Real-time log monitoring with severity filtering | `--app`, `--severity`, `--follow`, `--duration` |
+
+#### Navigation & Interaction
+
+| Script | What it does | Key flags |
+|--------|-------------|-----------|
+| `screen_mapper.py` | Analyze current screen, list interactive elements | `--verbose`, `--hints` |
+| `navigator.py` | Find and interact with elements semantically | `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text` |
+| `gesture.py` | Swipes, scrolls, pinches, long press, pull to refresh | `--swipe`, `--scroll`, `--pinch`, `--long-press`, `--refresh` |
+| `keyboard.py` | Text input and hardware button control | `--type`, `--key`, `--button`, `--clear`, `--dismiss` |
+| `app_launcher.py` | Launch, terminate, install, deep link apps | `--launch`, `--terminate`, `--install`, `--open-url`, `--list` |
+
+#### Testing & Analysis
+
+| Script | What it does | Key flags |
+|--------|-------------|-----------|
+| `accessibility_audit.py` | WCAG compliance checking on current screen | `--verbose`, `--output` |
+| `visual_diff.py` | Compare two screenshots for visual changes | `--threshold`, `--output`, `--details` |
+| `test_recorder.py` | Automated test documentation with screenshots | `--test-name`, `--output` |
+| `app_state_capture.py` | Debugging snapshots (screenshot, hierarchy, logs) | `--app-bundle-id`, `--output`, `--log-lines` |
+| `sim_health_check.sh` | Verify environment (Xcode, simctl, IDB, Python) | — |
+| `model_inspector.py` | Inspect Core Data / SwiftData models from project files | `--project-path`, `--raw`, `--show-versions` |
+
+#### Permissions & Environment
+
+| Script | What it does | Key flags |
+|--------|-------------|-----------|
+| `clipboard.py` | Copy text to simulator clipboard for paste testing | `--copy`, `--test-name` |
+| `status_bar.py` | Override status bar (time, battery, network) | `--preset`, `--time`, `--battery-level`, `--clear` |
+| `push_notification.py` | Send simulated push notifications | `--bundle-id`, `--title`, `--body`, `--payload` |
+| `privacy_manager.py` | Grant, revoke, reset app permissions (13 services) | `--bundle-id`, `--grant`, `--revoke`, `--reset` |
+
+#### Device Lifecycle
+
+| Script | What it does | Key flags |
+|--------|-------------|-----------|
+| `simctl_boot.py` | Boot simulators with readiness verification | `--name`, `--wait-ready`, `--timeout`, `--all`, `--type` |
+| `simctl_shutdown.py` | Gracefully shutdown simulators | `--name`, `--verify`, `--all`, `--type` |
+| `simctl_create.py` | Create simulators by device type and OS version | `--device`, `--runtime`, `--list-devices` |
+| `simctl_delete.py` | Delete simulators with safety confirmation | `--name`, `--yes`, `--all`, `--old` |
+| `simctl_erase.py` | Factory reset without deletion | `--name`, `--verify`, `--all`, `--booted` |
 
 ## Evaluation
 
