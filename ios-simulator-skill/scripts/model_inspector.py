@@ -67,6 +67,83 @@ class ModelInspector:
         has_results = bool(results["core_data"]) or bool(results["swiftdata"])
         return has_results, results
 
+    # === RAW SOURCE EXTRACTION ===
+
+    def get_raw_source(self, model_name: str) -> tuple[bool, str]:
+        """Get raw source for a named model.
+
+        Searches SwiftData @Model classes first, then Core Data XML entities.
+
+        Args:
+            model_name: Class or entity name to look up
+
+        Returns:
+            (success, raw_source) tuple
+        """
+        # Search SwiftData files
+        swift_files = sorted(self.project_path.rglob("*.swift"))
+        skip_dirs = {"DerivedData", "Pods", "Carthage"}
+
+        model_pattern = re.compile(
+            r"@Model\s*\n\s*(?:final\s+)?class\s+(\w+)",
+            re.MULTILINE,
+        )
+
+        for swift_file in swift_files:
+            if any(
+                part in skip_dirs or part.startswith(".")
+                for part in swift_file.relative_to(self.project_path).parts
+            ):
+                continue
+
+            try:
+                content = swift_file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            for match in model_pattern.finditer(content):
+                if match.group(1) == model_name:
+                    class_start = match.start()
+                    body = self._extract_class_body(content, match.end())
+                    if body is None:
+                        continue
+                    # Find closing brace position
+                    brace_start = content.find("{", match.end())
+                    depth = 0
+                    end = brace_start
+                    for i in range(brace_start, len(content)):
+                        if content[i] == "{":
+                            depth += 1
+                        elif content[i] == "}":
+                            depth -= 1
+                            if depth == 0:
+                                end = i + 1
+                                break
+                    rel_path = swift_file.relative_to(self.project_path)
+                    raw = content[class_start:end]
+                    return True, f"// {rel_path}\n{raw}"
+
+        # Search Core Data XML
+        for package in self._find_xcdatamodeld():
+            current_version = self._detect_current_version(package)
+            versions = [d for d in package.iterdir() if d.suffix == ".xcdatamodel"]
+            target = current_version or (versions[0].name if versions else None)
+            if not target:
+                continue
+            contents_path = package / target / "contents"
+            if not contents_path.exists():
+                continue
+            try:
+                tree = ElementTree.parse(contents_path)
+            except ElementTree.ParseError:
+                continue
+            for entity_elem in tree.getroot().findall("entity"):
+                if entity_elem.get("name") == model_name:
+                    raw_xml = ElementTree.tostring(entity_elem, encoding="unicode")
+                    return True, f"<!-- {package.name}/{target}/contents -->\n{raw_xml}"
+
+        return False, f"Model '{model_name}' not found"
+
     # === CORE DATA PARSING ===
 
     def _find_xcdatamodeld(self) -> list[Path]:
@@ -495,6 +572,7 @@ Examples:
   python scripts/model_inspector.py --project-path . --json
   python scripts/model_inspector.py --project-path . --show-versions
   python scripts/model_inspector.py --project-path . --core-data-only
+  python scripts/model_inspector.py --project-path . --raw TrainingSession
         """,
     )
 
@@ -519,6 +597,11 @@ Examples:
         action="store_true",
         help="List all model versions with current version highlighted",
     )
+    inspection_group.add_argument(
+        "--raw",
+        metavar="MODEL_NAME",
+        help="Dump raw source for a specific model (Swift class or Core Data entity)",
+    )
 
     output_group = parser.add_argument_group("Output Options")
     output_group.add_argument("--json", action="store_true", help="Output as JSON")
@@ -527,6 +610,16 @@ Examples:
     args = parser.parse_args()
 
     inspector = ModelInspector(project_path=args.project_path)
+
+    if args.raw:
+        success, raw = inspector.get_raw_source(args.raw)
+        if success:
+            print(raw)
+        else:
+            print(f"Error: {raw}", file=sys.stderr)
+            sys.exit(1)
+        return
+
     success, results = inspector.execute(
         core_data_only=args.core_data_only,
         swiftdata_only=args.swiftdata_only,

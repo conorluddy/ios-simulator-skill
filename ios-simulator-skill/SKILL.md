@@ -128,7 +128,8 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - Parse .xcdatamodeld packages (entities, attributes, relationships)
     - Detect model versions and current active version
     - Best-effort SwiftData @Model class extraction
-    - Options: `--project-path`, `--core-data-only`, `--swiftdata-only`, `--show-versions`, `--verbose`, `--json`
+    - Raw source dump for any model on demand (`--raw ModelName`)
+    - Options: `--project-path`, `--core-data-only`, `--swiftdata-only`, `--show-versions`, `--raw`, `--verbose`, `--json`
 
 ### Advanced Testing & Permissions (4 scripts)
 
