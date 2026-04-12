@@ -210,11 +210,14 @@ class ModelInspector:
         models = []
         swift_files = sorted(self.project_path.rglob("*.swift"))
 
-        # Skip common non-source directories
-        skip_dirs = {".build", "DerivedData", "Pods", "Carthage", ".git"}
+        # Skip common non-source directories and any dotdirs (e.g. .archived, .build, .git)
+        skip_dirs = {"DerivedData", "Pods", "Carthage"}
 
         for swift_file in swift_files:
-            if any(skip in swift_file.parts for skip in skip_dirs):
+            if any(
+                part in skip_dirs or part.startswith(".")
+                for part in swift_file.relative_to(self.project_path).parts
+            ):
                 continue
 
             try:
@@ -311,11 +314,13 @@ class ModelInspector:
 
         for match in prop_pattern.finditer(body):
             name = match.group(1)
-            prop_type = match.group(2).strip()
+            # Strip trailing inline comments (// ...)
+            prop_type = re.sub(r"\s*//.*$", "", match.group(2)).strip()
 
-            # Skip if this line is inside a @Relationship (handled separately)
+            # Skip if preceded by @Relationship on current or previous line
             line_start = body.rfind("\n", 0, match.start()) + 1
-            preceding = body[max(0, line_start - 50) : match.start()]
+            prev_line_start = body.rfind("\n", 0, max(0, line_start - 1)) + 1
+            preceding = body[prev_line_start : match.start()]
             if "@Relationship" in preceding:
                 continue
 
@@ -340,7 +345,7 @@ class ModelInspector:
 
         for match in rel_pattern.finditer(body):
             name = match.group(1)
-            rel_type = match.group(2).strip()
+            rel_type = re.sub(r"\s*//.*$", "", match.group(2)).strip()
             to_many = rel_type.startswith("[") or "Array<" in rel_type
 
             relationships.append(
