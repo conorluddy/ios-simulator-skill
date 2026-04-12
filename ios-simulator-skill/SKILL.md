@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
 version: 1.3.0
-description: 21 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
+description: 22 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
 ---
 
 # iOS Simulator Skill
@@ -40,7 +40,7 @@ Use this priority:
 
 Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree costs 10–50 tokens in default mode.
 
-## 21 Production Scripts
+## 22 Production Scripts
 
 ### Build & Development (2 scripts)
 
@@ -95,7 +95,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Check app state
    - Options: `--launch`, `--terminate`, `--install`, `--uninstall`, `--open-url`, `--list`, `--state`, `--json`
 
-### Testing & Analysis (5 scripts)
+### Testing & Analysis (6 scripts)
 
 8. **accessibility_audit.py** - Check WCAG compliance on current screen
    - Critical issues (missing labels, empty buttons, no alt text)
@@ -124,25 +124,32 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - List available and booted simulators
     - Verify Python packages (Pillow)
 
+13. **model_inspector.py** - Inspect Core Data and SwiftData models from project files
+    - Parse .xcdatamodeld packages (entities, attributes, relationships)
+    - Detect model versions and current active version
+    - Best-effort SwiftData @Model class extraction
+    - Raw source dump for any model on demand (`--raw ModelName`)
+    - Options: `--project-path`, `--core-data-only`, `--swiftdata-only`, `--show-versions`, `--raw`, `--verbose`, `--json`
+
 ### Advanced Testing & Permissions (4 scripts)
 
-13. **clipboard.py** - Manage simulator clipboard for paste testing
+14. **clipboard.py** - Manage simulator clipboard for paste testing
     - Copy text to clipboard
     - Test paste flows without manual entry
     - Options: `--copy`, `--test-name`, `--expected`, `--json`
 
-14. **status_bar.py** - Override simulator status bar appearance
+15. **status_bar.py** - Override simulator status bar appearance
     - Presets: clean (9:41, 100% battery), testing (11:11, 50%), low-battery (20%), airplane (offline)
     - Custom time, network, battery, WiFi settings
     - Options: `--preset`, `--time`, `--data-network`, `--battery-level`, `--clear`, `--json`
 
-15. **push_notification.py** - Send simulated push notifications
+16. **push_notification.py** - Send simulated push notifications
     - Simple mode (title + body + badge)
     - Custom JSON payloads
     - Test notification handling and deep links
     - Options: `--bundle-id`, `--title`, `--body`, `--badge`, `--payload`, `--json`
 
-16. **privacy_manager.py** - Grant, revoke, and reset app permissions
+17. **privacy_manager.py** - Grant, revoke, and reset app permissions
     - 13 supported services (camera, microphone, location, contacts, photos, calendar, health, etc.)
     - Batch operations (comma-separated services)
     - Audit trail with test scenario tracking
@@ -150,34 +157,34 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 ### Device Lifecycle Management (5 scripts)
 
-17. **simctl_boot.py** - Boot simulators with optional readiness verification
+18. **simctl_boot.py** - Boot simulators with optional readiness verification
     - Boot by UDID or device name
     - Wait for device ready with timeout
     - Batch boot operations (--all, --type)
     - Performance timing
     - Options: `--udid`, `--name`, `--wait-ready`, `--timeout`, `--all`, `--type`, `--json`
 
-18. **simctl_shutdown.py** - Gracefully shutdown simulators
+19. **simctl_shutdown.py** - Gracefully shutdown simulators
     - Shutdown by UDID or device name
     - Optional verification of shutdown completion
     - Batch shutdown operations
     - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--json`
 
-19. **simctl_create.py** - Create simulators dynamically
+20. **simctl_create.py** - Create simulators dynamically
     - Create by device type and iOS version
     - List available device types and runtimes
     - Custom device naming
     - Returns UDID for CI/CD integration
     - Options: `--device`, `--runtime`, `--name`, `--list-devices`, `--list-runtimes`, `--json`
 
-20. **simctl_delete.py** - Permanently delete simulators
+21. **simctl_delete.py** - Permanently delete simulators
     - Delete by UDID or device name
     - Safety confirmation by default (skip with --yes)
     - Batch delete operations
     - Smart deletion (--old N to keep N per device type)
     - Options: `--udid`, `--name`, `--yes`, `--all`, `--type`, `--old`, `--json`
 
-21. **simctl_erase.py** - Factory reset simulators without deletion
+22. **simctl_erase.py** - Factory reset simulators without deletion
     - Preserve device UUID (faster than delete+create)
     - Erase all, by type, or booted simulators
     - Optional verification
