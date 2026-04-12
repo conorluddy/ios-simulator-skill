@@ -7,11 +7,7 @@ Production-ready automation for iOS app testing and building. 21 scripts optimiz
 This is basically a Skill version of my XCode MCP: [https://github.com/conorluddy/xc-mcp](https://github.com/conorluddy/xc-mcp)
 
 
-> [!WARNING]
-> You want to take the `ios-simulator-skill` directory from this repo and drop it into your skills directory - not this entire repo. I'll update this soon with an easier approach. Feel free to fork this and get Claude to adjust it to your specific needs.
-
-
-MCPs load a lot of tokens into the context window when they're active, but also seem to work really well. Skills don't load in any context. I'll make a plugin next and try to find the balance...
+MCPs load a lot of tokens into the context window when they're active, but also seem to work really well. Skills don't load in any context.
 
 Updated: The Plugin version lets you easily disable MCPs for different tool groups. Optimise your context window by only enabling the tools you're actively using, such as xcodebuild: [https://github.com/conorluddy/xclaude-plugin](https://github.com/conorluddy/xclaude-plugin)
 
@@ -43,7 +39,16 @@ Uses semantic navigation on accessibility APIs to interact with elements by thei
 
 ## Installation
 
-### As Claude Code Skill
+### Via Plugin Marketplace (Recommended)
+
+In Claude Code:
+
+```
+/plugin marketplace add conorluddy/ios-simulator-skill
+/plugin install ios-simulator-skill@conorluddy
+```
+
+### Via Git Clone
 
 ```bash
 # Personal installation
@@ -54,16 +59,6 @@ git clone https://github.com/conorluddy/ios-simulator-skill.git .claude/skills/i
 ```
 
 Restart Claude Code. The skill loads automatically.
-
-### From Release
-
-```bash
-# Download latest release
-curl -L https://github.com/conorluddy/ios-simulator-skill/releases/download/vX.X.X/ios-simulator-skill-vX.X.X.zip -o skill.zip
-
-# Extract
-unzip skill.zip -d ~/.claude/skills/ios-simulator-skill
-```
 
 ## Prerequisites
 
