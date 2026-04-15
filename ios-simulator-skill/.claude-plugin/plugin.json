@@ -8,6 +8,5 @@
   "license": "MIT",
   "homepage": "https://github.com/conorluddy/ios-simulator-skill",
   "repository": "https://github.com/conorluddy/ios-simulator-skill",
-  "keywords": ["ios", "simulator", "xcode", "testing", "accessibility", "automation"],
-  "skills": ["./"]
+  "keywords": ["ios", "simulator", "xcode", "testing", "accessibility", "automation"]
 }
