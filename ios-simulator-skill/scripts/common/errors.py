@@ -100,7 +100,9 @@ def emit_error(err: SkillError, *, json_mode: bool = False) -> int:
     return err.exit_code
 
 
-def emit_success(data: dict | None = None, *, json_mode: bool = False, summary: str | None = None) -> int:
+def emit_success(
+    data: dict | None = None, *, json_mode: bool = False, summary: str | None = None
+) -> int:
     """Print a success envelope. Use `summary` for the terse human line."""
     if json_mode:
         print(json.dumps({"ok": True, "data": data or {}}))

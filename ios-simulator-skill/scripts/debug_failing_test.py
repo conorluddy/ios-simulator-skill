@@ -40,7 +40,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 def run_script(name: str, args: list[str]) -> tuple[int, str, str]:
     """Invoke a sibling script. Returns (returncode, stdout, stderr)."""
     cmd = [sys.executable, str(SCRIPT_DIR / name), *args]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return proc.returncode, proc.stdout, proc.stderr
 
 
@@ -95,7 +95,7 @@ def capture_failure(
 
     # 1. xcresult errors
     if xcresult_id:
-        rc, out, _ = run_script("build_and_test.py", ["--get-errors", xcresult_id, "--json"])
+        _rc, out, _err = run_script("build_and_test.py", ["--get-errors", xcresult_id, "--json"])
         (bundle / "xcresult-errors.json").write_text(out)
         try:
             errs = json.loads(out)
@@ -107,7 +107,7 @@ def capture_failure(
     state_args = ["--output", str(bundle / "app-state"), "--log-lines", str(log_lines)]
     if bundle_id:
         state_args += ["--app-bundle-id", bundle_id]
-    rc, out, err = run_script("app_state_capture.py", state_args)
+    _rc, _out, _err = run_script("app_state_capture.py", state_args)
     state_dir = bundle / "app-state"
     if state_dir.exists():
         status["ui_tree"] = any(state_dir.glob("*hierarchy*"))
@@ -123,7 +123,9 @@ def capture_failure(
     return status
 
 
-def summarize(test_id: str, passed: bool, status: dict, bundle: Path | None, xcresult_id: str | None) -> str:
+def summarize(
+    test_id: str, passed: bool, status: dict, bundle: Path | None, xcresult_id: str | None
+) -> str:
     label = test_id.rsplit("/", 1)[-1]
     if passed:
         tag = f"  [{xcresult_id}]" if xcresult_id else ""
@@ -151,7 +153,9 @@ def main() -> int:
     parser.add_argument("--simulator", help="Simulator name, e.g. 'iPhone 16 Pro'")
     parser.add_argument("--output", help="Bundle directory (default: ./debug-<timestamp>/)")
     parser.add_argument("--log-lines", type=int, default=200, help="Log tail length (default 200)")
-    parser.add_argument("--retries", type=int, default=0, help="Retry failed test N times before giving up")
+    parser.add_argument(
+        "--retries", type=int, default=0, help="Retry failed test N times before giving up"
+    )
     parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args()
 
@@ -162,7 +166,8 @@ def main() -> int:
         passed = False
         xcresult_id = None
         attempts = 0
-        for attempts in range(args.retries + 1):
+        for attempt_idx in range(args.retries + 1):
+            attempts = attempt_idx
             passed, xcresult_id, _ = run_test(
                 args.project, args.workspace, args.scheme, args.test, args.simulator
             )
@@ -208,11 +213,19 @@ def main() -> int:
             **status,
         }
         if args.json:
-            print(json.dumps({"ok": False, "data": payload, "error": {
-                "code": "TEST_FAILED",
-                "message": f"{args.test} failed after {attempts + 1} attempt(s)",
-                "hint": f"Diagnostics in {bundle}/. Inspect xcresult-errors.json and app-state/.",
-            }}))
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "data": payload,
+                        "error": {
+                            "code": "TEST_FAILED",
+                            "message": f"{args.test} failed after {attempts + 1} attempt(s)",
+                            "hint": f"Diagnostics in {bundle}/. Inspect xcresult-errors.json and app-state/.",
+                        },
+                    }
+                )
+            )
         else:
             print(summarize(args.test, False, status, bundle, xcresult_id))
         return 1

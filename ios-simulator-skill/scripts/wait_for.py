@@ -44,11 +44,10 @@ import re
 import subprocess
 import sys
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from common import resolve_udid
 from common.errors import SkillError, emit_error, emit_success
-
 
 # --- Condition checks ---------------------------------------------------------
 
@@ -61,6 +60,7 @@ def _a11y_tree(udid: str) -> list[dict] | None:
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
     except FileNotFoundError as exc:
         raise SkillError(
@@ -118,6 +118,7 @@ def check_app_state(udid: str, bundle_id: str, target_state: str) -> bool:
         capture_output=True,
         text=True,
         timeout=5,
+        check=False,
     )
     running = bundle_id in result.stdout
     if target_state == "not_running":
@@ -162,9 +163,12 @@ def make_log_matcher(udid: str, pattern: str, bundle_id: str | None) -> Callable
             "compact",
         ]
         if bundle_id:
-            cmd += ["--predicate", f'subsystem == "{bundle_id}" OR processImagePath CONTAINS "{bundle_id}"']
+            cmd += [
+                "--predicate",
+                f'subsystem == "{bundle_id}" OR processImagePath CONTAINS "{bundle_id}"',
+            ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
         except subprocess.TimeoutExpired:
             return False
         for line in result.stdout.splitlines():
@@ -201,11 +205,18 @@ def main() -> int:
     cond = parser.add_mutually_exclusive_group(required=True)
     cond.add_argument("--element", metavar="QUERY", help="Wait for a11y element matching text/id")
     cond.add_argument("--element-gone", metavar="QUERY", help="Wait until element disappears")
-    cond.add_argument("--app-state", choices=["foreground", "not_running"], help="Wait for app state")
+    cond.add_argument(
+        "--app-state", choices=["foreground", "not_running"], help="Wait for app state"
+    )
     cond.add_argument("--log-match", metavar="REGEX", help="Wait for log line matching regex")
     parser.add_argument("--bundle-id", help="App bundle id (required for app-state and log-match)")
     parser.add_argument("--timeout", type=float, default=30.0)
-    parser.add_argument("--interval", type=float, default=None, help="Poll interval (default 0.5s; 1.0s for log-match)")
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=None,
+        help="Poll interval (default 0.5s; 1.0s for log-match)",
+    )
     parser.add_argument("--udid", help="Override device UDID")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -245,7 +256,7 @@ def main() -> int:
             interval = args.interval or 0.5
         else:  # log-match
             check = make_log_matcher(udid, args.log_match, args.bundle_id)
-            label = f'log /{args.log_match}/'
+            label = f"log /{args.log_match}/"
             interval = args.interval or 1.0
 
         start = time.time()
