@@ -101,6 +101,20 @@ App lifecycle.
 
 ## Testing & Analysis
 
+### `wait_for.py`
+Block until a simulator condition becomes true. Replaces in-turn polling loops. Emits structured error envelopes (see "Design notes" below).
+
+| Flag | Purpose |
+|------|---------|
+| `--element <query>` | Wait for an a11y element matching text/id (substring, case-insensitive) |
+| `--element-gone <query>` | Wait until a previously-visible element disappears |
+| `--app-state foreground\|not_running` | Wait for app state. Requires `--bundle-id` |
+| `--log-match <regex>` | Wait for a log line matching the regex. Requires `--bundle-id` |
+| `--timeout <seconds>` | Default 30 |
+| `--interval <seconds>` | Default 0.5s (1.0s for `--log-match`) |
+
+Exit codes: 0 matched, 1 timeout (`TIMEOUT` envelope), 2 args/env error.
+
 ### `debug_failing_test.py`
 Composer: runs a test, and on failure captures xcresult errors + app logs + UI hierarchy + screenshot into one timestamped bundle.
 
@@ -247,6 +261,7 @@ All accept `--udid` or `--name`. Auto-detect the booted sim when both omitted.
 ## Design notes
 
 - **Screenshot presets**: `full` (3-4 tiles, ~5K tokens), `half` (1 tile, ~1.6K tokens, default), `quarter` (1 tile, ~800 tokens).
-- **UDID resolution order**: explicit `--udid` → device name → `SIMCTL_UDID` env → booted simulator.
+- **UDID resolution order**: explicit `--udid` → device name → `$SIMCTL_UDID` env → booted simulator. Set the env var once with `export SIMCTL_UDID=...` to avoid passing `--udid` everywhere.
+- **Structured error envelopes** (adopted incrementally — currently `wait_for.py`, `debug_failing_test.py`): under `--json`, failures emit `{"ok": false, "error": {"code": "<STABLE_ENUM>", "message": "...", "hint": "...", "recovery_cmd": "..."}}`. Codes include `NO_BOOTED_SIM`, `DEVICE_NOT_FOUND`, `IDB_NOT_INSTALLED`, `ELEMENT_NOT_FOUND`, `ELEMENT_AMBIGUOUS`, `APP_NOT_INSTALLED`, `APP_NOT_RUNNING`, `BUILD_FAILED`, `TEST_FAILED`, `TIMEOUT`, `INVALID_ARGS`, `ENV_MISSING`, `PERMISSION_DENIED`. The full list lives in `scripts/common/errors.py::ERROR_CODES`. Successes emit `{"ok": true, "data": {...}}`.
 - **xcresult IDs** are stable within a session. They persist on disk; older bundles are candidates for cleanup.
 - **Progressive disclosure principle**: default output is the minimum actionable signal; everything else is behind a flag.

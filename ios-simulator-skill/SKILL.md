@@ -65,6 +65,16 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/debug_failing_test.py \
 
 Runs the test, and on failure captures xcresult errors + app logs + UI hierarchy + screenshot into a timestamped bundle. Returns a one-line summary with the bundle path.
 
+### Wait for a condition
+
+Don't poll in agent turns — use `wait_for.py`. Blocks on the host and returns one line.
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/wait_for.py --element "Sign In" --timeout 10
+python3 ${CLAUDE_SKILL_DIR}/scripts/wait_for.py --app-state foreground --bundle-id com.example.app
+python3 ${CLAUDE_SKILL_DIR}/scripts/wait_for.py --log-match "DidFinishLaunching" --bundle-id com.example.app
+```
+
 ### Launch and drive an app
 
 ```bash
@@ -100,13 +110,13 @@ Read [reference.md](reference.md) for all flags. These are the scripts available
 |------|---------|
 | Build & logs | `build_and_test.py`, `log_monitor.py` |
 | UI navigation | `screen_mapper.py`, `navigator.py`, `gesture.py`, `keyboard.py`, `app_launcher.py` |
-| Testing & debug | `debug_failing_test.py`, `accessibility_audit.py`, `visual_diff.py`, `test_recorder.py`, `app_state_capture.py`, `model_inspector.py`, `sim_health_check.sh` |
+| Testing & debug | `debug_failing_test.py`, `wait_for.py`, `accessibility_audit.py`, `visual_diff.py`, `test_recorder.py`, `app_state_capture.py`, `model_inspector.py`, `sim_health_check.sh` |
 | Env & permissions | `clipboard.py`, `status_bar.py`, `push_notification.py`, `privacy_manager.py` |
 | Device lifecycle | `simctl_boot.py`, `simctl_shutdown.py`, `simctl_create.py`, `simctl_delete.py`, `simctl_erase.py` |
 
 ## Conventions
 
-- **UDID is optional.** Scripts auto-detect the booted simulator. Pass `--name "iPhone 16 Pro"` or `--udid` only when multiple sims are booted.
+- **UDID is optional.** Scripts auto-detect the booted simulator. Resolution order: `--udid` arg → `$SIMCTL_UDID` env → booted sim. Set `export SIMCTL_UDID=...` once when juggling multiple devices.
 - **Output is terse by default.** Add `--verbose` for human detail or `--json` for parsing.
 - **Screenshots auto-resize.** Default is `half` (~1.6K tokens). Use `quarter` for quick checks, `full` only when pixel detail matters.
 - **xcresult bundles persist.** Reference them by ID across calls within a session.
@@ -119,6 +129,11 @@ Read [reference.md](reference.md) for all flags. These are the scripts available
 - **Build fails with signing error** → `build_and_test.py --get-errors <id>`; signing issues usually need user intervention, don't auto-retry
 - **Tap does nothing** → element may be occluded or offscreen; try `gesture.py --scroll down` then re-map
 - **Stale UI state** → `app_launcher.py --terminate <bundle>` then relaunch
+- **Race conditions / "I just tapped, why isn't X visible?"** → don't poll yourself; `wait_for.py --element <X> --timeout 5`
+
+## Error envelopes
+
+Scripts that have adopted the structured envelope (currently `wait_for.py`, `debug_failing_test.py`) emit JSON like `{"ok": false, "error": {"code": "TIMEOUT", "message": "...", "hint": "...", "recovery_cmd": "..."}}` under `--json`. Branch on `code` (stable enum) — the human-readable text is for logs, not control flow. Existing scripts continue using their pre-existing JSON shapes; adoption is incremental.
 
 ## Additional resources
 

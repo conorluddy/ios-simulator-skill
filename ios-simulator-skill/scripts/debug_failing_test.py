@@ -32,6 +32,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from common.errors import SkillError, emit_error, emit_success
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
@@ -153,59 +155,70 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args()
 
-    if not args.project and not args.workspace:
-        parser.error("--project or --workspace is required")
+    try:
+        if not args.project and not args.workspace:
+            raise SkillError("INVALID_ARGS", "--project or --workspace is required")
 
-    passed = False
-    xcresult_id = None
-    summary_line = ""
-    attempts = 0
-    for attempts in range(args.retries + 1):
-        passed, xcresult_id, summary_line = run_test(
-            args.project, args.workspace, args.scheme, args.test, args.simulator
-        )
+        passed = False
+        xcresult_id = None
+        attempts = 0
+        for attempts in range(args.retries + 1):
+            passed, xcresult_id, _ = run_test(
+                args.project, args.workspace, args.scheme, args.test, args.simulator
+            )
+            if passed:
+                break
+
         if passed:
-            break
+            return emit_success(
+                {
+                    "passed": True,
+                    "test": args.test,
+                    "attempts": attempts + 1,
+                    "xcresult_id": xcresult_id,
+                },
+                json_mode=args.json,
+                summary=summarize(args.test, True, {}, None, xcresult_id),
+            )
 
-    if passed:
-        result = {
-            "passed": True,
-            "test": args.test,
-            "attempts": attempts + 1,
-            "xcresult_id": xcresult_id,
-        }
-        print(json.dumps(result) if args.json else summarize(args.test, True, {}, None, xcresult_id))
-        return 0
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        bundle = Path(args.output) if args.output else Path.cwd() / f"debug-{timestamp}"
+        status = capture_failure(bundle, xcresult_id, args.bundle_id, args.log_lines)
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    bundle = Path(args.output) if args.output else Path.cwd() / f"debug-{timestamp}"
-    status = capture_failure(bundle, xcresult_id, args.bundle_id, args.log_lines)
+        (bundle / "README.md").write_text(
+            f"# Debug bundle — {args.test}\n\n"
+            f"- Generated: {timestamp}\n"
+            f"- Scheme: {args.scheme}\n"
+            f"- Attempts: {attempts + 1}\n"
+            f"- xcresult: {xcresult_id or '(none)'}\n\n"
+            f"## Contents\n"
+            f"- `xcresult-errors.json` — parsed test failures\n"
+            f"- `app-state/` — screenshot, UI hierarchy, logs, device info\n"
+        )
 
-    # Write a top-level README for humans
-    readme = bundle / "README.md"
-    readme.write_text(
-        f"# Debug bundle — {args.test}\n\n"
-        f"- Generated: {timestamp}\n"
-        f"- Scheme: {args.scheme}\n"
-        f"- Attempts: {attempts + 1}\n"
-        f"- xcresult: {xcresult_id or '(none)'}\n\n"
-        f"## Contents\n"
-        f"- `xcresult-errors.json` — parsed test failures\n"
-        f"- `app-state/` — screenshot, UI hierarchy, logs, device info\n"
-    )
-
-    if args.json:
-        print(json.dumps({
+        # Test failure is a successful run of this script — we did our job
+        # (capture diagnostics). Emit a structured envelope but exit 1 to
+        # keep shell-level "did the test pass?" semantics.
+        payload = {
             "passed": False,
             "test": args.test,
             "attempts": attempts + 1,
             "xcresult_id": xcresult_id,
             "bundle": str(bundle),
             **status,
-        }))
-    else:
-        print(summarize(args.test, False, status, bundle, xcresult_id))
-    return 1
+        }
+        if args.json:
+            print(json.dumps({"ok": False, "data": payload, "error": {
+                "code": "TEST_FAILED",
+                "message": f"{args.test} failed after {attempts + 1} attempt(s)",
+                "hint": f"Diagnostics in {bundle}/. Inspect xcresult-errors.json and app-state/.",
+            }}))
+        else:
+            print(summarize(args.test, False, status, bundle, xcresult_id))
+        return 1
+
+    except SkillError as e:
+        return emit_error(e, json_mode=args.json)
 
 
 if __name__ == "__main__":
