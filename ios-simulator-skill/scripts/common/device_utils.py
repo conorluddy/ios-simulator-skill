@@ -15,6 +15,7 @@ Used by:
 """
 
 import json
+import os
 import re
 import subprocess
 
@@ -186,14 +187,20 @@ def resolve_udid(udid_arg: str | None) -> str:
     if udid_arg:
         return udid_arg
 
+    env_udid = os.environ.get("SIMCTL_UDID")
+    if env_udid:
+        return env_udid
+
     booted_udid = get_booted_device_udid()
     if booted_udid:
         return booted_udid
 
     raise RuntimeError(
         "No device UDID provided and no simulator is currently booted.\n"
+        "Resolution order: --udid arg → $SIMCTL_UDID env → booted simulator.\n"
         "Boot a simulator or provide --udid explicitly:\n"
         "  xcrun simctl boot <device-name>\n"
+        "  export SIMCTL_UDID=<device-udid>\n"
         "  python scripts/script_name.py --udid <device-udid>"
     )
 

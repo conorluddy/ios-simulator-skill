@@ -1,247 +1,141 @@
 ---
 name: ios-simulator-skill
-version: 1.4.0
-description: 22 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
+version: 1.5.0
+description: Build, test, and drive iOS apps on the simulator. Wraps xcodebuild, xcrun simctl, and idb with token-efficient scripts for semantic UI navigation, progressive build output, a11y audits, and simulator lifecycle. Use when working with Xcode projects, .swift/.m/.h files, or anything involving the iOS simulator.
+when_to_use: Activate for iOS/macOS app work — building Xcode projects, running XCTest, interacting with the iOS simulator (tap, type, gesture, screenshot), inspecting Core Data/SwiftData models, auditing accessibility, or managing simulator devices. Trigger phrases include "build the app", "run the tests", "tap the login button", "screenshot the simulator", "why is the build failing", "boot a simulator".
+paths: "**/*.xcodeproj/**, **/*.xcworkspace/**, **/Package.swift, **/*.swift, **/*.m, **/*.h, **/*.xcdatamodeld/**"
+allowed-tools: Bash(python3 *) Bash(python *) Bash(xcrun *) Bash(xcodebuild *) Bash(idb *) Bash(bash *)
 ---
 
 # iOS Simulator Skill
 
-Build, test, and automate iOS applications using accessibility-driven navigation and structured data instead of pixel coordinates.
+## Live environment
 
-## Quick Start
+- Booted simulators: !`xcrun simctl list devices booted 2>/dev/null | grep -E "^\s+\w" || echo "  (none booted)"`
+- Xcode: !`xcodebuild -version 2>/dev/null | head -1 || echo "not installed"`
+- IDB: !`command -v idb >/dev/null && idb --version 2>/dev/null || echo "not installed (interactive UI features disabled)"`
+
+## How to invoke scripts
+
+All scripts live under `${CLAUDE_SKILL_DIR}/scripts/`. **Always use the full path** — your working directory is the user's project, not this skill. Example:
 
 ```bash
-# 1. Check environment
-bash scripts/sim_health_check.sh
-
-# 2. Launch app
-python scripts/app_launcher.py --launch com.example.app
-
-# 3. Map screen to see elements
-python scripts/screen_mapper.py
-
-# 4. Tap button
-python scripts/navigator.py --find-text "Login" --tap
-
-# 5. Enter text
-python scripts/navigator.py --find-type TextField --enter-text "user@example.com"
+python3 ${CLAUDE_SKILL_DIR}/scripts/screen_mapper.py
+python3 ${CLAUDE_SKILL_DIR}/scripts/navigator.py --find-text "Login" --tap
 ```
 
-All scripts support `--help` for detailed options and `--json` for machine-readable output.
+Every script supports `--help` (detailed flags) and `--json` (machine-readable output). For the full flag reference, read [reference.md](reference.md) on demand.
 
-## Navigation Strategy
+## Core rule: structure over pixels
 
-**Always prefer the accessibility tree over screenshots for navigation.** The accessibility tree gives you element types, labels, frames, and tap targets — structured data that's cheaper and more reliable than image analysis.
+**Prefer the accessibility tree over screenshots.** A screenshot costs 1,600–6,300 tokens; an a11y element list costs 10–50. Use screenshots only for visual verification, bug reports, or `visual_diff`.
 
-Use this priority:
-1. `screen_mapper.py` → structured element list (5-7 lines, ~10 tokens)
-2. `navigator.py --find-text/--find-type/--find-id` → semantic interaction
-3. Screenshots → only for visual verification, bug reports, or visual diff
+Navigation priority:
+1. `screen_mapper.py` — list what's on screen (structured, ~10 tokens)
+2. `navigator.py --find-text/--find-type/--find-id` — interact semantically
+3. `gesture.py` / `keyboard.py` — swipes, scrolls, typing
+4. Screenshot — only when visual state is the question
 
-Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree costs 10–50 tokens in default mode.
+## Workflows
 
-## 22 Production Scripts
+### Build an Xcode project
 
-### Build & Development (2 scripts)
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/build_and_test.py --project MyApp.xcodeproj --scheme MyApp
+```
 
-1. **build_and_test.py** - Build Xcode projects, run tests, parse results with progressive disclosure
-   - Build with live result streaming
-   - Parse errors and warnings from xcresult bundles
-   - Retrieve detailed build logs on demand
-   - Options: `--project`, `--scheme`, `--clean`, `--test`, `--verbose`, `--json`
+Returns one line with an `xcresult-ID`. On failure, drill in:
 
-2. **log_monitor.py** - Real-time log monitoring with intelligent filtering
-   - Stream logs or capture by duration
-   - Filter by severity (error/warning/info/debug)
-   - Deduplicate repeated messages
-   - Options: `--app`, `--severity`, `--follow`, `--duration`, `--output`, `--json`
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/build_and_test.py --get-errors xcresult-<ID>
+python3 ${CLAUDE_SKILL_DIR}/scripts/build_and_test.py --get-warnings xcresult-<ID>
+python3 ${CLAUDE_SKILL_DIR}/scripts/build_and_test.py --get-log xcresult-<ID>   # last resort
+```
 
-### Navigation & Interaction (5 scripts)
+Do **not** dump full `xcodebuild` output into context — use progressive disclosure.
 
-3. **screen_mapper.py** - Analyze current screen and list interactive elements
-   - Element type breakdown
-   - Interactive button list
-   - Text field status
-   - Options: `--verbose`, `--hints`, `--json`
+### Run a failing test and debug it
 
-4. **navigator.py** - Find and interact with elements semantically
-   - Find by text (fuzzy matching)
-   - Find by element type
-   - Find by accessibility ID
-   - Enter text or tap elements
-   - Options: `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text`, `--json`
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/debug_failing_test.py \
+    --project MyApp.xcodeproj --scheme MyApp \
+    --test MyAppTests/LoginTests/testInvalidPassword \
+    --bundle-id com.example.MyApp
+```
 
-5. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
-   - Directional swipes (up/down/left/right)
-   - Multi-swipe scrolling
-   - Pinch zoom
-   - Long press
-   - Pull to refresh
-   - Options: `--swipe`, `--scroll`, `--pinch`, `--long-press`, `--refresh`, `--json`
+Runs the test, and on failure captures xcresult errors + app logs + UI hierarchy + screenshot into a timestamped bundle. Returns a one-line summary with the bundle path.
 
-6. **keyboard.py** - Text input and hardware button control
-   - Type text (fast or slow)
-   - Special keys (return, delete, tab, space, arrows)
-   - Hardware buttons (home, lock, volume, screenshot)
-   - Key combinations
-   - Options: `--type`, `--key`, `--button`, `--slow`, `--clear`, `--dismiss`, `--json`
+### Wait for a condition
 
-7. **app_launcher.py** - App lifecycle management
-   - Launch apps by bundle ID
-   - Terminate apps
-   - Install/uninstall from .app bundles
-   - Deep link navigation
-   - List installed apps
-   - Check app state
-   - Options: `--launch`, `--terminate`, `--install`, `--uninstall`, `--open-url`, `--list`, `--state`, `--json`
+Don't poll in agent turns — use `wait_for.py`. Blocks on the host and returns one line.
 
-### Testing & Analysis (6 scripts)
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/wait_for.py --element "Sign In" --timeout 10
+python3 ${CLAUDE_SKILL_DIR}/scripts/wait_for.py --app-state foreground --bundle-id com.example.app
+python3 ${CLAUDE_SKILL_DIR}/scripts/wait_for.py --log-match "DidFinishLaunching" --bundle-id com.example.app
+```
 
-8. **accessibility_audit.py** - Check WCAG compliance on current screen
-   - Critical issues (missing labels, empty buttons, no alt text)
-   - Warnings (missing hints, small touch targets)
-   - Info (missing IDs, deep nesting)
-   - Options: `--verbose`, `--output`, `--json`
+### Launch and drive an app
 
-9. **visual_diff.py** - Compare two screenshots for visual changes
-   - Pixel-by-pixel comparison
-   - Threshold-based pass/fail
-   - Generate diff images
-   - Options: `--threshold`, `--output`, `--details`, `--json`
+```bash
+# 1. Launch
+python3 ${CLAUDE_SKILL_DIR}/scripts/app_launcher.py --launch com.example.MyApp
 
-10. **test_recorder.py** - Automatically document test execution
-    - Capture screenshots and accessibility trees per step
-    - Generate markdown reports with timing data
-    - Options: `--test-name`, `--output`, `--verbose`, `--json`
+# 2. See what's on screen
+python3 ${CLAUDE_SKILL_DIR}/scripts/screen_mapper.py
 
-11. **app_state_capture.py** - Create comprehensive debugging snapshots
-    - Screenshot, UI hierarchy, app logs, device info
-    - Markdown summary for bug reports
-    - Options: `--app-bundle-id`, `--output`, `--log-lines`, `--json`
+# 3. Interact semantically
+python3 ${CLAUDE_SKILL_DIR}/scripts/navigator.py --find-type TextField --enter-text "user@example.com"
+python3 ${CLAUDE_SKILL_DIR}/scripts/navigator.py --find-text "Sign In" --tap
 
-12. **sim_health_check.sh** - Verify environment is properly configured
-    - Check macOS, Xcode, simctl, IDB, Python
-    - List available and booted simulators
-    - Verify Python packages (Pillow)
+# 4. Verify
+python3 ${CLAUDE_SKILL_DIR}/scripts/accessibility_audit.py
+```
 
-13. **model_inspector.py** - Inspect Core Data and SwiftData models from project files
-    - Parse .xcdatamodeld packages (entities, attributes, relationships)
-    - Detect model versions and current active version
-    - Best-effort SwiftData @Model class extraction
-    - Raw source dump for any model on demand (`--raw ModelName`)
-    - Options: `--project-path`, `--core-data-only`, `--swiftdata-only`, `--show-versions`, `--raw`, `--verbose`, `--json`
+### Simulator lifecycle
 
-### Advanced Testing & Permissions (4 scripts)
+Auto-detects the booted sim when `--udid` is omitted. Resolve by device name ("iPhone 16 Pro") — UDIDs are rarely needed.
 
-14. **clipboard.py** - Manage simulator clipboard for paste testing
-    - Copy text to clipboard
-    - Test paste flows without manual entry
-    - Options: `--copy`, `--test-name`, `--expected`, `--json`
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/simctl_boot.py --name "iPhone 16 Pro" --wait-ready
+python3 ${CLAUDE_SKILL_DIR}/scripts/simctl_erase.py --booted      # fast reset
+python3 ${CLAUDE_SKILL_DIR}/scripts/simctl_shutdown.py --all
+```
 
-15. **status_bar.py** - Override simulator status bar appearance
-    - Presets: clean (9:41, 100% battery), testing (11:11, 50%), low-battery (20%), airplane (offline)
-    - Custom time, network, battery, WiFi settings
-    - Options: `--preset`, `--time`, `--data-network`, `--battery-level`, `--clear`, `--json`
+## Script index
 
-16. **push_notification.py** - Send simulated push notifications
-    - Simple mode (title + body + badge)
-    - Custom JSON payloads
-    - Test notification handling and deep links
-    - Options: `--bundle-id`, `--title`, `--body`, `--badge`, `--payload`, `--json`
+Read [reference.md](reference.md) for all flags. These are the scripts available under `${CLAUDE_SKILL_DIR}/scripts/`:
 
-17. **privacy_manager.py** - Grant, revoke, and reset app permissions
-    - 13 supported services (camera, microphone, location, contacts, photos, calendar, health, etc.)
-    - Batch operations (comma-separated services)
-    - Audit trail with test scenario tracking
-    - Options: `--bundle-id`, `--grant`, `--revoke`, `--reset`, `--list`, `--json`
+| Area | Scripts |
+|------|---------|
+| Build & logs | `build_and_test.py`, `log_monitor.py` |
+| UI navigation | `screen_mapper.py`, `navigator.py`, `gesture.py`, `keyboard.py`, `app_launcher.py` |
+| Testing & debug | `debug_failing_test.py`, `wait_for.py`, `accessibility_audit.py`, `visual_diff.py`, `test_recorder.py`, `app_state_capture.py`, `model_inspector.py`, `sim_health_check.sh` |
+| Env & permissions | `clipboard.py`, `status_bar.py`, `push_notification.py`, `privacy_manager.py` |
+| Device lifecycle | `simctl_boot.py`, `simctl_shutdown.py`, `simctl_create.py`, `simctl_delete.py`, `simctl_erase.py` |
 
-### Device Lifecycle Management (5 scripts)
+## Conventions
 
-18. **simctl_boot.py** - Boot simulators with optional readiness verification
-    - Boot by UDID or device name
-    - Wait for device ready with timeout
-    - Batch boot operations (--all, --type)
-    - Performance timing
-    - Options: `--udid`, `--name`, `--wait-ready`, `--timeout`, `--all`, `--type`, `--json`
+- **UDID is optional.** Scripts auto-detect the booted simulator. Resolution order: `--udid` arg → `$SIMCTL_UDID` env → booted sim. Set `export SIMCTL_UDID=...` once when juggling multiple devices.
+- **Output is terse by default.** Add `--verbose` for human detail or `--json` for parsing.
+- **Screenshots auto-resize.** Default is `half` (~1.6K tokens). Use `quarter` for quick checks, `full` only when pixel detail matters.
+- **xcresult bundles persist.** Reference them by ID across calls within a session.
+- **No `idb`? Navigation and gestures are unavailable.** Build, logs, simctl, and model inspection still work. Tell the user to `brew install idb-companion` if they need UI automation.
 
-19. **simctl_shutdown.py** - Gracefully shutdown simulators
-    - Shutdown by UDID or device name
-    - Optional verification of shutdown completion
-    - Batch shutdown operations
-    - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--json`
+## When things go wrong
 
-20. **simctl_create.py** - Create simulators dynamically
-    - Create by device type and iOS version
-    - List available device types and runtimes
-    - Custom device naming
-    - Returns UDID for CI/CD integration
-    - Options: `--device`, `--runtime`, `--name`, `--list-devices`, `--list-runtimes`, `--json`
+- **"No booted device"** → `simctl_boot.py --name "iPhone 16 Pro" --wait-ready`
+- **Element not found** → run `screen_mapper.py --verbose` to see the full tree; the label may not match what the user said
+- **Build fails with signing error** → `build_and_test.py --get-errors <id>`; signing issues usually need user intervention, don't auto-retry
+- **Tap does nothing** → element may be occluded or offscreen; try `gesture.py --scroll down` then re-map
+- **Stale UI state** → `app_launcher.py --terminate <bundle>` then relaunch
+- **Race conditions / "I just tapped, why isn't X visible?"** → don't poll yourself; `wait_for.py --element <X> --timeout 5`
 
-21. **simctl_delete.py** - Permanently delete simulators
-    - Delete by UDID or device name
-    - Safety confirmation by default (skip with --yes)
-    - Batch delete operations
-    - Smart deletion (--old N to keep N per device type)
-    - Options: `--udid`, `--name`, `--yes`, `--all`, `--type`, `--old`, `--json`
+## Error envelopes
 
-22. **simctl_erase.py** - Factory reset simulators without deletion
-    - Preserve device UUID (faster than delete+create)
-    - Erase all, by type, or booted simulators
-    - Optional verification
-    - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--booted`, `--json`
+Scripts that have adopted the structured envelope (currently `wait_for.py`, `debug_failing_test.py`) emit JSON like `{"ok": false, "error": {"code": "TIMEOUT", "message": "...", "hint": "...", "recovery_cmd": "..."}}` under `--json`. Branch on `code` (stable enum) — the human-readable text is for logs, not control flow. Existing scripts continue using their pre-existing JSON shapes; adoption is incremental.
 
-## Common Patterns
+## Additional resources
 
-**Auto-UDID Detection**: Most scripts auto-detect the booted simulator if --udid is not provided.
-
-**Device Name Resolution**: Use device names (e.g., "iPhone 16 Pro") instead of UDIDs - scripts resolve automatically.
-
-**Batch Operations**: Many scripts support `--all` for all simulators or `--type iPhone` for device type filtering.
-
-**Output Formats**: Default is concise human-readable output. Use `--json` for machine-readable output in CI/CD.
-
-**Help**: All scripts support `--help` for detailed options and examples.
-
-**Screenshot Sizing**: Screenshots are resized to save tokens. Presets: `full` (3-4 tiles, ~5K tokens), `half` (1 tile, ~1.6K tokens, default), `quarter` (1 tile, ~800 tokens, less detail). Use `quarter` for quick visual checks, `half` for readable UI, `full` only when pixel-level detail matters. Scripts that capture screenshots (`app_state_capture.py`, `test_recorder.py`) default to `half`.
-
-## Typical Workflow
-
-1. Verify environment: `bash scripts/sim_health_check.sh`
-2. Launch app: `python scripts/app_launcher.py --launch com.example.app`
-3. Analyze screen: `python scripts/screen_mapper.py`
-4. Interact: `python scripts/navigator.py --find-text "Button" --tap`
-5. Verify: `python scripts/accessibility_audit.py`
-6. Debug if needed: `python scripts/app_state_capture.py --app-bundle-id com.example.app`
-
-## Requirements
-
-- macOS 12+
-- Xcode Command Line Tools
-- Python 3
-- IDB (optional, for interactive features)
-
-## Documentation
-
-- **SKILL.md** (this file) - Script reference and quick start
-- **README.md** - Installation and examples
-- **CLAUDE.md** - Architecture and implementation details
-- **references/** - Deep documentation on specific topics
-- **examples/** - Complete automation workflows
-
-## Key Design Principles
-
-**Semantic Navigation**: Find elements by meaning (text, type, ID) not pixel coordinates. Survives UI changes.
-
-**Token Efficiency**: Concise default output (3-5 lines) with optional verbose and JSON modes for detailed results.
-
-**Accessibility-First**: Built on standard accessibility APIs for reliability and compatibility.
-
-**Zero Configuration**: Works immediately on any macOS with Xcode. No setup required.
-
-**Structured Data**: Scripts output JSON or formatted text, not raw logs. Easy to parse and integrate.
-
-**Auto-Learning**: Build system remembers your device preference. Configuration stored per-project.
-
----
-
-Use these scripts directly or let Claude Code invoke them automatically when your request matches the skill description.
+- [reference.md](reference.md) — full flag reference for every script
+- `scripts/*.py --help` — authoritative per-script docs
