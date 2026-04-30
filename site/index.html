@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iOS Simulator Skill — Build, test, and automate iOS apps with Claude Code</title>
+<meta name="description" content="Production-ready Claude Code skill for iOS development. 22 scripts for Xcode builds, semantic UI navigation, and accessibility testing — 96% token reduction vs raw tools.">
+<meta property="og:title" content="iOS Simulator Skill for Claude Code">
+<meta property="og:description" content="22 scripts for iOS app building, testing, and automation. Optimized for AI agents and developers.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://conorluddy.github.io/ios-simulator-skill/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="/ios-simulator-skill/">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">ios-simulator <span>/ skill</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#scripts">Scripts</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/conorluddy/ios-simulator-skill" class="nav-github">GitHub →</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="container">
+    <div class="hero-meta">
+      <span class="tag">v1.0 · Plugin</span>
+      <span class="tag tag-muted">MIT · macOS 12+</span>
+    </div>
+    <h1>Build, test, and automate iOS apps&nbsp;with <em>Claude Code</em>.</h1>
+    <p class="lede">A production-ready skill of 22 scripts wrapping <code>xcodebuild</code>, <code>xcrun simctl</code>, and <code>idb</code> with semantic interfaces designed for AI agents and developers.</p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#install">Install</a>
+      <a class="btn btn-ghost" href="https://github.com/conorluddy/ios-simulator-skill">View on GitHub</a>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">/01</div>
+        <div class="stat-value">22</div>
+        <div class="stat-label">Production scripts</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">/02</div>
+        <div class="stat-value">96<span style="color:var(--ink-dim);">%</span></div>
+        <div class="stat-label">Token reduction</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">/03</div>
+        <div class="stat-value">100<span style="color:var(--ink-dim);">%</span></div>
+        <div class="stat-label">Eval pass rate</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">01 / WHY</span>
+      <h2 class="section-title">Why it matters.</h2>
+      <p class="section-sub">Three principles, applied to every script.</p>
+    </div>
+
+    <div class="features">
+      <article class="feature-card">
+        <span class="feature-num">A</span>
+        <h3>Token-efficient by default</h3>
+        <p>Default output is 3–5 lines. Drill into errors, warnings, or full logs only when you need them. Conversations stay focused, costs stay low.</p>
+      </article>
+      <article class="feature-card">
+        <span class="feature-num">B</span>
+        <h3>Semantic UI navigation</h3>
+        <p>Find elements by meaning — labels, types, IDs — not pixels. Built on the iOS accessibility tree, so tests survive UI redesigns.</p>
+      </article>
+      <article class="feature-card">
+        <span class="feature-num">C</span>
+        <h3>Production-ready</h3>
+        <p>Class-based scripts, type hints, Black + Ruff CI. Auto-UDID detection. Idempotent device lifecycle. Works with real simulators today.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">02 / RECEIPTS</span>
+      <h2 class="section-title">Raw tools vs. this skill.</h2>
+      <p class="section-sub">A typical login flow with raw <code>idb</code> output is ~400 lines. With this skill, ~15.</p>
+    </div>
+
+    <div class="compare">
+      <div class="compare-card">
+        <p class="compare-task">Screen analysis</p>
+        <div class="compare-row"><span>Raw</span><span class="compare-bad">200+ lines</span></div>
+        <div class="compare-row"><span>Skill</span><span class="compare-good">5 lines</span></div>
+        <p class="compare-saving">−97.5%</p>
+      </div>
+      <div class="compare-card">
+        <p class="compare-task">Find &amp; tap button</p>
+        <div class="compare-row"><span>Raw</span><span class="compare-bad">100+ lines</span></div>
+        <div class="compare-row"><span>Skill</span><span class="compare-good">1 line</span></div>
+        <p class="compare-saving">−99%</p>
+      </div>
+      <div class="compare-card">
+        <p class="compare-task">Login flow</p>
+        <div class="compare-row"><span>Raw</span><span class="compare-bad">400+ lines</span></div>
+        <div class="compare-row"><span>Skill</span><span class="compare-good">15 lines</span></div>
+        <p class="compare-saving">−96%</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">03 / INSTALL</span>
+      <h2 class="section-title">Install in Claude Code.</h2>
+      <p class="section-sub">Two commands, no setup. Restart Claude Code; the skill loads automatically.</p>
+    </div>
+
+    <div class="codeblock">
+      <div class="codeblock-head">
+        <span>~/claude-code</span>
+        <button class="copy-btn" type="button" aria-label="Copy install commands">Copy</button>
+      </div>
+<pre><code>/plugin marketplace add conorluddy/ios-simulator-skill
+/plugin install ios-simulator-skill@conorluddy</code></pre>
+    </div>
+    <p class="install-prereqs">Prerequisites: macOS 12+ · Xcode CLT · Python 3 · IDB (optional). <a href="https://github.com/conorluddy/ios-simulator-skill#prerequisites">Full list →</a></p>
+  </div>
+</section>
+
+<section id="scripts" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">04 / CATALOG</span>
+      <h2 class="section-title">22 scripts. 5 categories.</h2>
+      <p class="section-sub">Every script supports <code>--help</code> and <code>--json</code>. Auto-detects the booted simulator unless you pass <code>--udid</code>.</p>
+    </div>
+
+    <div class="catalog">
+
+      <div class="catalog-group">
+        <div class="catalog-head">
+          <span class="catalog-num">/A</span>
+          <h3>Build &amp; Development</h3>
+        </div>
+        <ul>
+          <li><code>build_and_test.py</code><span>Build, test, parse xcresult bundles with progressive error disclosure</span></li>
+          <li><code>log_monitor.py</code><span>Real-time log monitoring with severity filtering</span></li>
+        </ul>
+      </div>
+
+      <div class="catalog-group">
+        <div class="catalog-head">
+          <span class="catalog-num">/B</span>
+          <h3>Navigation &amp; Interaction</h3>
+        </div>
+        <ul>
+          <li><code>screen_mapper.py</code><span>Analyze the current screen, list interactive elements</span></li>
+          <li><code>navigator.py</code><span>Find and interact with elements semantically</span></li>
+          <li><code>gesture.py</code><span>Swipes, scrolls, pinches, long press, pull to refresh</span></li>
+          <li><code>keyboard.py</code><span>Text input and hardware button control</span></li>
+          <li><code>app_launcher.py</code><span>Launch, terminate, install, deep link apps</span></li>
+        </ul>
+      </div>
+
+      <div class="catalog-group">
+        <div class="catalog-head">
+          <span class="catalog-num">/C</span>
+          <h3>Testing &amp; Analysis</h3>
+        </div>
+        <ul>
+          <li><code>accessibility_audit.py</code><span>WCAG compliance checking on the current screen</span></li>
+          <li><code>visual_diff.py</code><span>Compare two screenshots for visual changes</span></li>
+          <li><code>test_recorder.py</code><span>Automated test documentation with screenshots</span></li>
+          <li><code>app_state_capture.py</code><span>Debugging snapshots: screenshot, hierarchy, logs</span></li>
+          <li><code>sim_health_check.sh</code><span>Verify Xcode, simctl, IDB, Python toolchain</span></li>
+          <li><code>model_inspector.py</code><span>Inspect Core Data / SwiftData models from project files</span></li>
+        </ul>
+      </div>
+
+      <div class="catalog-group">
+        <div class="catalog-head">
+          <span class="catalog-num">/D</span>
+          <h3>Permissions &amp; Environment</h3>
+        </div>
+        <ul>
+          <li><code>clipboard.py</code><span>Copy text to simulator clipboard for paste testing</span></li>
+          <li><code>status_bar.py</code><span>Override status bar (time, battery, network)</span></li>
+          <li><code>push_notification.py</code><span>Send simulated push notifications</span></li>
+          <li><code>privacy_manager.py</code><span>Grant, revoke, reset app permissions across 13 services</span></li>
+        </ul>
+      </div>
+
+      <div class="catalog-group">
+        <div class="catalog-head">
+          <span class="catalog-num">/E</span>
+          <h3>Device Lifecycle</h3>
+        </div>
+        <ul>
+          <li><code>simctl_boot.py</code><span>Boot simulators with readiness verification</span></li>
+          <li><code>simctl_shutdown.py</code><span>Gracefully shutdown simulators</span></li>
+          <li><code>simctl_create.py</code><span>Create simulators by device type and OS version</span></li>
+          <li><code>simctl_delete.py</code><span>Delete simulators with safety confirmation</span></li>
+          <li><code>simctl_erase.py</code><span>Factory reset without deletion</span></li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">05 / EVAL</span>
+      <h2 class="section-title">Measured against itself.</h2>
+      <p class="section-sub">Same iOS task suite. With and without the skill loaded. Run it yourself with <code>claude evals run</code>.</p>
+    </div>
+
+    <div class="eval">
+      <div class="eval-card">
+        <div class="eval-num">WITH SKILL</div>
+        <p class="eval-stat">100%</p>
+        <p class="eval-desc">3 of 3 tasks passed</p>
+      </div>
+      <div class="eval-card muted">
+        <div class="eval-num">WITHOUT SKILL</div>
+        <p class="eval-stat">46%</p>
+        <p class="eval-desc">~1.4 of 3 tasks passed</p>
+      </div>
+    </div>
+    <p class="eval-source">Tested with <a href="https://docs.claude.com/en/docs/claude-code/evals">Claude Code evals</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <p>MIT · Built by <a href="https://www.conor.fyi">Conor Luddy</a></p>
+    <nav class="footer-links">
+      <a href="https://github.com/conorluddy/ios-simulator-skill">GitHub</a>
+      <a href="https://deepwiki.com/conorluddy/ios-simulator-skill">DeepWiki</a>
+      <a href="https://www.conor.fyi/writing/ai-access">AI-accessible apps</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const code = btn.closest('.codeblock').querySelector('code').innerText;
+      try {
+        await navigator.clipboard.writeText(code);
+        const original = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('is-copied');
+        setTimeout(() => { btn.textContent = original; btn.classList.remove('is-copied'); }, 1600);
+      } catch {}
+    });
+  });
+</script>
+
+</body>
+</html>
