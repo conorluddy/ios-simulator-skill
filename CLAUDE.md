@@ -18,31 +18,35 @@ iOS Simulator Skill is a production-ready Agent Skill providing 21 scripts for i
 ```
 ios-simulator-skill/            # Repository root
 ├── ios-simulator-skill/        # Distributable package
-│   ├── SKILL.md               # Entry point (table of contents)
-│   └── scripts/               # 22 production scripts
-│       ├── build_and_test.py
-│       ├── xcode/             # Xcode integration module
-│       ├── log_monitor.py
-│       ├── screen_mapper.py
-│       ├── navigator.py
-│       ├── gesture.py
-│       ├── keyboard.py
-│       ├── app_launcher.py
-│       ├── accessibility_audit.py
-│       ├── visual_diff.py
-│       ├── test_recorder.py
-│       ├── app_state_capture.py
-│       ├── clipboard.py
-│       ├── status_bar.py
-│       ├── push_notification.py
-│       ├── privacy_manager.py
-│       ├── simctl_boot.py
-│       ├── simctl_shutdown.py
-│       ├── simctl_create.py
-│       ├── simctl_delete.py
-│       ├── simctl_erase.py
-│       ├── sim_health_check.sh
-│       └── common/            # Shared utilities
+│   ├── .claude-plugin/
+│   │   └── plugin.json        # Plugin manifest
+│   └── skills/
+│       └── ios-simulator-skill/
+│           ├── SKILL.md       # Entry point (table of contents)
+│           └── scripts/       # 22 production scripts
+│               ├── build_and_test.py
+│               ├── xcode/     # Xcode integration module
+│               ├── log_monitor.py
+│               ├── screen_mapper.py
+│               ├── navigator.py
+│               ├── gesture.py
+│               ├── keyboard.py
+│               ├── app_launcher.py
+│               ├── accessibility_audit.py
+│               ├── visual_diff.py
+│               ├── test_recorder.py
+│               ├── app_state_capture.py
+│               ├── clipboard.py
+│               ├── status_bar.py
+│               ├── push_notification.py
+│               ├── privacy_manager.py
+│               ├── simctl_boot.py
+│               ├── simctl_shutdown.py
+│               ├── simctl_create.py
+│               ├── simctl_delete.py
+│               ├── simctl_erase.py
+│               ├── sim_health_check.sh
+│               └── common/    # Shared utilities
 ├── .github/workflows/
 ├── pyproject.toml
 └── README.md
