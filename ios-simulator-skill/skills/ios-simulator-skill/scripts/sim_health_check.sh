@@ -133,15 +133,21 @@ else
 fi
 echo ""
 
-# Check 5: Python 3 installation
-echo -e "${BLUE}[5/8]${NC} Checking Python 3..."
+# Check 5: Python 3.12+ installation
+echo -e "${BLUE}[5/8]${NC} Checking Python 3.12+..."
 if command -v python3 &> /dev/null; then
-    PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
-    check_passed "Python 3 is installed (version $PYTHON_VERSION)"
+    PYTHON_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
+    PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
+    if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 12 ]; }; then
+        check_failed "Python $PYTHON_MAJOR.$PYTHON_MINOR found — Python 3.12+ required"
+        echo "       Upgrade: brew install python@3.12"
+    else
+        check_passed "Python $PYTHON_MAJOR.$PYTHON_MINOR (>= 3.12 required)"
+    fi
 else
     check_failed "Python 3 not found"
-    echo "       Python 3 is required for testing scripts"
-    echo "       Install: brew install python3"
+    echo "       Python 3.12+ is required for testing scripts"
+    echo "       Install: brew install python@3.12"
 fi
 echo ""
 
