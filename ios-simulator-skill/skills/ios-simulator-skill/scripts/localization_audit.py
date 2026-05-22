@@ -34,7 +34,7 @@ class LocaleGap:
 
     key: str
     locale: str
-    reason: str  # "missing", "needs_review", "untranslated"
+    reason: str  # "missing", "needs_review", "new", "stale"
 
 
 @dataclass
@@ -76,8 +76,9 @@ class AuditReport:
 # === PLACEHOLDER EXTRACTION ===
 
 # Matches %d, %@, %s, %lld, %ld, %f, %g, %i, %u and positional %1$@, %2$d etc.
+# Length-modifier group (hh|h|ll|l|z|t|q) handles %lld, %lu, %ld, %hhu etc.
 _PLACEHOLDER_RE = re.compile(
-    r"%(?:\d+\$)?(?:[-+0 #]*)?(?:\d+)?(?:\.\d+)?[diouxXeEfgGcsSpaAqQzZtb@]"
+    r"%(?:\d+\$)?(?:[-+0 #]*)?(?:\d+)?(?:\.\d+)?(?:hh|h|ll|l|z|t|q)?[diouxXeEfgGcsSpaAqQzZtb@]"
 )
 
 # Swift source patterns for localized strings
@@ -167,24 +168,36 @@ def _parse_strings_file(catalog_path: Path) -> tuple[str, dict[str, dict[str, An
         return source_language, strings
 
     # .strings — may be binary or XML plist, or legacy =; format
+    plist_error: Exception | None = None
     try:
         data = plistlib.loads(catalog_path.read_bytes())
         strings = {k: {locale: {"state": "translated", "value": v}} for k, v in data.items()}
         return source_language, strings
-    except Exception:
-        pass
+    except Exception as exc:
+        plist_error = exc
 
     # Fallback: text-format .strings  ("key" = "value";)
     _kv_re = re.compile(r'"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"', re.MULTILINE)
+    text_error: Exception | None = None
     try:
-        text = catalog_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        text = catalog_path.read_text(encoding="latin-1")
-    strings = {}
-    for match in _kv_re.finditer(text):
-        k, v = match.group(1), match.group(2)
-        strings[k] = {locale: {"state": "translated", "value": v}}
-    return source_language, strings
+        try:
+            text = catalog_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            text_error = exc
+            text = catalog_path.read_text(encoding="latin-1")
+        strings = {}
+        for match in _kv_re.finditer(text):
+            k, v = match.group(1), match.group(2)
+            strings[k] = {locale: {"state": "translated", "value": v}}
+        return source_language, strings
+    except Exception as exc:
+        if text_error is None:
+            text_error = exc
+
+    raise ValueError(
+        f"Failed to parse .strings file {catalog_path}: "
+        f"plist error: {plist_error}; text-decode error: {text_error}"
+    )
 
 
 # === SWIFT SOURCE SCANNER ===
@@ -251,7 +264,7 @@ class LocalizationAuditor:
                     gaps.append(LocaleGap(key=key, locale=locale, reason="missing"))
                 else:
                     state = locale_map[locale].get("state", "")
-                    if state in {"needs_review", "new"}:
+                    if state in {"needs_review", "new", "stale"}:
                         gaps.append(LocaleGap(key=key, locale=locale, reason=state))
 
         return sorted(gaps, key=lambda g: (g.locale, g.key))
@@ -278,6 +291,7 @@ class LocalizationAuditor:
                 if not value:
                     continue  # gaps already reported separately
                 locale_placeholders = _extract_placeholders(value)
+                # Note: only count is compared; positional-type swaps not detected
                 if len(locale_placeholders) != len(source_placeholders):
                     mismatches.append(
                         PlaceholderMismatch(
