@@ -226,6 +226,9 @@ Most operational limits can be tuned via environment variables. Defaults work fo
 | `IOS_SIM_BOOT_TIMEOUT` | `300` | Wait-for-ready timeout after boot (seconds) |
 | `IOS_SIM_BUILD_JSON_CAP` | `50` | Max build errors / failed tests in JSON output |
 | `IOS_SIM_BUILD_LOG_PREVIEW` | `4000` | Chars of build log preview in default output |
+| `IOS_SIM_BUILD_TIMEOUT` | `1800` | Max seconds for an `xcodebuild build` invocation before kill |
+| `IOS_SIM_INTROSPECT_TIMEOUT` | `60` | Timeout for `xcodebuild -list` and `simctl list` lookups (seconds) |
+| `IOS_SIM_TEST_TIMEOUT` | `2700` | Max seconds for an `xcodebuild test` invocation before kill |
 | `IOS_SIM_BUILD_SUMMARY_CAP` | `15` | Errors/failures in default build summary |
 | `IOS_SIM_BUILD_VERBOSE_CAP` | `100` | Errors/warnings in verbose build output |
 | `IOS_SIM_CACHE_MAX_ENTRIES` | `500` | Max entries in progressive disclosure cache (LRU eviction) |

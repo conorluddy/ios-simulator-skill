@@ -170,6 +170,9 @@ How long to wait on `xcrun simctl` operations.
 | `IOS_SIM_BUILD_VERBOSE_CAP` | `100` | Errors / warnings in `--verbose` mode. Mostly relevant for monorepos or first builds with many fixable warnings. |
 | `IOS_SIM_BUILD_JSON_CAP` | `50` | Max errors / failed tests in `--json` output. Raise for CI dashboards that need exhaustive lists. |
 | `IOS_SIM_BUILD_LOG_PREVIEW` | `4000` (chars) | Chars of build log included in default output. Higher → more context for failures, more tokens. |
+| `IOS_SIM_BUILD_TIMEOUT` | `1800` (s) | Hard cap on a single `xcodebuild build` invocation. Default of 30 min covers most clean builds of large apps; raise for very large monorepos, lower to fail fast in CI when builds are expected to take seconds. Without this, a hung `xcodebuild` would block forever. |
+| `IOS_SIM_TEST_TIMEOUT` | `2700` (s) | Hard cap on `xcodebuild test`. Tests can take significantly longer than builds (45 min default) because of simulator boot + animation delays. |
+| `IOS_SIM_INTROSPECT_TIMEOUT` | `60` (s) | Timeout for `xcodebuild -list` and `xcrun simctl list` introspection calls. These should normally complete in &lt;1s; 60s catches Xcode-toolchain hangs without disrupting cold-start. |
 
 ### Log monitor output
 
