@@ -49,10 +49,9 @@ from common.device_utils import resolve_device_identifier  # noqa: E402
 # Default predicate: catches RunningBoard kills + SwiftUI/UIKit micro-hangs.
 # Override with env var IOS_SIM_HANG_PREDICATE for custom tuning.
 DEFAULT_HANG_PREDICATE = (
-    '(subsystem == "com.apple.runningboard") OR '
-    '(eventMessage CONTAINS "Hang detected") OR '
-    '(eventMessage CONTAINS[c] "main thread") AND '
-    '(eventMessage CONTAINS[c] "hang")'
+    '(subsystem == "com.apple.runningboard") '
+    'OR (eventMessage CONTAINS "Hang detected") '
+    'OR ((eventMessage CONTAINS[c] "main thread") AND (eventMessage CONTAINS[c] "hang"))'
 )
 
 # Patterns for parsing duration estimates from hang messages.
@@ -75,6 +74,27 @@ _LOG_LINE_PATTERN = re.compile(
     r"\s*(.*)",  # message
     re.IGNORECASE,
 )
+
+
+def _compute_start_timestamp(duration_str: str) -> str:
+    """Parse duration string and return ISO-8601 start timestamp.
+
+    Args:
+        duration_str: Duration like '30s', '5m', '1h'.
+
+    Raises:
+        ValueError: If the format is unrecognised.
+    """
+    match = re.match(r"(\d+)([smh])", duration_str.lower())
+    if not match:
+        raise ValueError(
+            f"Invalid duration format: {duration_str!r}. Use format like '30s', '5m', '1h'."
+        )
+
+    value, unit = match.groups()
+    seconds = int(value) * {"s": 1, "m": 60, "h": 3600}[unit]
+    start = datetime.now() - timedelta(seconds=seconds)
+    return start.strftime("%Y-%m-%d %H:%M:%S")
 
 
 # === HANG WATCHER ===
@@ -180,7 +200,13 @@ class HangWatcher:
                 if self.interrupted:
                     break
 
-            self._process.wait()
+            # Terminate before wait — log stream never self-exits on duration elapsed.
+            if self._process and self._process.poll() is None:
+                self._process.terminate()
+                try:
+                    self._process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self._process.kill()
             return True
 
         except Exception as error:
@@ -188,7 +214,7 @@ class HangWatcher:
             return False
 
         finally:
-            if self._process:
+            if self._process and self._process.poll() is None:
                 self._process.terminate()
 
     def show_since(
@@ -298,14 +324,19 @@ class HangWatcher:
         """Return the active log predicate.
 
         Priority: CLI --predicate > IOS_SIM_HANG_PREDICATE env var > DEFAULT.
-        Bundle ID filtering is appended if provided and no custom predicate is set.
+        Bundle ID is always ANDed in as a predicate clause when provided, regardless
+        of whether a custom predicate source is in use.
         """
         base = override or os.getenv("IOS_SIM_HANG_PREDICATE") or DEFAULT_HANG_PREDICATE
 
-        if bundle_id and not override and not os.getenv("IOS_SIM_HANG_PREDICATE"):
-            # Narrow to the target process using bundle-ID suffix as process name hint
+        if bundle_id:
+            # Use /.app/ path segment for precise matching — avoids substring collisions
+            # (e.g. "Maps" matching "MapsExtension"). Falls back to process name.
             app_name = bundle_id.rsplit(".", maxsplit=1)[-1]
-            base = f'({base}) AND (processImagePath CONTAINS "{app_name}")'
+            bundle_clause = (
+                f'(processImagePath CONTAINS "/{app_name}.app/" OR process == "{app_name}")'
+            )
+            base = f"({base}) AND {bundle_clause}"
 
         return base
 
@@ -413,16 +444,7 @@ class HangWatcher:
 
     def _compute_start_timestamp(self, duration_str: str) -> str:
         """Parse duration string and return ISO-8601 start timestamp."""
-        match = re.match(r"(\d+)([smh])", duration_str.lower())
-        if not match:
-            raise ValueError(
-                f"Invalid duration format: {duration_str!r}. Use format like '30s', '5m', '1h'."
-            )
-
-        value, unit = match.groups()
-        seconds = int(value) * {"s": 1, "m": 60, "h": 3600}[unit]
-        start = datetime.now() - timedelta(seconds=seconds)
-        return start.strftime("%Y-%m-%d %H:%M:%S")
+        return _compute_start_timestamp(duration_str)
 
     def _register_signal_handler(self):
         """Register SIGINT handler for graceful shutdown."""
@@ -490,6 +512,12 @@ Environment variables:
 
     args = parser.parse_args()
 
+    if args.since:
+        try:
+            _compute_start_timestamp(args.since)  # validate before constructing watcher
+        except ValueError as e:
+            parser.error(str(e))
+
     watcher = HangWatcher(udid=args.udid)
 
     if args.watch:
@@ -512,8 +540,8 @@ Environment variables:
     if not success:
         sys.exit(1)
 
-    # Post-run summary (non-JSON, non-watch modes)
-    if not args.json:
+    # Post-run summary (--since mode only — not in live --watch or --json)
+    if not args.json and not args.watch:
         print(f"\n{watcher.get_summary()}")
 
     # Save to cache if events were captured
