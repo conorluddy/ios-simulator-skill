@@ -7,11 +7,11 @@ This file provides guidance to Claude Code and developers working with this repo
 iOS Simulator Skill is a production-ready Agent Skill providing 21 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
 
 **Key Statistics:**
-- 27 production scripts (~8,500 lines)
+- 27 production scripts (~9,000 lines)
 - 5 script categories (Build, Navigation, Testing, Permissions, Lifecycle)
-- 6 shared utility modules (~1,400 lines)
+- 7 shared utility modules (~2,400 lines)
 - 100% token-optimized default output
-- Full test coverage on all new features
+- 88 unit tests across pipeline / sessions / token-budget / diff (run `pytest tests/`)
 
 ## Project Structure
 
@@ -27,6 +27,7 @@ ios-simulator-skill/            # Repository root
 │               ├── build_and_test.py
 │               ├── xcode/     # Xcode integration module
 │               ├── log_monitor.py
+│               ├── hang_watcher.py    # HangBuster session recorder + legacy stream
 │               ├── screen_mapper.py
 │               ├── navigator.py
 │               ├── gesture.py
@@ -47,6 +48,8 @@ ios-simulator-skill/            # Repository root
 │               ├── simctl_erase.py
 │               ├── sim_health_check.sh
 │               └── common/    # Shared utilities
+│                   ├── hang_pipeline.py   # HangBuster filter pipeline (pure fns)
+│                   └── hang_sessions.py   # HangBuster session storage
 ├── .github/workflows/
 ├── pyproject.toml
 └── README.md
@@ -126,12 +129,13 @@ python scripts/simctl_boot.py --type iPhone
 - **keyboard.py**: Text input and keys
 - **app_launcher.py**: App lifecycle
 
-### Testing & Analysis (5)
+### Testing & Analysis (6)
 - **accessibility_audit.py**: WCAG compliance
 - **visual_diff.py**: Screenshot comparison
 - **test_recorder.py**: Test documentation
 - **app_state_capture.py**: Debugging snapshots
 - **sim_health_check.sh**: Environment verification
+- **hang_watcher.py** (HangBuster): session-scoped hang recorder with progressive disclosure (`--start`/`--stop`/`--get-details`/`--diff`); legacy `--watch`/`--since` paths preserved
 
 ### Advanced Testing & Permissions (4)
 - **clipboard.py**: Clipboard management
@@ -160,6 +164,22 @@ python scripts/simctl_boot.py --type iPhone
 
 ### cache_utils.py (~258 lines)
 - `ProgressiveCache`: Large output caching with TTL
+
+### hang_pipeline.py (~630 lines)
+Pure-function HangBuster filter pipeline (parse → normalise → threshold → bucket → cluster → aggregate → rank → format). Reusable but scoped — promote to a generic `log_filters.py` only when a second consumer appears (AHA).
+
+- `parse_log_line()`, `normalise_message()`, `bucket_severity()`, `compute_fingerprint()`
+- `cluster_events()`, `rank_clusters()`, aggregators (bursts/quiet/process)
+- `format_l0/l1/l2()`, `format_cluster_detail()`, `format_diff()`
+- `estimate_tokens()` (char/4 heuristic), `compress_to_budget()`
+- `diff_sessions()` with `fingerprint_version` guard
+- Dataclasses: `NormalisedEvent`, `Cluster`, `SessionSummary`, `Severity` (StrEnum)
+
+### hang_sessions.py (~355 lines)
+- `SessionStore`: filesystem-backed session repository at `~/.ios-simulator-skill/sessions/<id>/{meta.json, events.jsonl, summary.json}`
+- Session ID format: `hang-YYYYMMDD-HHmmss-<4hex>` (random suffix avoids same-second collisions)
+- Atomic meta writes (`.tmp` + `replace`); worker writes its own pid (no pidfile race)
+- TTL prune via `IOS_SIM_HANG_SESSION_TTL_HOURS` on every `--start`
 
 ## Quality Standards
 
