@@ -2,7 +2,7 @@
 
 # iOS Simulator Skill for Claude Code
 
-Production-ready skill for building, testing, and automating iOS apps. 22 scripts optimized for both human developers and AI agents.
+Production-ready skill for building, testing, and automating iOS apps. 27 scripts optimized for both human developers and AI agents.
 
 ## Xcode Build + Simulator Automation
 
@@ -80,7 +80,7 @@ The accessibility tree gives structured data (element types, labels, frames, tap
 
 ### Screenshot Token Optimization
 
-When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 22 scripts is 3-5 lines — 96% reduction vs raw tool output.
+When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 27 scripts is 3-5 lines — 96% reduction vs raw tool output.
 
 | Task | Raw Tools | This Skill | Savings |
 |------|-----------|-----------|---------|
@@ -88,7 +88,7 @@ When screenshots are needed (visual verification, bug reports, diffs), the skill
 | Find & tap button | 100+ lines | 1 line | 99% |
 | Login flow | 400+ lines | 15 lines | 96% |
 
-### All 22 Scripts
+### All 27 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
 
@@ -98,6 +98,13 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 |--------|-------------|-----------|
 | `build_and_test.py` | Build Xcode projects, run tests, parse xcresult bundles | `--project`, `--scheme`, `--test`, `--get-errors`, `--get-warnings` |
 | `log_monitor.py` | Real-time log monitoring with severity filtering | `--app`, `--severity`, `--follow`, `--duration` |
+
+#### Device State
+
+| Script | What it does | Key flags |
+|--------|-------------|-----------|
+| `appearance.py` | Switch dark mode, dynamic type, locale, region | `--theme`, `--text-size`, `--locale`, `--region`, `--reset` |
+| `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat/--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
 
 #### Navigation & Interaction
 
@@ -119,6 +126,9 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `app_state_capture.py` | Debugging snapshots (screenshot, hierarchy, logs) | `--app-bundle-id`, `--output`, `--log-lines` |
 | `sim_health_check.sh` | Verify environment (Xcode, simctl, IDB, Python) | — |
 | `model_inspector.py` | Inspect Core Data / SwiftData models from project files | `--project-path`, `--raw`, `--show-versions` |
+| `container.py` | Inspect app sandbox: list, cat, UserDefaults, Core Data, export | `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export` |
+| `hang_watcher.py` | Stream `os_log` hang events with structured output | `--watch`, `--bundle-id`, `--since`, `--predicate` |
+| `localization_audit.py` | Audit `.xcstrings` catalogs for missing keys, unused keys, placeholder mismatches | `--catalog`, `--source`, `--strict` |
 
 #### Permissions & Environment
 
