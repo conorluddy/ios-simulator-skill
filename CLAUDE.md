@@ -7,7 +7,7 @@ This file provides guidance to Claude Code and developers working with this repo
 iOS Simulator Skill is a production-ready Agent Skill providing 21 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
 
 **Key Statistics:**
-- 22 production scripts (~8,500 lines)
+- 27 production scripts (~8,500 lines)
 - 5 script categories (Build, Navigation, Testing, Permissions, Lifecycle)
 - 6 shared utility modules (~1,400 lines)
 - 100% token-optimized default output
@@ -23,7 +23,7 @@ ios-simulator-skill/            # Repository root
 │   └── skills/
 │       └── ios-simulator-skill/
 │           ├── SKILL.md       # Entry point (table of contents)
-│           └── scripts/       # 22 production scripts
+│           └── scripts/       # 27 production scripts
 │               ├── build_and_test.py
 │               ├── xcode/     # Xcode integration module
 │               ├── log_monitor.py
