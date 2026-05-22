@@ -24,13 +24,26 @@ import plistlib
 import shutil
 import subprocess
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 from common.cache_utils import ProgressiveCache
 from common.device_utils import resolve_device_identifier
 
+
+def _env_int(name: str, default: int, *, min_value: int = 0) -> int:
+    """Read an integer from the environment with a minimum clamp."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return max(min_value, int(raw))
+    except ValueError:
+        return default
+
+
 # Threshold in bytes above which --cat output is cached instead of printed inline
-_CAT_CACHE_THRESHOLD_BYTES = 8_192  # 8 KB
+_CAT_CACHE_THRESHOLD_BYTES = _env_int("IOS_SIM_CAT_CACHE_BYTES", 8_192, min_value=512)
 
 
 class ContainerInspector:
@@ -100,9 +113,12 @@ class ContainerInspector:
         if not ok:
             return False, {"error": container}
 
-        target = Path(container)
+        container_resolved = Path(container).resolve()
+        target = container_resolved
         if relative_path:
-            target = target / relative_path
+            target = (container_resolved / relative_path).resolve()
+            if not target.is_relative_to(container_resolved):
+                return False, {"error": f"Path escapes container boundary: {relative_path}"}
 
         if not target.exists():
             return False, {"error": f"Path does not exist: {target}"}
@@ -142,7 +158,10 @@ class ContainerInspector:
         if not ok:
             return False, {"error": container}
 
-        file_path = Path(container) / relative_path
+        container_resolved = Path(container).resolve()
+        file_path = (container_resolved / relative_path).resolve()
+        if not file_path.is_relative_to(container_resolved):
+            return False, {"error": f"Path escapes container boundary: {relative_path}"}
         if not file_path.exists():
             return False, {"error": f"File not found: {file_path}"}
 
@@ -372,6 +391,8 @@ def _make_json_serializable(obj):
         return obj.hex()
     if isinstance(obj, set):
         return sorted(_make_json_serializable(i) for i in obj)
+    if isinstance(obj, Decimal):
+        return float(obj)
     # datetime — plistlib returns datetime.datetime for plist dates
     if hasattr(obj, "isoformat"):
         return obj.isoformat()
@@ -568,8 +589,11 @@ Examples:
         else:
             print(f"Container: {result['container_root']}")
             print(f"Listed: {result['listed_path']}  ({result['total_entries']} entries)")
+            listing_root = args.path or ""
+            root_depth = listing_root.count("/") + 1 if listing_root else 0
             for entry in result["entries"]:
-                prefix = "  " * entry["path"].count("/")
+                relative_depth = entry["path"].count("/") - root_depth
+                prefix = "  " * max(0, relative_depth)
                 size = f"  [{_human_bytes(entry['size_bytes'])}]" if entry.get("size_bytes") else ""
                 print(f"  {prefix}{entry['path']}  ({entry['kind']}){size}")
         sys.exit(0 if success else 1)
