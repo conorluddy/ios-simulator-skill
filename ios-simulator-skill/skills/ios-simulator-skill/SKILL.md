@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
 version: 1.5.0
-description: 22 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
+description: 27 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
 ---
 
 # iOS Simulator Skill
@@ -40,7 +40,7 @@ Use this priority:
 
 Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree costs 10–50 tokens in default mode.
 
-## 22 Production Scripts
+## 27 Production Scripts
 
 ### Build & Development (2 scripts)
 
@@ -56,22 +56,38 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Deduplicate repeated messages
    - Options: `--app`, `--severity`, `--follow`, `--duration`, `--output`, `--json`
 
+### Device State (2 scripts)
+
+3. **appearance.py** - Control simulator appearance: dark mode, Dynamic Type size, and locale/region
+   - Toggle light/dark theme via `xcrun simctl ui`
+   - Set Dynamic Type size with friendly aliases (XS through AX5)
+   - Write locale and region defaults; optional app restart via `--bundle-id`
+   - RTL flagged automatically for ar/he/fa/ur/yi locales
+   - Options: `--theme`, `--text-size`, `--locale`, `--region`, `--reset`, `--bundle-id`, `--udid`, `--json`, `--verbose`
+
+4. **location.py** - Simulate GPS coordinates, named city presets, and GPX scenario playback
+   - Fix a coordinate with `--lat`/`--lng` or pick a city with `--city`
+   - Play a built-in scenario (City Run, Freeway Drive, etc.) via `--gpx <scenario>`
+   - Animate multi-waypoint paths with configurable speed via `--waypoints` and `--speed`
+   - Clear simulated location with `--clear`; list available scenarios with `--list-scenarios`
+   - Options: `--lat`, `--lng`, `--city`, `--gpx`, `--waypoints`, `--speed`, `--clear`, `--list-scenarios`, `--udid`, `--json`, `--verbose`
+
 ### Navigation & Interaction (5 scripts)
 
-3. **screen_mapper.py** - Analyze current screen and list interactive elements
+5. **screen_mapper.py** - Analyze current screen and list interactive elements
    - Element type breakdown
    - Interactive button list
    - Text field status
    - Options: `--verbose`, `--hints`, `--json`
 
-4. **navigator.py** - Find and interact with elements semantically
+6. **navigator.py** - Find and interact with elements semantically
    - Find by text (fuzzy matching)
    - Find by element type
    - Find by accessibility ID
    - Enter text or tap elements
    - Options: `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text`, `--json`
 
-5. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
+7. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
    - Directional swipes (up/down/left/right)
    - Multi-swipe scrolling
    - Pinch zoom
@@ -79,14 +95,14 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Pull to refresh
    - Options: `--swipe`, `--scroll`, `--pinch`, `--long-press`, `--refresh`, `--json`
 
-6. **keyboard.py** - Text input and hardware button control
+8. **keyboard.py** - Text input and hardware button control
    - Type text (fast or slow)
    - Special keys (return, delete, tab, space, arrows)
    - Hardware buttons (home, lock, volume, screenshot)
    - Key combinations
    - Options: `--type`, `--key`, `--button`, `--slow`, `--clear`, `--dismiss`, `--json`
 
-7. **app_launcher.py** - App lifecycle management
+9. **app_launcher.py** - App lifecycle management
    - Launch apps by bundle ID
    - Terminate apps
    - Install/uninstall from .app bundles
@@ -95,61 +111,85 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Check app state
    - Options: `--launch`, `--terminate`, `--install`, `--uninstall`, `--open-url`, `--list`, `--state`, `--json`
 
-### Testing & Analysis (6 scripts)
+### Testing & Analysis (9 scripts)
 
-8. **accessibility_audit.py** - Check WCAG compliance on current screen
-   - Critical issues (missing labels, empty buttons, no alt text)
-   - Warnings (missing hints, small touch targets)
-   - Info (missing IDs, deep nesting)
-   - Options: `--verbose`, `--output`, `--json`
+10. **accessibility_audit.py** - Check WCAG compliance on current screen
+    - Critical issues (missing labels, empty buttons, no alt text)
+    - Warnings (missing hints, small touch targets)
+    - Info (missing IDs, deep nesting)
+    - Options: `--verbose`, `--output`, `--json`
 
-9. **visual_diff.py** - Compare two screenshots for visual changes
-   - Pixel-by-pixel comparison
-   - Threshold-based pass/fail
-   - Generate diff images
-   - Options: `--threshold`, `--output`, `--details`, `--json`
+11. **visual_diff.py** - Compare two screenshots for visual changes
+    - Pixel-by-pixel comparison
+    - Threshold-based pass/fail
+    - Generate diff images
+    - Options: `--threshold`, `--output`, `--details`, `--json`
 
-10. **test_recorder.py** - Automatically document test execution
+12. **test_recorder.py** - Automatically document test execution
     - Capture screenshots and accessibility trees per step
     - Generate markdown reports with timing data
     - Options: `--test-name`, `--output`, `--verbose`, `--json`
 
-11. **app_state_capture.py** - Create comprehensive debugging snapshots
+13. **app_state_capture.py** - Create comprehensive debugging snapshots
     - Screenshot, UI hierarchy, app logs, device info
     - Markdown summary for bug reports
     - Options: `--app-bundle-id`, `--output`, `--log-lines`, `--json`
 
-12. **sim_health_check.sh** - Verify environment is properly configured
+14. **sim_health_check.sh** - Verify environment is properly configured
     - Check macOS, Xcode, simctl, IDB, Python
     - List available and booted simulators
     - Verify Python packages (Pillow)
 
-13. **model_inspector.py** - Inspect Core Data and SwiftData models from project files
+15. **model_inspector.py** - Inspect Core Data and SwiftData models from project files
     - Parse .xcdatamodeld packages (entities, attributes, relationships)
     - Detect model versions and current active version
     - Best-effort SwiftData @Model class extraction
     - Raw source dump for any model on demand (`--raw ModelName`)
     - Options: `--project-path`, `--core-data-only`, `--swiftdata-only`, `--show-versions`, `--raw`, `--verbose`, `--json`
 
+16. **container.py** - Inspect app sandbox: files, UserDefaults, and Core Data store paths
+    - List data container files at configurable depth via `--ls`
+    - Read files with auto-detected plist decoding via `--cat` (large files cached)
+    - Dump UserDefaults as key=value or JSON via `--userdefaults`
+    - Locate `.sqlite` / `.sqlite-wal` / `.sqlite-shm` stores via `--core-data-path`
+    - Export full container snapshot via `--export`
+    - Options: `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export`, `--udid`, `--json`, `--verbose`
+
+17. **hang_watcher.py** - Stream and record os_log hang events from a live simulator
+    - Watch for main-thread hangs via a targeted `log stream` predicate
+    - Query historical events with `--since` (e.g. `--since 5m`)
+    - Filter to a specific app with `--bundle-id`
+    - Override predicate via `IOS_SIM_HANG_PREDICATE` env var or `--predicate`
+    - Hang archive saved to ProgressiveCache on exit; `duration_estimate_ms` parsed from messages
+    - Options: `--watch`, `--duration`, `--since`, `--bundle-id`, `--predicate`, `--udid`, `--json`, `--verbose`
+
+18. **localization_audit.py** - Detect string catalog gaps, missing keys, and placeholder mismatches
+    - Report missing and `needs_review`/`new` keys per locale in `.xcstrings` catalogs
+    - Cross-reference catalog keys against Swift source (`String(localized:)` / `NSLocalizedString`) via `--source`
+    - Flag placeholder count mismatches (`%d`, `%@`, `%s`, `%lld`) across locales
+    - Legacy `.strings` and `.stringsdict` support via `plistlib`
+    - CI-friendly `--strict` exits 2 on any finding
+    - Options: `--catalog`, `--source`, `--locale`, `--strict`, `--json`, `--verbose`
+
 ### Advanced Testing & Permissions (4 scripts)
 
-14. **clipboard.py** - Manage simulator clipboard for paste testing
+19. **clipboard.py** - Manage simulator clipboard for paste testing
     - Copy text to clipboard
     - Test paste flows without manual entry
     - Options: `--copy`, `--test-name`, `--expected`, `--json`
 
-15. **status_bar.py** - Override simulator status bar appearance
+20. **status_bar.py** - Override simulator status bar appearance
     - Presets: clean (9:41, 100% battery), testing (11:11, 50%), low-battery (20%), airplane (offline)
     - Custom time, network, battery, WiFi settings
     - Options: `--preset`, `--time`, `--data-network`, `--battery-level`, `--clear`, `--json`
 
-16. **push_notification.py** - Send simulated push notifications
+21. **push_notification.py** - Send simulated push notifications
     - Simple mode (title + body + badge)
     - Custom JSON payloads
     - Test notification handling and deep links
     - Options: `--bundle-id`, `--title`, `--body`, `--badge`, `--payload`, `--json`
 
-17. **privacy_manager.py** - Grant, revoke, and reset app permissions
+22. **privacy_manager.py** - Grant, revoke, and reset app permissions
     - 13 supported services (camera, microphone, location, contacts, photos, calendar, health, etc.)
     - Batch operations (comma-separated services)
     - Audit trail with test scenario tracking
@@ -157,34 +197,34 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 ### Device Lifecycle Management (5 scripts)
 
-18. **simctl_boot.py** - Boot simulators with optional readiness verification
+23. **simctl_boot.py** - Boot simulators with optional readiness verification
     - Boot by UDID or device name
     - Wait for device ready with timeout
     - Batch boot operations (--all, --type)
     - Performance timing
     - Options: `--udid`, `--name`, `--wait-ready`, `--timeout`, `--all`, `--type`, `--json`
 
-19. **simctl_shutdown.py** - Gracefully shutdown simulators
+24. **simctl_shutdown.py** - Gracefully shutdown simulators
     - Shutdown by UDID or device name
     - Optional verification of shutdown completion
     - Batch shutdown operations
     - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--json`
 
-20. **simctl_create.py** - Create simulators dynamically
+25. **simctl_create.py** - Create simulators dynamically
     - Create by device type and iOS version
     - List available device types and runtimes
     - Custom device naming
     - Returns UDID for CI/CD integration
     - Options: `--device`, `--runtime`, `--name`, `--list-devices`, `--list-runtimes`, `--json`
 
-21. **simctl_delete.py** - Permanently delete simulators
+26. **simctl_delete.py** - Permanently delete simulators
     - Delete by UDID or device name
     - Safety confirmation by default (skip with --yes)
     - Batch delete operations
     - Smart deletion (--old N to keep N per device type)
     - Options: `--udid`, `--name`, `--yes`, `--all`, `--type`, `--old`, `--json`
 
-22. **simctl_erase.py** - Factory reset simulators without deletion
+27. **simctl_erase.py** - Factory reset simulators without deletion
     - Preserve device UUID (faster than delete+create)
     - Erase all, by type, or booted simulators
     - Optional verification
