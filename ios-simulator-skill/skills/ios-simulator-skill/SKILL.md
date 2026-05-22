@@ -155,13 +155,18 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - Export full container snapshot via `--export`
     - Options: `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export`, `--udid`, `--json`, `--verbose`
 
-17. **hang_watcher.py** - Stream and record os_log hang events from a live simulator
-    - Watch for main-thread hangs via a targeted `log stream` predicate
-    - Query historical events with `--since` (e.g. `--since 5m`)
-    - Filter to a specific app with `--bundle-id`
-    - Override predicate via `IOS_SIM_HANG_PREDICATE` env var or `--predicate`
-    - Hang archive saved to ProgressiveCache on exit; `duration_estimate_ms` parsed from messages
-    - Options: `--watch`, `--duration`, `--since`, `--bundle-id`, `--predicate`, `--udid`, `--json`, `--verbose`
+17. **hang_watcher.py** (HangBuster) - Record + summarise os_log hang events with progressive disclosure
+    - **Session mode (HangBuster, agent-native):** start a detached recorder, interact with the simulator, stop for a token-tight summary
+      - `--start` → returns a session ID; detached worker normalises + thresholds events on the fly
+      - `--stop SESSION_ID` → emits ~80–120 token L1 summary (header + top-N clusters + drill hint)
+      - `--get-details SESSION_ID [--cluster N | --raw]` → L2 full clusters or L3 per-event detail
+      - `--list-sessions` / `--clear-sessions [--older-than 24h]` / `--diff A B` (cross-session regression report)
+      - Filter pipeline: parse → normalise → threshold → bucket → cluster → aggregate → rank → format (in `common/hang_pipeline.py`)
+      - `--budget-tokens N` picks the densest level (L0/L1/L2) that fits; `--terse` forces L0
+      - `--auto-sample` captures a main-thread stack on first event per cluster (soft dependency: `main_thread_sampler.py` #62; graceful no-op if absent)
+    - **Legacy modes (unchanged for backward compat):** `--watch [--duration N]` (live stream) and `--since 5m` (historical)
+    - Filters: `--bundle-id`, `--predicate` (also via `IOS_SIM_HANG_PREDICATE`)
+    - All output supports `--json`; session storage at `~/.ios-simulator-skill/sessions/<id>/{meta.json,events.jsonl,summary.json}`
 
 18. **localization_audit.py** - Detect string catalog gaps, missing keys, and placeholder mismatches
     - Report missing and `needs_review`/`new` keys per locale in `.xcstrings` catalogs
@@ -275,6 +280,10 @@ Most operational limits can be tuned via environment variables. Defaults work fo
 | `IOS_SIM_CACHE_TTL_HOURS` | `1` | Cache entry expiration |
 | `IOS_SIM_ERASE_TIMEOUT` | `90` | Wait-for-erase timeout (seconds) |
 | `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py` (default catches RunningBoard kills + "Hang detected" + main-thread hangs) |
+| `IOS_SIM_HANG_MIN_MS` | `250` | HangBuster threshold — events below this duration never reach disk (smaller = more sensitive, larger summaries) |
+| `IOS_SIM_HANG_SESSION_TTL_HOURS` | `24` | HangBuster session prune age; pruning runs on every `--start` |
+| `IOS_SIM_HANG_DEFAULT_TOP_N` | `3` | Default top-N clusters in `--stop` L1 output |
+| `IOS_SIM_HANG_BUDGET_TOKENS` | _(unset)_ | Default token budget for `--stop` (picks L0/L1/L2 to fit) |
 | `IOS_SIM_LOG_JSON_CAP` | `100` | Max errors/warnings in `log_monitor.py` JSON output |
 | `IOS_SIM_LOG_LINE_MAX` | `300` | Per-line truncation in log summaries |
 | `IOS_SIM_LOG_TAIL` | `200` | Lines of log tail in verbose / sample output |

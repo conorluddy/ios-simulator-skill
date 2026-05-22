@@ -69,3 +69,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["xcode"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["ios-simulator-skill/skills/ios-simulator-skill/scripts"]
+addopts = "-ra"
