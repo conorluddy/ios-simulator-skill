@@ -50,6 +50,10 @@ import sys
 from collections import defaultdict
 
 from common import get_accessibility_tree, resolve_udid
+from common.env_config import env_int
+
+BUTTONS_PREVIEW = env_int("IOS_SIM_SCREEN_BUTTONS_PREVIEW", 15)
+SECTION_ITEMS_PREVIEW = env_int("IOS_SIM_SCREEN_SECTION_ITEMS", 10)
 
 
 class ScreenMapper:
@@ -186,7 +190,7 @@ class ScreenMapper:
 
         # Buttons summary (1 line)
         if analysis["buttons"]:
-            button_list = ", ".join(f'"{b}"' for b in analysis["buttons"][:5])
+            button_list = ", ".join(f'"{b}"' for b in analysis["buttons"][:BUTTONS_PREVIEW])
             if len(analysis["buttons"]) > 5:
                 button_list += f" +{len(analysis['buttons']) - 5} more"
             lines.append(f"Buttons: {button_list}")
@@ -216,7 +220,7 @@ class ScreenMapper:
             for elem_type, items in analysis["elements_by_type"].items():
                 if items:  # Only show types that exist
                     lines.append(f"  {elem_type}: {len(items)}")
-                    for item in items[:3]:  # Show first 3
+                    for item in items[:SECTION_ITEMS_PREVIEW]:
                         lines.append(f"    - {item}")
                     if len(items) > 3:
                         lines.append(f"    ... +{len(items) - 3} more")

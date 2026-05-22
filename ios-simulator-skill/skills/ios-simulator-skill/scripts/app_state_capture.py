@@ -21,6 +21,9 @@ from common import (
     get_accessibility_tree,
     resolve_udid,
 )
+from common.env_config import env_int
+
+STATE_SUBPROCESS_TIMEOUT = env_int("IOS_SIM_STATE_SUBPROCESS_TIMEOUT", 15)
 
 
 class AppStateCapture:
@@ -109,7 +112,13 @@ class AppStateCapture:
         )
 
         try:
-            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=STATE_SUBPROCESS_TIMEOUT,
+            )
             logs = result.stdout
 
             # Limit lines for token efficiency

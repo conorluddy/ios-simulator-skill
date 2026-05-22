@@ -23,6 +23,10 @@ from common.device_utils import (
     list_simulators,
     resolve_device_identifier,
 )
+from common.env_config import env_float, env_int
+
+DEFAULT_ERASE_TIMEOUT = env_int("IOS_SIM_ERASE_TIMEOUT", 90)
+POLL_INTERVAL_SECONDS = env_float("IOS_SIM_POLL_INTERVAL", 0.5)
 
 
 class SimulatorEraser:
@@ -32,7 +36,9 @@ class SimulatorEraser:
         """Initialize with optional device UDID."""
         self.udid = udid
 
-    def erase(self, verify: bool = True, timeout_seconds: int = 30) -> tuple[bool, str]:
+    def erase(
+        self, verify: bool = True, timeout_seconds: int = DEFAULT_ERASE_TIMEOUT
+    ) -> tuple[bool, str]:
         """
         Erase simulator and optionally verify completion.
 
@@ -80,7 +86,7 @@ class SimulatorEraser:
             "(use --verify to wait for completion)"
         )
 
-    def _verify_erase(self, timeout_seconds: int = 30) -> tuple[bool, str]:
+    def _verify_erase(self, timeout_seconds: int = DEFAULT_ERASE_TIMEOUT) -> tuple[bool, str]:
         """
         Verify erase has completed.
 
@@ -93,7 +99,7 @@ class SimulatorEraser:
             (success, message) tuple
         """
         start_time = time.time()
-        poll_interval = 0.5
+        poll_interval = POLL_INTERVAL_SECONDS
         checks = 0
 
         while time.time() - start_time < timeout_seconds:
@@ -215,8 +221,11 @@ def main():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=30,
-        help="Timeout for --verify in seconds (default: 30)",
+        default=DEFAULT_ERASE_TIMEOUT,
+        help=(
+            f"Timeout for --verify in seconds "
+            f"(default: {DEFAULT_ERASE_TIMEOUT}, override via IOS_SIM_ERASE_TIMEOUT)"
+        ),
     )
     parser.add_argument(
         "--all",

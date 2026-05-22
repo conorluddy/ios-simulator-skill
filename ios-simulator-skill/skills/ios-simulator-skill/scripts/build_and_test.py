@@ -39,7 +39,12 @@ import sys
 from pathlib import Path
 
 # Import our modular components
+from common.env_config import env_int
+
 from xcode import BuildRunner, OutputFormatter, XCResultCache, XCResultParser
+
+BUILD_LOG_PREVIEW_CHARS = env_int("IOS_SIM_BUILD_LOG_PREVIEW", 4000)
+BUILD_JSON_CAP = env_int("IOS_SIM_BUILD_JSON_CAP", 50)
 
 
 def main():
@@ -193,7 +198,7 @@ Examples:
                     "warning_count": warning_count,
                     "errors": errors,
                     "warnings": warnings,
-                    "log_preview": build_log[:1000] if build_log else None,
+                    "log_preview": build_log[:BUILD_LOG_PREVIEW_CHARS] if build_log else None,
                 }
                 print(json.dumps(data, indent=2))
             else:
@@ -303,9 +308,9 @@ Examples:
             data["test_info"] = test_info
         if not success:
             if errors:
-                data["errors"] = errors[:10]
+                data["errors"] = errors[:BUILD_JSON_CAP]
             if failed_tests:
-                data["failed_tests"] = failed_tests[:10]
+                data["failed_tests"] = failed_tests[:BUILD_JSON_CAP]
         if hints:
             data["hints"] = hints
         import json

@@ -23,6 +23,11 @@ from common.device_utils import (
     list_simulators,
     resolve_device_identifier,
 )
+from common.env_config import env_float, env_int
+
+DEFAULT_BOOT_TIMEOUT = env_int("IOS_SIM_BOOT_TIMEOUT", 300)
+BOOT_SUBPROCESS_TIMEOUT = env_int("IOS_SIM_BOOT_SUBPROCESS_TIMEOUT", 60)
+POLL_INTERVAL_SECONDS = env_float("IOS_SIM_POLL_INTERVAL", 0.5)
 
 
 class SimulatorBooter:
@@ -32,7 +37,9 @@ class SimulatorBooter:
         """Initialize booter with optional device UDID."""
         self.udid = udid
 
-    def boot(self, wait_ready: bool = False, timeout_seconds: int = 120) -> tuple[bool, str]:
+    def boot(
+        self, wait_ready: bool = False, timeout_seconds: int = DEFAULT_BOOT_TIMEOUT
+    ) -> tuple[bool, str]:
         """
         Boot simulator and optionally wait for readiness.
 
@@ -60,7 +67,13 @@ class SimulatorBooter:
         # Execute boot command
         try:
             cmd = ["xcrun", "simctl", "boot", self.udid]
-            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=BOOT_SUBPROCESS_TIMEOUT,
+            )
 
             if result.returncode != 0:
                 error = result.stderr.strip()
@@ -84,7 +97,7 @@ class SimulatorBooter:
             "(use --wait-ready to wait for availability)"
         )
 
-    def _wait_for_ready(self, timeout_seconds: int = 120) -> tuple[bool, str]:
+    def _wait_for_ready(self, timeout_seconds: int = DEFAULT_BOOT_TIMEOUT) -> tuple[bool, str]:
         """
         Wait for device to reach ready state.
 
@@ -95,7 +108,7 @@ class SimulatorBooter:
             (success, message) tuple
         """
         start_time = time.time()
-        poll_interval = 0.5
+        poll_interval = POLL_INTERVAL_SECONDS
         checks = 0
 
         while time.time() - start_time < timeout_seconds:
@@ -194,8 +207,11 @@ def main():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=120,
-        help="Timeout for --wait-ready in seconds (default: 120)",
+        default=DEFAULT_BOOT_TIMEOUT,
+        help=(
+            f"Timeout for --wait-ready in seconds "
+            f"(default: {DEFAULT_BOOT_TIMEOUT}, override via IOS_SIM_BOOT_TIMEOUT)"
+        ),
     )
     parser.add_argument(
         "--all",

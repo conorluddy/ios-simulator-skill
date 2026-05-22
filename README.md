@@ -139,6 +139,23 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `simctl_delete.py` | Delete simulators with safety confirmation | `--name`, `--yes`, `--all`, `--old` |
 | `simctl_erase.py` | Factory reset without deletion | `--name`, `--verify`, `--all`, `--booted` |
 
+## Configuration
+
+Operational limits (timeouts, output caps, polling intervals, cache size) are tunable via `IOS_SIM_*` environment variables. The full reference table — every variable, default, and purpose — lives in [SKILL.md → Configuration](ios-simulator-skill/skills/ios-simulator-skill/SKILL.md#configuration).
+
+Common examples:
+
+```bash
+# Slow CI runner — give boot up to 10 minutes
+IOS_SIM_BOOT_TIMEOUT=600 python scripts/simctl_boot.py --wait-ready
+
+# Large monorepo build — surface up to 200 errors instead of the default 100
+IOS_SIM_BUILD_VERBOSE_CAP=200 python scripts/build_and_test.py --verbose
+
+# Audit a complex screen — return more tappable elements
+IOS_SIM_MAX_ELEMENTS=100 python scripts/navigator.py --list-tappable
+```
+
 ## Evaluation
 
 Tested using [Claude Code evals](https://docs.claude.com/en/docs/claude-code/evals):

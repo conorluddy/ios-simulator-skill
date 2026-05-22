@@ -15,11 +15,17 @@ Used by:
 - Future: build logs, UI trees, etc.
 """
 
+import contextlib
 import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from common.env_config import env_int
+
+DEFAULT_MAX_AGE_HOURS = env_int("IOS_SIM_CACHE_TTL_HOURS", 1)
+DEFAULT_MAX_ENTRIES = env_int("IOS_SIM_CACHE_MAX_ENTRIES", 500)
 
 
 class ProgressiveCache:
@@ -29,21 +35,43 @@ class ProgressiveCache:
     Automatically cleans up expired entries.
     """
 
-    def __init__(self, cache_dir: str | None = None, max_age_hours: int = 1):
+    def __init__(
+        self,
+        cache_dir: str | None = None,
+        max_age_hours: int | None = None,
+        max_entries: int | None = None,
+    ):
         """Initialize cache system.
 
         Args:
             cache_dir: Cache directory path (default: ~/.ios-simulator-skill/cache/)
-            max_age_hours: Max age for cache entries before expiration (default: 1 hour)
+            max_age_hours: Max age for cache entries before expiration. Defaults to
+                ``IOS_SIM_CACHE_TTL_HOURS`` env var, or 1 hour.
+            max_entries: Maximum entries retained; oldest are evicted (LRU by mtime).
+                Defaults to ``IOS_SIM_CACHE_MAX_ENTRIES`` env var, or 500.
         """
         if cache_dir is None:
             cache_dir = str(Path("~/.ios-simulator-skill/cache").expanduser())
 
         self.cache_dir = Path(cache_dir)
-        self.max_age_hours = max_age_hours
+        self.max_age_hours = max_age_hours if max_age_hours is not None else DEFAULT_MAX_AGE_HOURS
+        self.max_entries = max_entries if max_entries is not None else DEFAULT_MAX_ENTRIES
 
         # Create cache directory if needed
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _evict_overflow(self) -> int:
+        """Evict oldest entries when count exceeds ``max_entries``. Returns count evicted."""
+        files = list(self.cache_dir.glob("*.json"))
+        if len(files) <= self.max_entries:
+            return 0
+        # Sort oldest-first by mtime; delete the head of the overflow
+        files.sort(key=lambda p: p.stat().st_mtime)
+        to_remove = len(files) - self.max_entries
+        for path in files[:to_remove]:
+            with contextlib.suppress(OSError):
+                path.unlink()
+        return to_remove
 
     def save(self, data: dict[str, Any], cache_type: str) -> str:
         """Save data to cache and return cache_id.
@@ -78,6 +106,7 @@ class ProgressiveCache:
                 indent=2,
             )
 
+        self._evict_overflow()
         return cache_id
 
     def get(self, cache_id: str) -> dict[str, Any] | None:

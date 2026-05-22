@@ -39,6 +39,13 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from common.env_config import env_int
+
+LOG_LINE_MAX = env_int("IOS_SIM_LOG_LINE_MAX", 300)
+LOG_TAIL = env_int("IOS_SIM_LOG_TAIL", 200)
+LOG_TEXT_SUMMARY_CAP = env_int("IOS_SIM_LOG_TEXT_SUMMARY", 15)
+LOG_JSON_CAP = env_int("IOS_SIM_LOG_JSON_CAP", 100)
+
 
 class LogMonitor:
     """Monitor and analyze iOS simulator logs with intelligent filtering."""
@@ -324,18 +331,18 @@ class LogMonitor:
         # Top issues
         if self.errors:
             lines.append(f"\nTop Errors ({len(self.errors)}):")
-            for error in self.errors[:5]:  # Show first 5
-                lines.append(f"  ❌ {error[:120]}")  # Truncate long lines
+            for error in self.errors[:LOG_TEXT_SUMMARY_CAP]:
+                lines.append(f"  ❌ {error[:LOG_LINE_MAX]}")
 
         if self.warnings:
             lines.append(f"\nTop Warnings ({len(self.warnings)}):")
-            for warning in self.warnings[:5]:  # Show first 5
-                lines.append(f"  ⚠️  {warning[:120]}")
+            for warning in self.warnings[:LOG_TEXT_SUMMARY_CAP]:
+                lines.append(f"  ⚠️  {warning[:LOG_LINE_MAX]}")
 
         # Verbose output
         if verbose and self.log_lines:
             lines.append("\n=== Recent Log Lines ===")
-            for line in self.log_lines[-50:]:  # Last 50 lines
+            for line in self.log_lines[-LOG_TAIL:]:
                 lines.append(line)
 
         return "\n".join(lines)
@@ -352,9 +359,9 @@ class LogMonitor:
                 "info": self.info_count,
                 "debug": self.debug_count,
             },
-            "errors": self.errors[:20],  # Limit to 20
-            "warnings": self.warnings[:20],
-            "sample_logs": self.log_lines[-50:],  # Last 50 lines
+            "errors": self.errors[:LOG_JSON_CAP],
+            "warnings": self.warnings[:LOG_JSON_CAP],
+            "sample_logs": self.log_lines[-LOG_TAIL:],
         }
 
     def save_logs(self, output_dir: str) -> str:
