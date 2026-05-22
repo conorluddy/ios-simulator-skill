@@ -144,7 +144,7 @@ class HangWatcher:
             True if stream ran without fatal errors.
         """
         resolved_udid = self._resolve_udid()
-        effective_predicate = self._resolve_predicate(predicate, bundle_id)
+        effective_predicate = _resolve_predicate(predicate, bundle_id)
         cmd = self._build_stream_cmd(resolved_udid, effective_predicate)
 
         if verbose or not json_mode:
@@ -240,7 +240,7 @@ class HangWatcher:
             True if command ran without fatal errors.
         """
         resolved_udid = self._resolve_udid()
-        effective_predicate = self._resolve_predicate(predicate, bundle_id)
+        effective_predicate = _resolve_predicate(predicate, bundle_id)
         start_timestamp = self._compute_start_timestamp(since_duration)
         cmd = self._build_show_cmd(resolved_udid, effective_predicate, start_timestamp)
 
@@ -321,26 +321,6 @@ class HangWatcher:
         except RuntimeError as error:
             print(f"Error: {error}", file=sys.stderr)
             sys.exit(1)
-
-    def _resolve_predicate(self, override: str | None, bundle_id: str | None) -> str:
-        """Return the active log predicate.
-
-        Priority: CLI --predicate > IOS_SIM_HANG_PREDICATE env var > DEFAULT.
-        Bundle ID is always ANDed in as a predicate clause when provided, regardless
-        of whether a custom predicate source is in use.
-        """
-        base = override or os.getenv("IOS_SIM_HANG_PREDICATE") or DEFAULT_HANG_PREDICATE
-
-        if bundle_id:
-            # Use /.app/ path segment for precise matching — avoids substring collisions
-            # (e.g. "Maps" matching "MapsExtension"). Falls back to process name.
-            app_name = bundle_id.rsplit(".", maxsplit=1)[-1]
-            bundle_clause = (
-                f'(processImagePath CONTAINS "/{app_name}.app/" OR process == "{app_name}")'
-            )
-            base = f"({base}) AND {bundle_clause}"
-
-        return base
 
     def _build_stream_cmd(self, udid: str, predicate: str) -> list[str]:
         """Build xcrun simctl spawn log stream command."""
@@ -499,7 +479,7 @@ class HangBuster:
         )
         # Apply default top_n at summary-write time — keeps ranked clusters bounded.
         effective_top_n = top_n or env_int("IOS_SIM_HANG_DEFAULT_TOP_N", 3)
-        summary.clusters = summary.clusters[:effective_top_n] if not top_n else summary.clusters
+        summary.clusters = summary.clusters[:effective_top_n]
         self.store.stop(session_id, summary)
         if json_mode:
             return json.dumps(summary_to_json(summary), indent=2)
@@ -680,11 +660,9 @@ class HangBuster:
             except subprocess.TimeoutExpired:
                 proc.kill()
 
-        meta.extras["line_counters"] = counters
-        meta.status = meta.status if meta.status == "stopped" else "running"
-        # Worker can't write status=stopped — parent's stop() handles that. But we
-        # do persist the counters so stop() can read them.
-        self.store._write_meta(meta)
+        # Flush line counters; SessionStore preserves status=stopped if the parent's
+        # stop() already raced ahead, otherwise marks status=running.
+        self.store.persist_worker_counters(session_id, counters)
         return 0
 
     # === PRIVATE ===

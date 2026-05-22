@@ -139,6 +139,18 @@ class SessionStore:
         self._write_meta(meta)
         return meta
 
+    def persist_worker_counters(self, session_id: str, counters: dict) -> None:
+        """Worker calls this at shutdown to flush its line counters into meta.
+
+        Re-reads meta from disk so a concurrent ``stop()`` that already wrote
+        ``status=stopped`` is not clobbered back to ``running``.
+        """
+        meta = self.load_meta(session_id)
+        meta.extras["line_counters"] = counters
+        if meta.status != _STATUS_STOPPED:
+            meta.status = _STATUS_RUNNING
+        self._write_meta(meta)
+
     def stop(self, session_id: str, summary: SessionSummary) -> SessionMeta:
         """Mark session stopped and persist the computed summary."""
         meta = self.load_meta(session_id)
@@ -200,7 +212,12 @@ class SessionStore:
                 line = raw.strip()
                 if not line:
                     continue
-                if '"event"' in line and '"stream_ended"' in line:
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                # Skip non-event sentinel lines (e.g. {"event": "stream_ended"}).
+                if payload.get("event") == "stream_ended":
                     continue
                 try:
                     events.append(event_from_jsonl(line))
@@ -294,8 +311,11 @@ class SessionStore:
         path = self._meta_path(meta.session_id)
         tmp = path.with_suffix(".json.tmp")
         # Atomic write — concurrent reads (e.g. the parent polling) never see a half-file.
+        # fsync before replace makes the new contents durable, not just atomically renamed.
         with open(tmp, "w") as handle:
             json.dump(meta.to_json(), handle, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
         tmp.replace(path)
 
     def _write_summary(self, session_id: str, summary: SessionSummary) -> None:
@@ -303,6 +323,8 @@ class SessionStore:
         tmp = path.with_suffix(".json.tmp")
         with open(tmp, "w") as handle:
             json.dump(summary_to_json(summary), handle, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
         tmp.replace(path)
 
     def _clear_older_than_ms(self, cutoff_ms: int) -> int:

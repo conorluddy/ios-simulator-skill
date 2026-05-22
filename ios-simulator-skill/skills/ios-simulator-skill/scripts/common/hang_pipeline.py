@@ -410,7 +410,7 @@ def format_l1(summary: SessionSummary, top_n: int = 3) -> str:
     icons = {
         Severity.MINOR: "·",
         Severity.WARN: "⚠",
-        Severity.CRITICAL: "⚠",
+        Severity.CRITICAL: "‼",
         Severity.FROZEN: "🛑",
     }
     for cluster in summary.clusters[:top_n]:
@@ -643,10 +643,8 @@ def _cluster_to_dict(cluster: Cluster) -> dict:
 
 def cluster_to_json(cluster: Cluster) -> dict:
     """JSON-serialisable representation of a Cluster (handles enum + nested dataclass)."""
-    payload = asdict(cluster)
-    payload["severity"] = cluster.severity.value
-    payload["sample_event"]["severity"] = cluster.sample_event.severity.value
-    return payload
+    # asdict() already serialises Severity (StrEnum) members via their string value.
+    return asdict(cluster)
 
 
 def summary_to_json(summary: SessionSummary) -> dict:
@@ -710,9 +708,7 @@ def _cluster_from_json(payload: dict) -> Cluster:
 
 def event_to_jsonl(event: NormalisedEvent) -> str:
     """Encode one normalised event as a single JSONL line."""
-    payload = asdict(event)
-    payload["severity"] = event.severity.value
-    return json.dumps(payload, separators=(",", ":"))
+    return json.dumps(asdict(event), separators=(",", ":"))
 
 
 def event_from_jsonl(line: str) -> NormalisedEvent:
