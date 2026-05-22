@@ -16,6 +16,10 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from common import flatten_tree, get_accessibility_tree, resolve_udid
+from common.env_config import env_int
+
+A11Y_LABEL_MAX = env_int("IOS_SIM_A11Y_LABEL_MAX", 80)
+A11Y_TOP_ISSUES = env_int("IOS_SIM_A11Y_TOP_ISSUES", 10)
 
 
 @dataclass
@@ -168,7 +172,11 @@ class AccessibilityAuditor:
                 # Add minimal element info for context
                 issue_dict["element"] = {
                     "type": element.get("type", "Unknown"),
-                    "label": element.get("AXLabel", "")[:30] if element.get("AXLabel") else None,
+                    "label": (
+                        element.get("AXLabel", "")[:A11Y_LABEL_MAX]
+                        if element.get("AXLabel")
+                        else None
+                    ),
                 }
                 all_issues.append(issue_dict)
 
@@ -221,7 +229,7 @@ class AccessibilityAuditor:
             grouped.values(), key=lambda x: (severity_order[x["severity"]], -x["count"])
         )
 
-        return sorted_issues[:3]
+        return sorted_issues[:A11Y_TOP_ISSUES]
 
 
 def main():

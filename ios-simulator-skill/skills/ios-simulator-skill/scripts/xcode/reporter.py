@@ -6,6 +6,12 @@ Provides multiple output formats with progressive disclosure support.
 
 import json
 
+from common.env_config import env_int
+
+BUILD_SUMMARY_CAP = env_int("IOS_SIM_BUILD_SUMMARY_CAP", 15)
+BUILD_VERBOSE_CAP = env_int("IOS_SIM_BUILD_VERBOSE_CAP", 100)
+BUILD_LOG_TAIL = env_int("IOS_SIM_LOG_TAIL", 200)
+
 
 class OutputFormatter:
     """
@@ -66,12 +72,14 @@ class OutputFormatter:
         # Surface errors inline on failure
         if status == "FAILED" and errors:
             lines.append("")
-            lines.append(OutputFormatter.format_errors(errors, limit=5))
+            lines.append(OutputFormatter.format_errors(errors, limit=BUILD_SUMMARY_CAP))
 
         # Surface failed tests inline on failure
         if failed_tests:
             lines.append("")
-            lines.append(OutputFormatter.format_test_failures(failed_tests, limit=5))
+            lines.append(
+                OutputFormatter.format_test_failures(failed_tests, limit=BUILD_SUMMARY_CAP)
+            )
 
         # Add hints if provided and build failed
         if hints and status == "FAILED":
@@ -81,7 +89,7 @@ class OutputFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def format_test_failures(failed_tests: list[dict], limit: int = 5) -> str:
+    def format_test_failures(failed_tests: list[dict], limit: int = BUILD_SUMMARY_CAP) -> str:
         """
         Format failed test details.
 
@@ -112,7 +120,7 @@ class OutputFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def format_errors(errors: list[dict], limit: int = 10) -> str:
+    def format_errors(errors: list[dict], limit: int = BUILD_VERBOSE_CAP) -> str:
         """
         Format error details.
 
@@ -153,7 +161,7 @@ class OutputFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def format_warnings(warnings: list[dict], limit: int = 10) -> str:
+    def format_warnings(warnings: list[dict], limit: int = BUILD_VERBOSE_CAP) -> str:
         """
         Format warning details.
 
@@ -194,7 +202,7 @@ class OutputFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def format_log(log: str, lines: int = 50) -> str:
+    def format_log(log: str, lines: int = BUILD_LOG_TAIL) -> str:
         """
         Format build log (show last N lines).
 
@@ -321,12 +329,12 @@ class OutputFormatter:
 
         # Errors
         if errors and len(errors) > 0:
-            lines.append(OutputFormatter.format_errors(errors, limit=5))
+            lines.append(OutputFormatter.format_errors(errors, limit=BUILD_VERBOSE_CAP))
             lines.append("")
 
         # Warnings
         if warnings and len(warnings) > 0:
-            lines.append(OutputFormatter.format_warnings(warnings, limit=5))
+            lines.append(OutputFormatter.format_warnings(warnings, limit=BUILD_VERBOSE_CAP))
             lines.append("")
 
         # Summary

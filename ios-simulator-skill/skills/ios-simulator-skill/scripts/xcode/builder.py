@@ -9,8 +9,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from common.env_config import env_int
+
 from .cache import XCResultCache
 from .config import Config
+
+BUILD_TIMEOUT = env_int("IOS_SIM_BUILD_TIMEOUT", 1800)
+TEST_TIMEOUT = env_int("IOS_SIM_TEST_TIMEOUT", 2700)
+INTROSPECT_TIMEOUT = env_int("IOS_SIM_INTROSPECT_TIMEOUT", 60)
 
 
 class BuildRunner:
@@ -64,7 +70,9 @@ class BuildRunner:
             return None
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=INTROSPECT_TIMEOUT
+            )
 
             # Parse schemes from output
             in_schemes_section = False
@@ -149,6 +157,7 @@ class BuildRunner:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=INTROSPECT_TIMEOUT,
             )
 
             # Check if simulator name appears in available devices
@@ -186,6 +195,7 @@ class BuildRunner:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=INTROSPECT_TIMEOUT,
             )
 
             # Parse available simulators, prefer latest iPhone
@@ -257,7 +267,11 @@ class BuildRunner:
         # Execute build
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, check=False  # Don't raise on non-zero exit
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,  # Don't raise on non-zero exit
+                timeout=BUILD_TIMEOUT,
             )
 
             success = result.returncode == 0
@@ -343,7 +357,9 @@ class BuildRunner:
 
         # Execute tests
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=TEST_TIMEOUT
+            )
 
             success = result.returncode == 0
 

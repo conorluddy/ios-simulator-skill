@@ -15,6 +15,10 @@ import sys
 import time
 
 from common import build_simctl_command, resolve_udid
+from common.env_config import env_float, env_int
+
+RELAUNCH_DELAY_SECONDS = env_float("IOS_SIM_RELAUNCH_DELAY_MS", 1000.0) / 1000.0
+APPS_PREVIEW = env_int("IOS_SIM_APPS_PREVIEW", 30)
 
 
 class AppLauncher:
@@ -197,7 +201,7 @@ class AppLauncher:
         except subprocess.CalledProcessError:
             return "unknown"
 
-    def restart_app(self, bundle_id: str, delay: float = 1.0) -> bool:
+    def restart_app(self, bundle_id: str, delay: float = RELAUNCH_DELAY_SECONDS) -> bool:
         """
         Restart an app (terminate then launch).
 
@@ -302,10 +306,10 @@ def main():
         apps = launcher.list_apps()
         if apps:
             print(f"Installed apps ({len(apps)}):")
-            for app in apps[:10]:  # Limit for token efficiency
+            for app in apps[:APPS_PREVIEW]:
                 print(f"  {app['bundle_id']}: {app['name']} (v{app['version']})")
-            if len(apps) > 10:
-                print(f"  ... and {len(apps) - 10} more")
+            if len(apps) > APPS_PREVIEW:
+                print(f"  ... and {len(apps) - APPS_PREVIEW} more")
         else:
             print("No apps found or failed to list")
 
