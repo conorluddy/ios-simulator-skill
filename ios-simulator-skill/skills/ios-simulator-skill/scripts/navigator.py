@@ -367,8 +367,8 @@ def main():
         for elem in tappable[:MAX_ELEMENTS_LISTED]:
             print(f"  {elem.type}: \"{elem.label or elem.value or 'Unnamed'}\" {elem.center}")
 
-        if len(tappable) > 10:
-            print(f"  ... and {len(tappable) - 10} more")
+        if len(tappable) > MAX_ELEMENTS_LISTED:
+            print(f"  ... and {len(tappable) - MAX_ELEMENTS_LISTED} more")
         sys.exit(0)
 
     # Direct tap at coordinates

@@ -308,8 +308,8 @@ def main():
             print(f"Installed apps ({len(apps)}):")
             for app in apps[:APPS_PREVIEW]:
                 print(f"  {app['bundle_id']}: {app['name']} (v{app['version']})")
-            if len(apps) > 10:
-                print(f"  ... and {len(apps) - 10} more")
+            if len(apps) > APPS_PREVIEW:
+                print(f"  ... and {len(apps) - APPS_PREVIEW} more")
         else:
             print("No apps found or failed to list")
 

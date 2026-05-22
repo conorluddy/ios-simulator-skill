@@ -27,7 +27,7 @@ from common.env_config import env_float, env_int
 
 DEFAULT_BOOT_TIMEOUT = env_int("IOS_SIM_BOOT_TIMEOUT", 300)
 BOOT_SUBPROCESS_TIMEOUT = env_int("IOS_SIM_BOOT_SUBPROCESS_TIMEOUT", 60)
-POLL_INTERVAL_SECONDS = env_float("IOS_SIM_POLL_INTERVAL", 0.5)
+POLL_INTERVAL_SECONDS = env_float("IOS_SIM_POLL_INTERVAL", 0.5, min_value=0.05)
 
 
 class SimulatorBooter:

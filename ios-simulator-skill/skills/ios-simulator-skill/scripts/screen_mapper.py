@@ -191,8 +191,8 @@ class ScreenMapper:
         # Buttons summary (1 line)
         if analysis["buttons"]:
             button_list = ", ".join(f'"{b}"' for b in analysis["buttons"][:BUTTONS_PREVIEW])
-            if len(analysis["buttons"]) > 5:
-                button_list += f" +{len(analysis['buttons']) - 5} more"
+            if len(analysis["buttons"]) > BUTTONS_PREVIEW:
+                button_list += f" +{len(analysis['buttons']) - BUTTONS_PREVIEW} more"
             lines.append(f"Buttons: {button_list}")
 
         # Text fields summary (1 line)
@@ -222,8 +222,8 @@ class ScreenMapper:
                     lines.append(f"  {elem_type}: {len(items)}")
                     for item in items[:SECTION_ITEMS_PREVIEW]:
                         lines.append(f"    - {item}")
-                    if len(items) > 3:
-                        lines.append(f"    ... +{len(items) - 3} more")
+                    if len(items) > SECTION_ITEMS_PREVIEW:
+                        lines.append(f"    ... +{len(items) - SECTION_ITEMS_PREVIEW} more")
 
         return "\n".join(lines)
 

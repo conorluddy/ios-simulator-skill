@@ -26,7 +26,7 @@ from common.device_utils import (
 from common.env_config import env_float, env_int
 
 DEFAULT_ERASE_TIMEOUT = env_int("IOS_SIM_ERASE_TIMEOUT", 90)
-POLL_INTERVAL_SECONDS = env_float("IOS_SIM_POLL_INTERVAL", 0.5)
+POLL_INTERVAL_SECONDS = env_float("IOS_SIM_POLL_INTERVAL", 0.5, min_value=0.05)
 
 
 class SimulatorEraser:
