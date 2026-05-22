@@ -32,6 +32,8 @@ from common import resolve_udid
 
 # === PRESETS ===
 
+_CITY_ALIASES: set[str] = {"nyc", "sf", "la"}
+
 CITY_PRESETS: dict[str, tuple[float, float]] = {
     "dublin": (53.3498, -6.2603),
     "london": (51.5074, -0.1278),
@@ -119,7 +121,7 @@ class LocationManager:
         """
         key = city_name.lower().replace(" ", "")
         if key not in CITY_PRESETS:
-            available = ", ".join(sorted({k for k in CITY_PRESETS if k not in ("nyc", "sf", "la")}))
+            available = ", ".join(sorted({k for k in CITY_PRESETS if k not in _CITY_ALIASES}))
             return False, f"Unknown city '{city_name}'. Available: {available}"
 
         lat, lng = CITY_PRESETS[key]
@@ -159,33 +161,36 @@ class LocationManager:
             return True, f"GPX scenario running\n  Scenario: {scenario}\n  Device:   {self.udid}"
         return True, f"GPX scenario running: {scenario}"
 
-    def list_scenarios(self) -> tuple[bool, list[str]]:
+    def list_scenarios(self) -> tuple[bool, list[str], str]:
         """
         List built-in location scenarios available on this simulator.
 
         Returns:
-            (success, scenarios) tuple where scenarios is a list of names.
+            (success, scenarios, error) tuple where scenarios is a list of names
+            and error is an empty string on success or a description of the failure.
         """
         cmd = ["xcrun", "simctl", "location", self.udid, "list"]
 
         try:
             result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=15)
         except subprocess.TimeoutExpired:
-            return False, []
-        except Exception:
-            return False, []
+            return False, [], "Error: list scenarios timed out"
+        except Exception as e:
+            return False, [], f"Error: {e}"
 
         if result.returncode != 0:
-            return False, []
+            error = result.stderr.strip() or "unknown error"
+            return False, [], f"list scenarios failed: {error}"
 
         lines = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
-        return True, lines
+        return True, lines, ""
 
     def start_waypoints(
         self,
         waypoints: list[tuple[float, float]],
         speed_mps: float = 20.0,
         interval_seconds: float | None = None,
+        distance_meters: float | None = None,
         verbose: bool = False,
     ) -> tuple[bool, str]:
         """
@@ -196,7 +201,8 @@ class LocationManager:
         Args:
             waypoints: List of (lat, lng) pairs.
             speed_mps: Movement speed in metres per second (default 20 m/s).
-            interval_seconds: Location update interval in seconds; omit to use default (1.0s).
+            interval_seconds: Location update interval in seconds; mutually exclusive with distance_meters.
+            distance_meters: Location update distance in metres; mutually exclusive with interval_seconds.
             verbose: Include waypoint list in the returned message.
 
         Returns:
@@ -216,6 +222,8 @@ class LocationManager:
         ]
         if interval_seconds is not None:
             cmd.append(f"--interval={interval_seconds}")
+        if distance_meters is not None:
+            cmd.append(f"--distance={distance_meters}")
         cmd.extend(coord_args)
 
         try:
@@ -340,11 +348,19 @@ Examples:
         metavar="M_PER_SEC",
         help="Movement speed in m/s for --waypoints (default: 20)",
     )
-    parser.add_argument(
+
+    waypoint_pace = parser.add_mutually_exclusive_group()
+    waypoint_pace.add_argument(
         "--interval",
         type=float,
         metavar="SECONDS",
-        help="Location update interval in seconds for --waypoints",
+        help="Location update interval in seconds for --waypoints (mutually exclusive with --distance)",
+    )
+    waypoint_pace.add_argument(
+        "--distance",
+        type=float,
+        metavar="METERS",
+        help="Location update distance in metres for --waypoints (mutually exclusive with --interval)",
     )
 
     # Output flags
@@ -353,9 +369,9 @@ Examples:
 
     args = parser.parse_args()
 
-    # Validate --lat requires --lng
-    if args.lat is not None and args.lng is None:
-        parser.error("--lat requires --lng")
+    # Validate --lat and --lng must be provided together
+    if (args.lat is None) != (args.lng is None):
+        parser.error("--lat and --lng must be provided together")
 
     # Resolve device UDID
     try:
@@ -398,6 +414,7 @@ Examples:
             waypoints,
             speed_mps=args.speed,
             interval_seconds=args.interval,
+            distance_meters=args.distance,
             verbose=args.verbose,
         )
         action = "start_waypoints"
@@ -407,13 +424,18 @@ Examples:
         }
 
     elif args.list_scenarios:
-        ok, scenarios = manager.list_scenarios()
+        ok, scenarios, list_error = manager.list_scenarios()
         if args.json:
-            print(json.dumps({"action": "list_scenarios", "udid": udid, "scenarios": scenarios}))
-        elif scenarios:
+            payload: dict = {"action": "list_scenarios", "udid": udid, "scenarios": scenarios}
+            if not ok:
+                payload["error"] = list_error
+            print(json.dumps(payload))
+        elif ok and scenarios:
             print("\n".join(f"  {s}" for s in scenarios))
+        elif ok:
+            print("No scenarios available")
         else:
-            print("No scenarios found or unable to list scenarios")
+            print(list_error, file=sys.stderr)
         sys.exit(0 if ok else 1)
 
     else:  # --clear
