@@ -104,7 +104,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
 | `appearance.py` | Switch dark mode, dynamic type, locale, region | `--theme`, `--text-size`, `--locale`, `--region`, `--reset` |
-| `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat/--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
+| `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat`, `--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
 
 #### Navigation & Interaction
 
@@ -127,7 +127,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `sim_health_check.sh` | Verify environment (Xcode, simctl, IDB, Python) | — |
 | `model_inspector.py` | Inspect Core Data / SwiftData models from project files | `--project-path`, `--raw`, `--show-versions` |
 | `container.py` | Inspect app sandbox: list, cat, UserDefaults, Core Data, export | `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export` |
-| `hang_watcher.py` | Stream `os_log` hang events with structured output | `--watch`, `--bundle-id`, `--since`, `--predicate` |
+| `hang_watcher.py` | Stream and record `os_log` hang events from a live simulator | `--watch`, `--bundle-id`, `--since`, `--predicate` |
 | `localization_audit.py` | Audit `.xcstrings` catalogs for missing keys, unused keys, placeholder mismatches | `--catalog`, `--source`, `--strict` |
 
 #### Permissions & Environment
