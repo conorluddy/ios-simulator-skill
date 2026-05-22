@@ -62,7 +62,6 @@ class AppearanceManager:
             udid: Optional device UDID (auto-detects booted simulator if None)
         """
         self.udid = udid
-        self._device = udid if udid else "booted"
 
     # === PUBLIC API ===
 
@@ -75,7 +74,7 @@ class AppearanceManager:
         Returns:
             (success, message)
         """
-        cmd = ["xcrun", "simctl", "ui", self._device, "appearance", theme]
+        cmd = ["xcrun", "simctl", "ui", self.udid, "appearance", theme]
         return self._run(cmd, f"Theme set: {theme}")
 
     def set_text_size(self, alias: str) -> tuple[bool, str]:
@@ -92,7 +91,7 @@ class AppearanceManager:
             valid = ", ".join(TEXT_SIZE_MAP.keys())
             return False, f"Unknown text size '{alias}'. Valid: {valid}"
 
-        cmd = ["xcrun", "simctl", "ui", self._device, "content_size", token]
+        cmd = ["xcrun", "simctl", "ui", self.udid, "content_size", token]
         return self._run(cmd, f"Text size set: {alias} ({token})")
 
     def set_locale(
@@ -122,7 +121,7 @@ class AppearanceManager:
             "xcrun",
             "simctl",
             "spawn",
-            self._device,
+            self.udid,
             "defaults",
             "write",
             "-g",
@@ -139,7 +138,7 @@ class AppearanceManager:
             "xcrun",
             "simctl",
             "spawn",
-            self._device,
+            self.udid,
             "defaults",
             "write",
             "-g",
@@ -222,11 +221,11 @@ class AppearanceManager:
         Returns:
             (success, message)
         """
-        terminate_cmd = ["xcrun", "simctl", "terminate", self._device, bundle_id]
+        terminate_cmd = ["xcrun", "simctl", "terminate", self.udid, bundle_id]
         # Terminate may fail if app is not running — that is acceptable
         subprocess.run(terminate_cmd, capture_output=True, check=False)
 
-        launch_cmd = ["xcrun", "simctl", "launch", self._device, bundle_id]
+        launch_cmd = ["xcrun", "simctl", "launch", self.udid, bundle_id]
         try:
             subprocess.run(launch_cmd, capture_output=True, text=True, check=True)
             return True, f"Launched {bundle_id}"
@@ -236,24 +235,6 @@ class AppearanceManager:
 
 
 # === CLI ===
-
-
-def _build_json_output(
-    success: bool,
-    action: str,
-    message: str,
-    udid: str,
-    extras: dict | None = None,
-) -> str:
-    payload: dict = {
-        "success": success,
-        "action": action,
-        "message": message,
-        "udid": udid,
-    }
-    if extras:
-        payload.update(extras)
-    return json.dumps(payload)
 
 
 def main() -> None:
@@ -328,6 +309,14 @@ Text sizes: XS S M L XL XXL XXXL AX1 AX2 AX3 AX4 AX5
     # Guard: require at least one action
     if not any([args.theme, args.text_size, args.locale, args.reset]):
         parser.print_help()
+        sys.exit(1)
+
+    # Guard: --reset is incompatible with explicit appearance flags
+    if args.reset and any([args.theme, args.text_size, args.locale]):
+        print(
+            "Error: --reset cannot be combined with --theme, --text-size, or --locale",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Guard: --region without --locale is a no-op
