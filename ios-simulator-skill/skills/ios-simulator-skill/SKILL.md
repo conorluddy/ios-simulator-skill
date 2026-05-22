@@ -274,6 +274,7 @@ Most operational limits can be tuned via environment variables. Defaults work fo
 | `IOS_SIM_CACHE_MAX_ENTRIES` | `500` | Max entries in progressive disclosure cache (LRU eviction) |
 | `IOS_SIM_CACHE_TTL_HOURS` | `1` | Cache entry expiration |
 | `IOS_SIM_ERASE_TIMEOUT` | `90` | Wait-for-erase timeout (seconds) |
+| `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py` (default catches RunningBoard kills + "Hang detected" + main-thread hangs) |
 | `IOS_SIM_LOG_JSON_CAP` | `100` | Max errors/warnings in `log_monitor.py` JSON output |
 | `IOS_SIM_LOG_LINE_MAX` | `300` | Per-line truncation in log summaries |
 | `IOS_SIM_LOG_TAIL` | `200` | Lines of log tail in verbose / sample output |

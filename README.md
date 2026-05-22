@@ -194,6 +194,7 @@ How long to wait on `xcrun simctl` operations.
 | `IOS_SIM_LOG_LINE_MAX` | `300` (chars) | Per-line truncation. Crash messages with full Swift symbol mangling can exceed 200 chars; raise if you see “…” cutting off the actionable bit. |
 | `IOS_SIM_LOG_TAIL` | `200` (lines) | Recent log lines shown in verbose mode and JSON `sample_logs`. Also used by xcode log excerpt. Lower for tighter context, higher for richer post-mortems. |
 | `IOS_SIM_LOG_JSON_CAP` | `100` | Max errors / warnings in JSON output. Raise if you're piping into a dashboard that needs the full picture. |
+| `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py`. The default catches RunningBoard watchdog kills, explicit "Hang detected" messages, and main-thread hang annotations. Narrow it (e.g. `subsystem == "com.apple.runningboard"`) for major-hangs-only; broaden for noisier subsystems. |
 
 ### UI navigation & screen mapping
 
