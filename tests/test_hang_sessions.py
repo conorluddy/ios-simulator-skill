@@ -251,3 +251,67 @@ def test_meta_json_is_valid(store: SessionStore):
     with open(store.session_dir(meta.session_id) / "meta.json") as handle:
         payload = json.load(handle)
     assert payload["args"]["foo"] == "bar"
+
+
+# === auto_samples (JSONL) ===
+
+
+def test_stash_auto_sample_appends_jsonl(store: SessionStore):
+    meta = store.create({})
+    store.stash_auto_sample(meta.session_id, "fp:aaa", {"stack": ["a", "b"], "reason": "ok"})
+    store.stash_auto_sample(meta.session_id, "fp:bbb", {"stack": ["c"], "reason": "ok"})
+
+    samples = store.read_auto_samples(meta.session_id)
+    assert set(samples.keys()) == {"fp:aaa", "fp:bbb"}
+    assert samples["fp:aaa"]["stack"] == ["a", "b"]
+    assert samples["fp:bbb"]["stack"] == ["c"]
+
+
+def test_stash_auto_sample_last_write_wins_per_fingerprint(store: SessionStore):
+    meta = store.create({})
+    store.stash_auto_sample(meta.session_id, "fp:dup", {"reason": "first"})
+    store.stash_auto_sample(meta.session_id, "fp:dup", {"reason": "second"})
+
+    samples = store.read_auto_samples(meta.session_id)
+    assert samples["fp:dup"]["reason"] == "second"
+
+
+def test_read_auto_samples_returns_empty_when_missing(store: SessionStore):
+    meta = store.create({})
+    assert store.read_auto_samples(meta.session_id) == {}
+
+
+def test_concurrent_stash_drops_nothing(store: SessionStore):
+    """Two threads stashing in tight succession must both land — append-only avoids the
+    read-modify-write race the old auto_samples.json had."""
+    import threading
+
+    meta = store.create({})
+    fingerprints = [f"fp:{i:04d}" for i in range(50)]
+    threads = [
+        threading.Thread(
+            target=store.stash_auto_sample,
+            args=(meta.session_id, fp, {"reason": fp}),
+        )
+        for fp in fingerprints
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    samples = store.read_auto_samples(meta.session_id)
+    assert set(samples.keys()) == set(fingerprints)
+
+
+def test_read_auto_samples_skips_corrupt_lines(store: SessionStore):
+    meta = store.create({})
+    # Manually corrupt the file with one bad line between two good ones.
+    path = store.session_dir(meta.session_id) / "auto_samples.jsonl"
+    with open(path, "w") as handle:
+        handle.write(json.dumps({"fingerprint": "fp:1", "sample": {"reason": "good"}}) + "\n")
+        handle.write("not-json\n")
+        handle.write(json.dumps({"fingerprint": "fp:2", "sample": {"reason": "good"}}) + "\n")
+
+    samples = store.read_auto_samples(meta.session_id)
+    assert set(samples.keys()) == {"fp:1", "fp:2"}
