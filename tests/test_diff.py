@@ -131,3 +131,88 @@ def test_format_diff_version_mismatch_carries_warning():
     b.fingerprint_version = 99
     out = format_diff(diff_sessions(a, b))
     assert "mismatch" in out.lower()
+
+
+# === zero-duration drift handling (#79) ===
+
+
+def _zero_dur_summary(session_id: str, clusters: dict[str, float]) -> "SessionSummary":
+    """Build a SessionSummary with a controlled fingerprint → max_duration_ms map."""
+    from common.hang_pipeline import Cluster, NormalisedEvent, SessionSummary, Severity
+
+    cluster_list = [
+        Cluster(
+            fingerprint=fp,
+            count=1,
+            max_duration_ms=max_dur,
+            total_duration_ms=max_dur,
+            first_delta_ms=0,
+            severity=Severity.CRITICAL if max_dur >= 500 else Severity.MINOR,
+            symbol_or_prefix=fp,
+            sample_event=NormalisedEvent(
+                delta_ms=0,
+                process="p",
+                pid=1,
+                duration_ms=max_dur,
+                severity=Severity.CRITICAL if max_dur >= 500 else Severity.MINOR,
+                symbol=fp,
+                message_prefix=fp,
+                fingerprint=fp,
+            ),
+        )
+        for fp, max_dur in clusters.items()
+    ]
+    return SessionSummary(
+        session_id=session_id,
+        started_at="t",
+        duration_ms=1000,
+        event_count=len(cluster_list),
+        dropped_below_threshold=0,
+        matched_lines=len(cluster_list),
+        total_lines=len(cluster_list),
+        clusters=cluster_list,
+        aggregates={},
+    )
+
+
+def test_diff_zero_to_zero_counts_as_stable():
+    a = _zero_dur_summary("hang-a", {"fp:silent": 0.0})
+    b = _zero_dur_summary("hang-b", {"fp:silent": 0.0})
+    result = diff_sessions(a, b)
+    assert result["stable_count"] == 1
+    assert not result["drift"]
+
+
+def test_diff_zero_to_nonzero_is_drift_with_inf_delta():
+    a = _zero_dur_summary("hang-a", {"fp:newsignal": 0.0})
+    b = _zero_dur_summary("hang-b", {"fp:newsignal": 800.0})
+    result = diff_sessions(a, b)
+    assert len(result["drift"]) == 1
+    assert result["drift"][0]["delta_pct"] == float("inf")
+    assert result["drift"][0]["max_duration_ms_a"] == 0.0
+    assert result["drift"][0]["max_duration_ms_b"] == 800.0
+
+
+def test_diff_nonzero_to_zero_is_drift_with_minus_one_hundred():
+    a = _zero_dur_summary("hang-a", {"fp:fixed": 800.0})
+    b = _zero_dur_summary("hang-b", {"fp:fixed": 0.0})
+    result = diff_sessions(a, b)
+    assert len(result["drift"]) == 1
+    assert result["drift"][0]["delta_pct"] == -100.0
+
+
+def test_diff_nonzero_unchanged_still_uses_threshold():
+    # Regression guard — the new zero-handling branches must not break the standard path.
+    a = _zero_dur_summary("hang-a", {"fp:steady": 500.0})
+    b = _zero_dur_summary("hang-b", {"fp:steady": 505.0})  # 1% drift, well under 20% threshold
+    result = diff_sessions(a, b)
+    assert result["stable_count"] == 1
+    assert not result["drift"]
+
+
+def test_format_diff_renders_inf_delta_as_new():
+    a = _zero_dur_summary("hang-a", {"fp:newsignal": 0.0})
+    b = _zero_dur_summary("hang-b", {"fp:newsignal": 800.0})
+    out = format_diff(diff_sessions(a, b))
+    assert "new" in out
+    assert "inf" not in out.lower()
