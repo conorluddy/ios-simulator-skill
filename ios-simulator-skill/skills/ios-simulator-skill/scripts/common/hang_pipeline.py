@@ -14,6 +14,7 @@ dependency-free.
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 import math
@@ -24,9 +25,13 @@ from enum import StrEnum
 
 # === CONSTANTS ===
 
-FINGERPRINT_VERSION = 1
+FINGERPRINT_VERSION = 2
 """Bump when normalise_message, compute_fingerprint, or severity boundaries change.
-`--diff` skips structural comparison across mismatched versions."""
+`--diff` skips structural comparison across mismatched versions.
+
+v2 (2026-05): compute_fingerprint() now hashes its input with sha256[:16].
+v1 used the raw symbol / normalised prefix — collision risk when heavy upstream
+normalisation reduced distinct messages to identical prefixes."""
 
 _HEX_ADDR = re.compile(r"0x[0-9a-fA-F]{4,}")
 _PID_REF = re.compile(r"\bpid[:= ]\s*\d+\b", re.IGNORECASE)
@@ -260,10 +265,15 @@ def build_normalised_event(
 def compute_fingerprint(symbol: str | None, message_prefix: str) -> str:
     """Stable identity hash for clustering and diff.
 
-    Symbol when present (high signal); otherwise normalised message prefix.
-    No hashing — readability beats compression here.
+    Hashed (sha256[:16]) so distinct messages with overlapping normalised
+    prefixes don't collide into the same cluster. Symbol when present (high
+    signal); otherwise normalised message prefix is the hash input.
+
+    The human-readable label lives in ``Cluster.symbol_or_prefix`` — the
+    fingerprint is purely an identity key.
     """
-    return f"sym:{symbol}" if symbol else f"msg:{message_prefix}"
+    key = f"sym:{symbol}" if symbol else f"msg:{message_prefix}"
+    return f"fp:{hashlib.sha256(key.encode()).hexdigest()[:16]}"
 
 
 def _timestamp_to_ms(ts: str) -> int:
