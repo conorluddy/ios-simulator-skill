@@ -167,15 +167,33 @@ def test_bucket_severity_boundaries(ms, expected):
 
 
 def test_compute_fingerprint_prefers_symbol():
-    fp = compute_fingerprint("[ImageDecoder decode:]", "fallback prefix")
-    assert fp.startswith("sym:")
-    assert "ImageDecoder" in fp
+    # Symbol-based fingerprint differs from prefix-based one for the same input.
+    sym_fp = compute_fingerprint("[ImageDecoder decode:]", "fallback prefix")
+    prefix_fp = compute_fingerprint(None, "fallback prefix")
+    assert sym_fp.startswith("fp:")
+    assert sym_fp != prefix_fp
 
 
 def test_compute_fingerprint_falls_back_to_prefix():
     fp = compute_fingerprint(None, "fallback prefix")
-    assert fp.startswith("msg:")
-    assert "fallback prefix" in fp
+    assert fp.startswith("fp:")
+    # Hashed, so the input text is no longer present in the fingerprint.
+    assert "fallback" not in fp
+
+
+def test_compute_fingerprint_is_stable_across_calls():
+    a = compute_fingerprint("[A foo]", "prefix-a")
+    b = compute_fingerprint("[A foo]", "prefix-a")
+    assert a == b
+
+
+def test_compute_fingerprint_avoids_overlap_collision():
+    # Two distinct messages whose first 40 chars are identical must produce
+    # distinct fingerprints — the v1 prefix-based scheme would have collided.
+    shared_head = "Hang detected in MainThread waiting on lock"
+    a = compute_fingerprint(None, shared_head + " a-distinct-suffix")
+    b = compute_fingerprint(None, shared_head + " b-distinct-suffix")
+    assert a != b
 
 
 # === build_normalised_event ===
@@ -195,7 +213,7 @@ def test_build_normalised_event_full():
     assert event.severity == Severity.WARN
     assert event.symbol == "[ImageDecoder decode:]"
     assert event.delta_ms == 12_400
-    assert event.fingerprint.startswith("sym:")
+    assert event.fingerprint.startswith("fp:")
 
 
 def test_build_normalised_event_returns_none_without_duration():
