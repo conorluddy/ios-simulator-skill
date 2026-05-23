@@ -127,7 +127,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `sim_health_check.sh` | Verify environment (Xcode, simctl, IDB, Python) | — |
 | `model_inspector.py` | Inspect Core Data / SwiftData models from project files | `--project-path`, `--raw`, `--show-versions` |
 | `container.py` | Inspect app sandbox: list, cat, UserDefaults, Core Data, export | `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export` |
-| `hang_watcher.py` | Stream and record `os_log` hang events from a live simulator | `--watch`, `--bundle-id`, `--since`, `--predicate` |
+| `hang_watcher.py` (HangBuster) | Record + summarise `os_log` hang events with progressive disclosure (session mode + legacy stream) | `--start`, `--stop`, `--get-details`, `--list-sessions`, `--diff`, `--budget-tokens`, `--auto-sample` (legacy: `--watch`, `--since`) |
 | `localization_audit.py` | Audit `.xcstrings` catalogs for missing keys, unused keys, placeholder mismatches | `--catalog`, `--source`, `--strict` |
 
 #### Permissions & Environment
@@ -195,6 +195,10 @@ How long to wait on `xcrun simctl` operations.
 | `IOS_SIM_LOG_TAIL` | `200` (lines) | Recent log lines shown in verbose mode and JSON `sample_logs`. Also used by xcode log excerpt. Lower for tighter context, higher for richer post-mortems. |
 | `IOS_SIM_LOG_JSON_CAP` | `100` | Max errors / warnings in JSON output. Raise if you're piping into a dashboard that needs the full picture. |
 | `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py`. The default catches RunningBoard watchdog kills, explicit "Hang detected" messages, and main-thread hang annotations. Narrow it (e.g. `subsystem == "com.apple.runningboard"`) for major-hangs-only; broaden for noisier subsystems. |
+| `IOS_SIM_HANG_MIN_MS` | `250` | HangBuster threshold: events below this duration never reach disk. |
+| `IOS_SIM_HANG_SESSION_TTL_HOURS` | `24` | HangBuster session prune age. |
+| `IOS_SIM_HANG_DEFAULT_TOP_N` | `3` | Default top-N clusters in `--stop` L1 output. |
+| `IOS_SIM_HANG_BUDGET_TOKENS` | _(unset)_ | Default token budget for `--stop` (picks L0/L1/L2 to fit). |
 
 ### UI navigation & screen mapping
 

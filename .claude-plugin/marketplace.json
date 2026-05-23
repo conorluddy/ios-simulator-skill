@@ -3,9 +3,7 @@
   "owner": {
     "name": "Conor Luddy"
   },
-  "metadata": {
-    "description": "iOS simulator automation skills for Claude Code"
-  },
+  "description": "iOS simulator automation skills for Claude Code",
   "plugins": [
     {
       "name": "ios-simulator-skill",
