@@ -141,7 +141,7 @@ python scripts/simctl_boot.py --type iPhone
 - **sim_health_check.sh**: Environment verification
 - **model_inspector.py**: Core Data and SwiftData model inspection
 - **container.py**: App sandbox files, UserDefaults, Core Data store paths
-- **hang_watcher.py** (HangBuster): session-scoped hang recorder with progressive disclosure (`--start`/`--stop`/`--get-details`/`--diff`); legacy `--watch`/`--since` paths preserved
+- **hang_watcher.py** (HangBuster): session-scoped hang recorder with progressive disclosure (`--start`/`--stop`/`--get-details`/`--diff`); raw NDJSON mode (`--raw-capture` + size cap + gzip) for `jq` exploration; bounded auto-restart on stream EOF (`IOS_SIM_HANG_MAX_RESTARTS`) so crashed workers are marked `crashed` not stale `running`; aggregate disk cap (`IOS_SIM_HANG_TOTAL_CAP_MB`) pruned on every `--start`; legacy `--watch`/`--since` paths preserved
 - **localization_audit.py**: String catalog gaps, missing keys, placeholder mismatches
 
 ### Advanced Testing & Permissions (4)
@@ -186,11 +186,14 @@ Pure-function HangBuster filter pipeline (parse → normalise → threshold → 
 - `diff_sessions()` with `fingerprint_version` guard
 - Dataclasses: `NormalisedEvent`, `Cluster`, `SessionSummary`, `Severity` (StrEnum)
 
-### hang_sessions.py (~355 lines)
-- `SessionStore`: filesystem-backed session repository at `~/.ios-simulator-skill/sessions/<id>/{meta.json, events.jsonl, summary.json}`
+### hang_sessions.py (~400 lines)
+- `SessionStore`: filesystem-backed session repository at `~/.ios-simulator-skill/sessions/<id>/{meta.json, events.jsonl, summary.json, raw.ndjson.gz?, auto_samples.jsonl?}`
 - Session ID format: `hang-YYYYMMDD-HHmmss-<4hex>` (random suffix avoids same-second collisions)
 - Atomic meta writes (`.tmp` + `replace`); worker writes its own pid (no pidfile race)
+- Status state machine: `pending → running → (stopped | crashed)`. `mark_crashed` records `stopped_at_ms` so `build_summary` reflects the capture window, not the time of inspection. `persist_worker_counters` preserves terminal status (cannot clobber CRASHED/STOPPED back to RUNNING).
 - TTL prune via `IOS_SIM_HANG_SESSION_TTL_HOURS` on every `--start`
+- Aggregate cap via `IOS_SIM_HANG_TOTAL_CAP_MB` (`prune_to_aggregate_cap`) — oldest-first eviction; runs alongside TTL prune on every `--start`
+- `raw_path()` + `session_total_bytes()` accessors for raw-capture mode
 
 ## Quality Standards
 

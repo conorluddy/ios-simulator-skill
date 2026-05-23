@@ -127,7 +127,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `sim_health_check.sh` | Verify environment (Xcode, simctl, IDB, Python) | — |
 | `model_inspector.py` | Inspect Core Data / SwiftData models from project files | `--project-path`, `--raw`, `--show-versions` |
 | `container.py` | Inspect app sandbox: list, cat, UserDefaults, Core Data, export | `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export` |
-| `hang_watcher.py` (HangBuster) | Record + summarise `os_log` hang events with progressive disclosure (session mode + legacy stream) | `--start`, `--stop`, `--get-details`, `--list-sessions`, `--diff`, `--budget-tokens`, `--auto-sample` (legacy: `--watch`, `--since`) |
+| `hang_watcher.py` (HangBuster) | Record + summarise `os_log` hang events with progressive disclosure (session mode + raw NDJSON + legacy stream); auto-restart on stream death, automatic disk-cap cleanup | `--start [--raw-capture --max-size-mb N --no-gzip]`, `--stop`, `--get-details`, `--list-sessions`, `--diff`, `--budget-tokens`, `--auto-sample` (legacy: `--watch`, `--since`) |
 | `localization_audit.py` | Audit `.xcstrings` catalogs for missing keys, unused keys, placeholder mismatches | `--catalog`, `--source`, `--strict` |
 
 #### Permissions & Environment
@@ -194,11 +194,13 @@ How long to wait on `xcrun simctl` operations.
 | `IOS_SIM_LOG_LINE_MAX` | `300` (chars) | Per-line truncation. Crash messages with full Swift symbol mangling can exceed 200 chars; raise if you see “…” cutting off the actionable bit. |
 | `IOS_SIM_LOG_TAIL` | `200` (lines) | Recent log lines shown in verbose mode and JSON `sample_logs`. Also used by xcode log excerpt. Lower for tighter context, higher for richer post-mortems. |
 | `IOS_SIM_LOG_JSON_CAP` | `100` | Max errors / warnings in JSON output. Raise if you're piping into a dashboard that needs the full picture. |
-| `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py`. The default catches RunningBoard watchdog kills, explicit "Hang detected" messages, and main-thread hang annotations. Narrow it (e.g. `subsystem == "com.apple.runningboard"`) for major-hangs-only; broaden for noisier subsystems. |
+| `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py`. The default catches RunningBoard watchdog kills, explicit "Hang detected" messages, and main-thread hang annotations. Hang events originate from system daemons (RunningBoard, SpringBoard, watchdog) — *not* the target app's process — so the predicate intentionally stays simulator-global. `--bundle-id` is applied post-parse against the event payload, never ANDed into the predicate. |
 | `IOS_SIM_HANG_MIN_MS` | `250` | HangBuster threshold: events below this duration never reach disk. |
-| `IOS_SIM_HANG_SESSION_TTL_HOURS` | `24` | HangBuster session prune age. |
+| `IOS_SIM_HANG_SESSION_TTL_HOURS` | `24` | HangBuster session prune age. Pruning runs on every `--start`. |
 | `IOS_SIM_HANG_DEFAULT_TOP_N` | `3` | Default top-N clusters in `--stop` L1 output. |
 | `IOS_SIM_HANG_BUDGET_TOKENS` | _(unset)_ | Default token budget for `--stop` (picks L0/L1/L2 to fit). |
+| `IOS_SIM_HANG_MAX_RESTARTS` | `3` | HangBuster worker: bounded `log stream` respawn attempts on EOF/subprocess death before the session is marked `crashed`. Set to `0` to disable auto-restart. |
+| `IOS_SIM_HANG_TOTAL_CAP_MB` | `100` | HangBuster aggregate disk cap. When total session-state exceeds this on `--start`, oldest sessions are dropped first. Set to `0` to disable. |
 
 ### UI navigation & screen mapping
 

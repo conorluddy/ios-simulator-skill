@@ -164,9 +164,43 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
       - Filter pipeline: parse → normalise → threshold → bucket → cluster → aggregate → rank → format (in `common/hang_pipeline.py`)
       - `--budget-tokens N` picks the densest level (L0/L1/L2) that fits; `--terse` forces L0
       - `--auto-sample` captures a main-thread stack on first event per cluster (soft dependency: `main_thread_sampler.py` #62; graceful no-op if absent)
+    - **Raw capture mode (full fidelity for `jq` exploration):** skip the clustering pipeline, dump every matching log line verbatim to `raw.ndjson`
+      - `--start --raw-capture [--max-size-mb 10] [--no-gzip]` — spawns `log stream --style ndjson`
+      - Per-session size cap (`--max-size-mb`, default 10) — worker stops cleanly on cap; `extras.truncated=true`
+      - `--stop` gzips `raw.ndjson` → `raw.ndjson.gz` (~15–19× compression; `--no-gzip` opts out)
+      - `--get-details SESSION_ID` on a raw session prints the path with a `zcat | jq ...` hint
+    - **Resilience (auto-restart on stream death):** EOF or subprocess death triggers a `stream_died` event then a bounded restart with 2s backoff. After `IOS_SIM_HANG_MAX_RESTARTS` (default 3) the session is marked `crashed`, never left in stale `running` state. `--list-sessions` shows `capture=Xs` and `restarts=N`.
+    - **Cleanup is automatic:** TTL prune (`IOS_SIM_HANG_SESSION_TTL_HOURS`, default 24h) + aggregate cap (`IOS_SIM_HANG_TOTAL_CAP_MB`, default 100 MB, oldest-first eviction) both run on every `--start`.
     - **Legacy modes (unchanged for backward compat):** `--watch [--duration N]` (live stream) and `--since 5m` (historical)
-    - Filters: `--bundle-id`, `--predicate` (also via `IOS_SIM_HANG_PREDICATE`)
-    - All output supports `--json`; session storage at `~/.ios-simulator-skill/sessions/<id>/{meta.json,events.jsonl,summary.json}`
+    - Filters: `--bundle-id` (post-parse — hang capture stays simulator-global so RunningBoard/SpringBoard events are kept), `--predicate` (also via `IOS_SIM_HANG_PREDICATE`)
+    - All output supports `--json`; session storage at `~/.ios-simulator-skill/sessions/<id>/{meta.json,events.jsonl,summary.json,raw.ndjson.gz}`
+
+    **Quick start (summarised mode):**
+    ```bash
+    SID=$(python scripts/hang_watcher.py --start --min-hang-ms 200)
+    # ... interact with the simulator (open sheets, scroll, navigate) ...
+    python scripts/hang_watcher.py --stop $SID                  # token-tight L1 summary
+    python scripts/hang_watcher.py --get-details $SID --cluster 1  # drill into cluster 1
+    python scripts/hang_watcher.py --diff $SID_BASELINE $SID    # cross-session regression
+    ```
+
+    **Quick start (raw capture + `jq` exploration):**
+    ```bash
+    SID=$(python scripts/hang_watcher.py --start --raw-capture --max-size-mb 5)
+    # ... interact with the simulator ...
+    python scripts/hang_watcher.py --stop $SID
+    # → "Session ...: raw mode, 737 lines, 0.96 MB → 0.05 MB gzipped"
+
+    # Top processes by event count:
+    zcat ~/.ios-simulator-skill/sessions/$SID/raw.ndjson.gz \
+      | jq -s 'group_by(.processImagePath) | map({proc: (.[0].processImagePath | split("/") | last), n: length}) | sort_by(-.n) | .[:5]'
+
+    # All RunningBoard assertion invalidations:
+    zcat .../raw.ndjson.gz | jq -c 'select(.subsystem == "com.apple.runningboard" and (.eventMessage | startswith("Invalidating")))'
+
+    # Hangs per minute:
+    zcat .../raw.ndjson.gz | jq -r '.timestamp[:16]' | sort | uniq -c
+    ```
 
 18. **localization_audit.py** - Detect string catalog gaps, missing keys, and placeholder mismatches
     - Report missing and `needs_review`/`new` keys per locale in `.xcstrings` catalogs
@@ -296,11 +330,13 @@ Most operational limits can be tuned via environment variables. Defaults work fo
 | `IOS_SIM_CACHE_MAX_ENTRIES` | `500` | Max entries in progressive disclosure cache (LRU eviction) |
 | `IOS_SIM_CACHE_TTL_HOURS` | `1` | Cache entry expiration |
 | `IOS_SIM_ERASE_TIMEOUT` | `90` | Wait-for-erase timeout (seconds) |
-| `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py` (default catches RunningBoard kills + "Hang detected" + main-thread hangs) |
+| `IOS_SIM_HANG_PREDICATE` | _(default)_ | Override the `os_log` predicate used by `hang_watcher.py` (default catches RunningBoard kills + "Hang detected" + main-thread hangs). Hang events originate from system daemons (RunningBoard, SpringBoard) so the predicate stays simulator-global — `--bundle-id` is applied post-parse, not ANDed in. |
 | `IOS_SIM_HANG_MIN_MS` | `250` | HangBuster threshold — events below this duration never reach disk (smaller = more sensitive, larger summaries) |
 | `IOS_SIM_HANG_SESSION_TTL_HOURS` | `24` | HangBuster session prune age; pruning runs on every `--start` |
 | `IOS_SIM_HANG_DEFAULT_TOP_N` | `3` | Default top-N clusters in `--stop` L1 output |
 | `IOS_SIM_HANG_BUDGET_TOKENS` | _(unset)_ | Default token budget for `--stop` (picks L0/L1/L2 to fit) |
+| `IOS_SIM_HANG_MAX_RESTARTS` | `3` | HangBuster worker: max `log stream` respawn attempts on EOF/subprocess death before the session is marked `crashed` |
+| `IOS_SIM_HANG_TOTAL_CAP_MB` | `100` | HangBuster aggregate disk cap. When total session-state exceeds this on `--start`, oldest sessions are dropped first. Set to `0` to disable. |
 | `IOS_SIM_LOG_JSON_CAP` | `100` | Max errors/warnings in `log_monitor.py` JSON output |
 | `IOS_SIM_LOG_LINE_MAX` | `300` | Per-line truncation in log summaries |
 | `IOS_SIM_LOG_TAIL` | `200` | Lines of log tail in verbose / sample output |
