@@ -346,3 +346,42 @@ def test_load_summary_returns_none_when_missing(store: SessionStore):
     store.claim_worker(meta.session_id, pid=os.getpid())
     store.mark_crashed(meta.session_id)
     assert store.load_summary(meta.session_id) is None
+
+
+# === crashed-session timestamps + duration (#84) ===
+
+
+def test_mark_crashed_records_stopped_timestamps(store: SessionStore):
+    meta = store.create({})
+    store.claim_worker(meta.session_id, pid=os.getpid())
+    before_ms = int(time.time() * 1000)
+    store.mark_crashed(meta.session_id)
+    after_ms = int(time.time() * 1000)
+    reloaded = store.load_meta(meta.session_id)
+    assert reloaded.stopped_at is not None
+    assert reloaded.stopped_at_ms is not None
+    assert before_ms <= reloaded.stopped_at_ms <= after_ms
+
+
+def test_persist_worker_counters_preserves_crashed_status(store: SessionStore):
+    """A worker that's about to exit shouldn't be able to overwrite its own
+    crashed status back to running when it flushes its line counters."""
+    meta = store.create({})
+    store.claim_worker(meta.session_id, pid=os.getpid())
+    store.mark_crashed(meta.session_id)
+    store.persist_worker_counters(meta.session_id, {"total": 5, "matched": 0})
+    assert store.load_meta(meta.session_id).status == "crashed"
+
+
+def test_build_summary_uses_stopped_at_ms_for_crashed_session(store: SessionStore):
+    """Duration should reflect the capture window, not the time of inspection."""
+    meta = store.create({})
+    store.claim_worker(meta.session_id, pid=os.getpid())
+    store.mark_crashed(meta.session_id)
+    # Sleep so "now" diverges from stopped_at_ms — proves the summary doesn't use now.
+    time.sleep(0.1)
+    summary = store.build_summary(meta.session_id)
+    reloaded = store.load_meta(meta.session_id)
+    expected = reloaded.stopped_at_ms - reloaded.started_at_ms
+    # The summary should reflect the recorded window (within ms-level rounding).
+    assert summary.duration_ms == expected

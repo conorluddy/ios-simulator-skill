@@ -142,12 +142,13 @@ class SessionStore:
     def persist_worker_counters(self, session_id: str, counters: dict) -> None:
         """Worker calls this at shutdown to flush its line counters into meta.
 
-        Re-reads meta from disk so a concurrent ``stop()`` that already wrote
-        ``status=stopped`` is not clobbered back to ``running``.
+        Re-reads meta from disk so a concurrent terminal status — ``stopped``
+        from the parent's ``stop()`` or ``crashed`` from this worker's own
+        ``mark_crashed`` — is not clobbered back to ``running``.
         """
         meta = self.load_meta(session_id)
         meta.extras["line_counters"] = counters
-        if meta.status != _STATUS_STOPPED:
+        if meta.status not in (_STATUS_STOPPED, _STATUS_CRASHED):
             meta.status = _STATUS_RUNNING
         self._write_meta(meta)
 
@@ -163,12 +164,20 @@ class SessionStore:
         return meta
 
     def mark_crashed(self, session_id: str) -> None:
-        """Best-effort: tag a session whose worker exited without a summary."""
+        """Best-effort: tag a session whose worker exited without a summary.
+
+        Records ``stopped_at`` / ``stopped_at_ms`` so capture-duration math in
+        ``build_summary`` and ``--list-sessions`` reflects when the worker
+        actually died, not when the session was finally inspected.
+        """
         try:
             meta = self.load_meta(session_id)
         except FileNotFoundError:
             return
         meta.status = _STATUS_CRASHED
+        now = datetime.now()
+        meta.stopped_at = now.isoformat()
+        meta.stopped_at_ms = int(now.timestamp() * 1000)
         self._write_meta(meta)
 
     def signal_worker(self, session_id: str, sig: int = signal.SIGTERM) -> bool:
@@ -315,11 +324,17 @@ class SessionStore:
         extras: dict | None = None,
         top_n: int | None = None,
     ) -> SessionSummary:
-        """Convenience: read events.jsonl and run the pipeline through SummaryBuilder."""
+        """Convenience: read events.jsonl and run the pipeline through SummaryBuilder.
+
+        Duration prefers ``meta.stopped_at_ms`` (set on both ``stop()`` and
+        ``mark_crashed()``) so summaries for crashed/stopped sessions reflect
+        the actual capture window, not the time of inspection. Live sessions
+        without ``stopped_at_ms`` fall back to ``now`` as before.
+        """
         meta = self.load_meta(session_id)
         events = self.read_events(session_id)
-        now = datetime.now()
-        duration_ms = int(now.timestamp() * 1000) - meta.started_at_ms
+        end_ms = meta.stopped_at_ms or int(datetime.now().timestamp() * 1000)
+        duration_ms = end_ms - meta.started_at_ms
         builder = SummaryBuilder(
             session_id=session_id,
             started_at=meta.started_at,

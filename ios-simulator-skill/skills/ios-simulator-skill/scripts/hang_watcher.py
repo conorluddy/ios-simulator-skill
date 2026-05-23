@@ -77,6 +77,13 @@ DEFAULT_HANG_PREDICATE = (
     'OR ((eventMessage CONTAINS[c] "main thread") AND (eventMessage CONTAINS[c] "hang"))'
 )
 
+# How many times the worker re-spawns ``log stream`` after an EOF / subprocess
+# death before giving up and marking the session crashed. Override via env var
+# IOS_SIM_HANG_MAX_RESTARTS.
+DEFAULT_MAX_STREAM_RESTARTS = 3
+# Backoff between restart attempts. Short — log stream usually recovers fast.
+RESTART_BACKOFF_SECONDS = 2.0
+
 
 def _compute_start_timestamp(duration_str: str) -> str:
     """Parse duration string and return ISO-8601 start timestamp.
@@ -541,8 +548,16 @@ class HangBuster:
         lines = [f"Sessions: {len(metas)}"]
         for meta in metas[:20]:
             stopped = meta.stopped_at or "-"
+            counters = meta.extras.get("line_counters", {})
+            restarts = counters.get("stream_restarts", 0)
+            duration_s = (
+                (meta.stopped_at_ms - meta.started_at_ms) / 1000.0 if meta.stopped_at_ms else None
+            )
+            duration_str = f"  capture={duration_s:.1f}s" if duration_s is not None else ""
+            restart_str = f"  restarts={restarts}" if restarts else ""
             lines.append(
-                f"  {meta.session_id}  {meta.status:8s}  started={meta.started_at}  stopped={stopped}"
+                f"  {meta.session_id}  {meta.status:8s}  started={meta.started_at}  "
+                f"stopped={stopped}{duration_str}{restart_str}"
             )
         if len(metas) > 20:
             lines.append(f"  ... {len(metas) - 20} more")
@@ -572,8 +587,11 @@ class HangBuster:
         """Long-running worker entrypoint. Returns exit code.
 
         Layout: claim meta → resolve predicate → open events.jsonl line-buffered
-        → spawn ``xcrun simctl spawn ... log stream`` → loop with select-based
-        readline timeout. SIGTERM flushes and exits cleanly.
+        → for each restart attempt, spawn ``xcrun simctl spawn ... log stream``
+        and read lines until EOF or subprocess death. SIGTERM flushes and exits
+        cleanly. EOF / subprocess death triggers a bounded restart loop
+        (``IOS_SIM_HANG_MAX_RESTARTS``); on exhaustion the session is marked
+        ``crashed`` rather than left in stale ``running`` state.
         """
         meta = self.store.claim_worker(session_id, pid=os.getpid())
         args = meta.args
@@ -583,9 +601,10 @@ class HangBuster:
         auto_sample = bool(args.get("auto_sample", False))
         udid = args["udid"]
         predicate = _resolve_predicate(predicate_override)
+        max_restarts = env_int("IOS_SIM_HANG_MAX_RESTARTS", DEFAULT_MAX_STREAM_RESTARTS)
 
         events_path = self.store.events_path(session_id)
-        counters = {"total": 0, "matched": 0, "dropped": 0}
+        counters = {"total": 0, "matched": 0, "dropped": 0, "stream_restarts": 0}
         sampled_fingerprints: set[str] = set()
         stop_flag = {"value": False}
 
@@ -596,8 +615,9 @@ class HangBuster:
         signal.signal(signal.SIGINT, _on_sigterm)
 
         cmd = ["xcrun", "simctl", "spawn", udid, "log", "stream", "--predicate", predicate]
-        try:
-            proc = subprocess.Popen(
+
+        def _spawn_log_stream() -> subprocess.Popen:
+            return subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -605,78 +625,164 @@ class HangBuster:
                 text=True,
                 bufsize=1,
             )
-        except FileNotFoundError:
-            self.store.mark_crashed(session_id)
-            return 2
 
-        last_fsync = time.time()
-        last_event_at = time.time()
-        stream_silence_seconds = 30.0
+        proc: subprocess.Popen | None = None
+        crashed = False
+        try:
+            with open(events_path, "a", buffering=1) as out_handle:
+                for attempt in range(max_restarts + 1):
+                    if stop_flag["value"]:
+                        break
+                    if attempt > 0:
+                        counters["stream_restarts"] = attempt
+                        out_handle.write(
+                            json.dumps(
+                                {
+                                    "event": "stream_restart",
+                                    "attempt": attempt,
+                                    "at_ms": int(time.time() * 1000),
+                                }
+                            )
+                            + "\n"
+                        )
+                        out_handle.flush()
+                        time.sleep(RESTART_BACKOFF_SECONDS)
+                        if stop_flag["value"]:
+                            break
+                    try:
+                        proc = _spawn_log_stream()
+                    except FileNotFoundError:
+                        crashed = True
+                        break
 
-        with open(events_path, "a", buffering=1) as out_handle:
-            while not stop_flag["value"]:
-                if proc.stdout is None:
-                    break
-                ready, _, _ = select.select([proc.stdout], [], [], 0.25)
-                if not ready:
-                    # No data this tick — check for stream silence + writer fsync.
-                    if time.time() - last_event_at > stream_silence_seconds:
+                    exit_code = self._read_stream_into_events(
+                        proc=proc,
+                        out_handle=out_handle,
+                        stop_flag=stop_flag,
+                        counters=counters,
+                        bundle_id=bundle_id,
+                        min_hang_ms=min_hang_ms,
+                        auto_sample=auto_sample,
+                        sampled_fingerprints=sampled_fingerprints,
+                        session_id=session_id,
+                        session_start_ms=meta.started_at_ms,
+                    )
+
+                    if stop_flag["value"]:
+                        # Clean SIGTERM. Don't restart, don't mark crashed.
                         out_handle.write(
                             json.dumps({"event": "stream_ended", "at_ms": int(time.time() * 1000)})
                             + "\n"
                         )
                         out_handle.flush()
                         break
-                    if time.time() - last_fsync > 1.0:
-                        out_handle.flush()
-                        os.fsync(out_handle.fileno())
-                        last_fsync = time.time()
-                    continue
-                line = proc.stdout.readline()
-                if not line:
-                    break
-                counters["total"] += 1
-                last_event_at = time.time()
-                raw_event = _pipeline_parse_log_line(line.rstrip())
-                if raw_event is None:
-                    continue
-                if bundle_id and not matches_bundle(raw_event, bundle_id):
-                    continue
-                counters["matched"] += 1
-                duration = raw_event.get("duration_ms")
-                if duration is None or duration < min_hang_ms:
-                    counters["dropped"] += 1
-                    continue
-                normalised = build_normalised_event(
-                    raw_event,
-                    session_start_ms=meta.started_at_ms,
-                    current_ms=int(time.time() * 1000),
-                )
-                if normalised is None:
-                    continue
-                if auto_sample and normalised.fingerprint not in sampled_fingerprints:
-                    sampled_fingerprints.add(normalised.fingerprint)
-                    self._stash_auto_sample(
-                        session_id, normalised, _attempt_auto_sample(normalised.pid)
+
+                    # Subprocess died without a stop request. Record it.
+                    out_handle.write(
+                        json.dumps(
+                            {
+                                "event": "stream_died",
+                                "exit_code": exit_code,
+                                "attempt": attempt,
+                                "at_ms": int(time.time() * 1000),
+                            }
+                        )
+                        + "\n"
                     )
-                out_handle.write(event_to_jsonl(normalised) + "\n")
+                    out_handle.flush()
+                else:
+                    # for/else: ran every restart without a clean break — exhausted.
+                    crashed = True
 
-            # Drain on shutdown — flush any pending lines + cleanup subprocess.
-            out_handle.flush()
-            with contextlib.suppress(OSError):
-                os.fsync(out_handle.fileno())
+                with contextlib.suppress(OSError):
+                    os.fsync(out_handle.fileno())
+        finally:
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
 
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            if crashed and not stop_flag["value"]:
+                self.store.mark_crashed(session_id)
+            # SessionStore.persist_worker_counters preserves terminal status
+            # (stopped from parent's stop(), or crashed above) and avoids
+            # clobbering it back to running.
+            self.store.persist_worker_counters(session_id, counters)
 
-        # Flush line counters; SessionStore preserves status=stopped if the parent's
-        # stop() already raced ahead, otherwise marks status=running.
-        self.store.persist_worker_counters(session_id, counters)
-        return 0
+        return 2 if crashed else 0
+
+    def _read_stream_into_events(
+        self,
+        *,
+        proc: subprocess.Popen,
+        out_handle,
+        stop_flag: dict,
+        counters: dict,
+        bundle_id: str | None,
+        min_hang_ms: int,
+        auto_sample: bool,
+        sampled_fingerprints: set[str],
+        session_id: str,
+        session_start_ms: int,
+    ) -> int | None:
+        """Read lines until EOF / subprocess death / stop request.
+
+        Returns the subprocess exit code (None if still alive when stop_flag
+        was set, otherwise the recorded poll() value at exit time). Does not
+        emit ``stream_died`` / ``stream_ended`` events itself — the caller
+        decides which marker to write based on stop_flag.
+        """
+        last_fsync = time.time()
+        while not stop_flag["value"]:
+            if proc.stdout is None:
+                return proc.poll()
+            ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+            if not ready:
+                if time.time() - last_fsync > 1.0:
+                    out_handle.flush()
+                    with contextlib.suppress(OSError):
+                        os.fsync(out_handle.fileno())
+                    last_fsync = time.time()
+                # If the subprocess silently died, poll() returns its code now.
+                # Otherwise keep waiting — quiet log streams are normal.
+                exit_code = proc.poll()
+                if exit_code is not None:
+                    return exit_code
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                # EOF — subprocess closed stdout. Wait briefly for poll() to
+                # settle so we report a meaningful exit code.
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(timeout=0.5)
+                return proc.poll()
+            counters["total"] += 1
+            raw_event = _pipeline_parse_log_line(line.rstrip())
+            if raw_event is None:
+                continue
+            if bundle_id and not matches_bundle(raw_event, bundle_id):
+                continue
+            counters["matched"] += 1
+            duration = raw_event.get("duration_ms")
+            if duration is None or duration < min_hang_ms:
+                counters["dropped"] += 1
+                continue
+            normalised = build_normalised_event(
+                raw_event,
+                session_start_ms=session_start_ms,
+                current_ms=int(time.time() * 1000),
+            )
+            if normalised is None:
+                continue
+            if auto_sample and normalised.fingerprint not in sampled_fingerprints:
+                sampled_fingerprints.add(normalised.fingerprint)
+                self._stash_auto_sample(
+                    session_id, normalised, _attempt_auto_sample(normalised.pid)
+                )
+            out_handle.write(event_to_jsonl(normalised) + "\n")
+        return proc.poll()
 
     # === PRIVATE ===
 
