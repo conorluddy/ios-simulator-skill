@@ -142,12 +142,13 @@ class SessionStore:
     def persist_worker_counters(self, session_id: str, counters: dict) -> None:
         """Worker calls this at shutdown to flush its line counters into meta.
 
-        Re-reads meta from disk so a concurrent ``stop()`` that already wrote
-        ``status=stopped`` is not clobbered back to ``running``.
+        Re-reads meta from disk so a concurrent terminal status — ``stopped``
+        from the parent's ``stop()`` or ``crashed`` from this worker's own
+        ``mark_crashed`` — is not clobbered back to ``running``.
         """
         meta = self.load_meta(session_id)
         meta.extras["line_counters"] = counters
-        if meta.status != _STATUS_STOPPED:
+        if meta.status not in (_STATUS_STOPPED, _STATUS_CRASHED):
             meta.status = _STATUS_RUNNING
         self._write_meta(meta)
 
@@ -163,12 +164,20 @@ class SessionStore:
         return meta
 
     def mark_crashed(self, session_id: str) -> None:
-        """Best-effort: tag a session whose worker exited without a summary."""
+        """Best-effort: tag a session whose worker exited without a summary.
+
+        Records ``stopped_at`` / ``stopped_at_ms`` so capture-duration math in
+        ``build_summary`` and ``--list-sessions`` reflects when the worker
+        actually died, not when the session was finally inspected.
+        """
         try:
             meta = self.load_meta(session_id)
         except FileNotFoundError:
             return
         meta.status = _STATUS_CRASHED
+        now = datetime.now()
+        meta.stopped_at = now.isoformat()
+        meta.stopped_at_ms = int(now.timestamp() * 1000)
         self._write_meta(meta)
 
     def signal_worker(self, session_id: str, sig: int = signal.SIGTERM) -> bool:
@@ -197,6 +206,41 @@ class SessionStore:
             return None
         with open(path) as handle:
             return summary_from_json(json.load(handle))
+
+    def stash_auto_sample(self, session_id: str, fingerprint: str, sample: dict) -> None:
+        """Append an auto-sample record to ``<session>/auto_samples.jsonl``.
+
+        Append-only JSONL avoids the read-modify-write race that an aggregate
+        JSON dict would have under concurrent worker stashes. Readers reduce
+        last-write-wins per fingerprint.
+        """
+        path = self._auto_samples_path(session_id)
+        line = json.dumps({"fingerprint": fingerprint, "sample": sample}, separators=(",", ":"))
+        with open(path, "a") as handle:
+            handle.write(line + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def read_auto_samples(self, session_id: str) -> dict[str, dict]:
+        """Return ``{fingerprint: sample}`` with last-write-wins per fingerprint."""
+        path = self._auto_samples_path(session_id)
+        if not path.exists():
+            return {}
+        samples: dict[str, dict] = {}
+        with open(path) as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                fingerprint = payload.get("fingerprint")
+                if fingerprint is None:
+                    continue
+                samples[fingerprint] = payload.get("sample")
+        return samples
 
     def read_events(self, session_id: str) -> list:
         """Read all events.jsonl lines, returning NormalisedEvent instances.
@@ -229,8 +273,59 @@ class SessionStore:
         """Worker writes here. Public so the worker can open it line-buffered."""
         return self._events_path(session_id)
 
+    def raw_path(self, session_id: str, gzipped: bool = False) -> Path:
+        """Raw-capture NDJSON path. ``gzipped=True`` returns the post-stop path."""
+        name = "raw.ndjson.gz" if gzipped else "raw.ndjson"
+        return self.base_dir / session_id / name
+
     def session_dir(self, session_id: str) -> Path:
         return self.base_dir / session_id
+
+    def session_total_bytes(self, session_id: str) -> int:
+        """Sum of all files under a session dir. Used by aggregate-cap pruning."""
+        total = 0
+        session_path = self.session_dir(session_id)
+        if not session_path.exists():
+            return 0
+        for path in session_path.rglob("*"):
+            if path.is_file():
+                with contextlib.suppress(OSError):
+                    total += path.stat().st_size
+        return total
+
+    def prune_to_aggregate_cap(self, max_bytes: int) -> int:
+        """Drop oldest sessions until total bytes ≤ max_bytes. Returns deletions.
+
+        Pairs with ``prune_expired``: TTL handles age, this handles disk usage
+        when activity outpaces TTL. Both are called automatically on every
+        ``create`` so the user never has to clean up manually.
+        """
+        if max_bytes <= 0:
+            return 0
+        # Oldest first — deletion order.
+        entries: list[tuple[int, str, int]] = []  # (started_at_ms, session_id, bytes)
+        total = 0
+        for entry in self.base_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            try:
+                meta = self.load_meta(entry.name)
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue
+            size = self.session_total_bytes(entry.name)
+            total += size
+            entries.append((meta.started_at_ms, entry.name, size))
+        if total <= max_bytes:
+            return 0
+        entries.sort(key=lambda e: e[0])  # oldest first
+        deleted = 0
+        for _, session_id, size in entries:
+            if total <= max_bytes:
+                break
+            _remove_tree(self.session_dir(session_id))
+            total -= size
+            deleted += 1
+        return deleted
 
     def list_sessions(self) -> list[SessionMeta]:
         """All non-expired session metas, newest first."""
@@ -280,11 +375,17 @@ class SessionStore:
         extras: dict | None = None,
         top_n: int | None = None,
     ) -> SessionSummary:
-        """Convenience: read events.jsonl and run the pipeline through SummaryBuilder."""
+        """Convenience: read events.jsonl and run the pipeline through SummaryBuilder.
+
+        Duration prefers ``meta.stopped_at_ms`` (set on both ``stop()`` and
+        ``mark_crashed()``) so summaries for crashed/stopped sessions reflect
+        the actual capture window, not the time of inspection. Live sessions
+        without ``stopped_at_ms`` fall back to ``now`` as before.
+        """
         meta = self.load_meta(session_id)
         events = self.read_events(session_id)
-        now = datetime.now()
-        duration_ms = int(now.timestamp() * 1000) - meta.started_at_ms
+        end_ms = meta.stopped_at_ms or int(datetime.now().timestamp() * 1000)
+        duration_ms = end_ms - meta.started_at_ms
         builder = SummaryBuilder(
             session_id=session_id,
             started_at=meta.started_at,
@@ -306,6 +407,9 @@ class SessionStore:
 
     def _summary_path(self, session_id: str) -> Path:
         return self.base_dir / session_id / "summary.json"
+
+    def _auto_samples_path(self, session_id: str) -> Path:
+        return self.base_dir / session_id / "auto_samples.jsonl"
 
     def _write_meta(self, meta: SessionMeta) -> None:
         path = self._meta_path(meta.session_id)

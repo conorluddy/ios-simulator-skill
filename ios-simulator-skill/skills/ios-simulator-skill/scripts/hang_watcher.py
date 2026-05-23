@@ -77,6 +77,13 @@ DEFAULT_HANG_PREDICATE = (
     'OR ((eventMessage CONTAINS[c] "main thread") AND (eventMessage CONTAINS[c] "hang"))'
 )
 
+# How many times the worker re-spawns ``log stream`` after an EOF / subprocess
+# death before giving up and marking the session crashed. Override via env var
+# IOS_SIM_HANG_MAX_RESTARTS.
+DEFAULT_MAX_STREAM_RESTARTS = 3
+# Backoff between restart attempts. Short — log stream usually recovers fast.
+RESTART_BACKOFF_SECONDS = 2.0
+
 
 def _compute_start_timestamp(duration_str: str) -> str:
     """Parse duration string and return ISO-8601 start timestamp.
@@ -144,7 +151,7 @@ class HangWatcher:
             True if stream ran without fatal errors.
         """
         resolved_udid = self._resolve_udid()
-        effective_predicate = _resolve_predicate(predicate, bundle_id)
+        effective_predicate = _resolve_predicate(predicate)
         cmd = self._build_stream_cmd(resolved_udid, effective_predicate)
 
         if verbose or not json_mode:
@@ -153,7 +160,7 @@ class HangWatcher:
                 file=sys.stderr,
             )
             if bundle_id:
-                print(f"Filter: {bundle_id}", file=sys.stderr)
+                print(f"Post-parse filter: {bundle_id}", file=sys.stderr)
             print(f"Predicate: {effective_predicate}", file=sys.stderr)
 
         self._register_signal_handler()
@@ -240,7 +247,7 @@ class HangWatcher:
             True if command ran without fatal errors.
         """
         resolved_udid = self._resolve_udid()
-        effective_predicate = _resolve_predicate(predicate, bundle_id)
+        effective_predicate = _resolve_predicate(predicate)
         start_timestamp = self._compute_start_timestamp(since_duration)
         cmd = self._build_show_cmd(resolved_udid, effective_predicate, start_timestamp)
 
@@ -372,9 +379,8 @@ class HangWatcher:
         return _pipeline_extract_duration_ms(message)
 
     def _matches_bundle(self, event: dict, bundle_id: str) -> bool:
-        """Check if event process name matches the bundle ID."""
-        app_name = bundle_id.rsplit(".", maxsplit=1)[-1].lower()
-        return app_name in event.get("process", "").lower()
+        """Delegate to module-level ``matches_bundle`` (kept for legacy callers)."""
+        return matches_bundle(event, bundle_id)
 
     def _format_event(self, event: dict) -> str:
         """Format a hang event for human-readable terminal output."""
@@ -406,14 +412,26 @@ class HangWatcher:
 # === HANGBUSTER (session mode) ===
 
 
-def _resolve_predicate(predicate: str | None, bundle_id: str | None) -> str:
-    """Resolution chain: CLI override → env var → default. Bundle filter ANDed in if set."""
-    base = predicate or os.getenv("IOS_SIM_HANG_PREDICATE") or DEFAULT_HANG_PREDICATE
-    if bundle_id:
-        app_name = bundle_id.rsplit(".", maxsplit=1)[-1]
-        bundle_clause = f'(processImagePath CONTAINS "/{app_name}.app/" OR process == "{app_name}")'
-        base = f"({base}) AND {bundle_clause}"
-    return base
+def _resolve_predicate(predicate: str | None) -> str:
+    """Resolution chain: CLI override → env var → default.
+
+    Bundle filtering is *not* applied here — see ``matches_bundle()``. The
+    default hang predicate matches events from RunningBoard, SpringBoard, and
+    the watchdog, none of which run inside the target app's process. ANDing a
+    ``process == <app>`` clause silently drops the bulk of useful hang signal.
+    """
+    return predicate or os.getenv("IOS_SIM_HANG_PREDICATE") or DEFAULT_HANG_PREDICATE
+
+
+def matches_bundle(event: dict, bundle_id: str) -> bool:
+    """Check if a parsed log event's process name matches the bundle ID.
+
+    Applied post-parse so hang events from system processes (RunningBoard,
+    SpringBoard) still flow through the pipeline; ``--bundle-id`` narrows the
+    final output rather than the os_log predicate.
+    """
+    app_name = bundle_id.rsplit(".", maxsplit=1)[-1].lower()
+    return app_name in event.get("process", "").lower()
 
 
 class HangBuster:
@@ -431,6 +449,9 @@ class HangBuster:
     def start(self, args: dict, udid: str | None) -> str:
         """Create session, detach worker, return session_id once worker registers."""
         self.store.prune_expired()
+        aggregate_cap_mb = env_int("IOS_SIM_HANG_TOTAL_CAP_MB", 100)
+        if aggregate_cap_mb > 0:
+            self.store.prune_to_aggregate_cap(aggregate_cap_mb * 1024 * 1024)
         resolved_udid = self._resolve_udid(udid)
         meta = self.store.create({**args, "udid": resolved_udid})
         cmd = [
@@ -471,6 +492,11 @@ class HangBuster:
             self._wait_for_worker_exit(session_id, timeout_seconds=2.0)
         meta = self.store.load_meta(session_id)
         line_counters = meta.extras.get("line_counters", {})
+
+        if meta.args.get("raw_capture"):
+            # Raw-capture sessions skip the clustering pipeline entirely.
+            return self._stop_raw_session(session_id, meta, line_counters, json_mode)
+
         summary = self.store.build_summary(
             session_id,
             matched_lines=line_counters.get("matched", 0),
@@ -488,6 +514,63 @@ class HangBuster:
         budget = budget_tokens or env_int("IOS_SIM_HANG_BUDGET_TOKENS", 0) or None
         return compress_to_budget(summary, max_tokens=budget, default_top_n=effective_top_n)
 
+    def _stop_raw_session(self, session_id: str, meta, line_counters: dict, json_mode: bool) -> str:
+        """Finalise a raw-capture session: gzip raw.ndjson, write status, report.
+
+        No summary.json is written for raw sessions — clustering is not applied.
+        ``--get-details`` redirects to the raw file.
+        """
+        import gzip
+        import shutil
+
+        raw_path = self.store.raw_path(session_id)
+        gz_path = self.store.raw_path(session_id, gzipped=True)
+        raw_bytes = raw_path.stat().st_size if raw_path.exists() else 0
+        no_gzip = bool(meta.args.get("no_gzip"))
+        final_path = raw_path
+        if not no_gzip and raw_path.exists() and raw_bytes > 0:
+            with open(raw_path, "rb") as src, gzip.open(gz_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            raw_path.unlink()
+            final_path = gz_path
+            meta.extras["raw_gzipped"] = True
+            meta.extras["raw_bytes_compressed"] = gz_path.stat().st_size
+
+        meta.extras["raw_bytes"] = raw_bytes
+        # Mark stopped without going through build_summary (no summary.json for raw).
+        meta.status = "stopped"
+        from datetime import datetime as _dt
+
+        now = _dt.now()
+        meta.stopped_at = now.isoformat()
+        meta.stopped_at_ms = int(now.timestamp() * 1000)
+        self.store._write_meta(meta)
+        truncated = bool(meta.extras.get("truncated"))
+        if json_mode:
+            return json.dumps(
+                {
+                    "session_id": session_id,
+                    "mode": "raw",
+                    "raw_path": str(final_path),
+                    "raw_bytes": raw_bytes,
+                    "raw_bytes_compressed": meta.extras.get("raw_bytes_compressed"),
+                    "truncated": truncated,
+                    "total_lines": line_counters.get("total", 0),
+                    "stream_restarts": line_counters.get("stream_restarts", 0),
+                },
+                indent=2,
+            )
+        size_mb = raw_bytes / (1024 * 1024)
+        gz_mb = (meta.extras.get("raw_bytes_compressed") or 0) / (1024 * 1024)
+        trunc_str = " [TRUNCATED at size cap]" if truncated else ""
+        gz_str = f" → {gz_mb:.2f} MB gzipped" if gz_path.exists() else ""
+        explore_cmd = "zcat" if gz_path.exists() else "cat"
+        return (
+            f"Session {session_id}: raw mode, {line_counters.get('total', 0)} lines, "
+            f"{size_mb:.2f} MB{gz_str}{trunc_str}\n"
+            f"Explore: {explore_cmd} {final_path} | jq ..."
+        )
+
     def get_details(
         self,
         session_id: str,
@@ -497,6 +580,17 @@ class HangBuster:
         json_mode: bool = False,
     ) -> str:
         """Drill into a stored session. ``cluster`` is 1-indexed for human use."""
+        try:
+            meta = self.store.load_meta(session_id)
+        except FileNotFoundError:
+            return f"Unknown session: {session_id}"
+        if meta.args.get("raw_capture"):
+            # Raw sessions have no clusters — point at the file.
+            gz_path = self.store.raw_path(session_id, gzipped=True)
+            ndjson_path = self.store.raw_path(session_id)
+            target = gz_path if gz_path.exists() else ndjson_path
+            cmd = "zcat" if gz_path.exists() else "cat"
+            return f"Raw session — explore with: {cmd} {target} | jq ..."
         summary = self.store.load_summary(session_id)
         if summary is None:
             return f"No summary for {session_id}. Run --stop first."
@@ -530,8 +624,21 @@ class HangBuster:
         lines = [f"Sessions: {len(metas)}"]
         for meta in metas[:20]:
             stopped = meta.stopped_at or "-"
+            counters = meta.extras.get("line_counters", {})
+            restarts = counters.get("stream_restarts", 0)
+            duration_s = (
+                (meta.stopped_at_ms - meta.started_at_ms) / 1000.0 if meta.stopped_at_ms else None
+            )
+            duration_str = f"  capture={duration_s:.1f}s" if duration_s is not None else ""
+            restart_str = f"  restarts={restarts}" if restarts else ""
+            raw_str = ""
+            if meta.args.get("raw_capture"):
+                size = meta.extras.get("raw_bytes_compressed") or meta.extras.get("raw_bytes") or 0
+                trunc = "T" if meta.extras.get("truncated") else "-"
+                raw_str = f"  raw={size / 1024 / 1024:.2f}MB(trunc:{trunc})"
             lines.append(
-                f"  {meta.session_id}  {meta.status:8s}  started={meta.started_at}  stopped={stopped}"
+                f"  {meta.session_id}  {meta.status:8s}  started={meta.started_at}  "
+                f"stopped={stopped}{duration_str}{restart_str}{raw_str}"
             )
         if len(metas) > 20:
             lines.append(f"  ... {len(metas) - 20} more")
@@ -561,8 +668,16 @@ class HangBuster:
         """Long-running worker entrypoint. Returns exit code.
 
         Layout: claim meta → resolve predicate → open events.jsonl line-buffered
-        → spawn ``xcrun simctl spawn ... log stream`` → loop with select-based
-        readline timeout. SIGTERM flushes and exits cleanly.
+        → for each restart attempt, spawn ``xcrun simctl spawn ... log stream``
+        and read lines until EOF or subprocess death. SIGTERM flushes and exits
+        cleanly. EOF / subprocess death triggers a bounded restart loop
+        (``IOS_SIM_HANG_MAX_RESTARTS``); on exhaustion the session is marked
+        ``crashed`` rather than left in stale ``running`` state.
+
+        In ``--raw-capture`` mode the worker spawns ``log stream --style ndjson``
+        and dumps raw lines to ``raw.ndjson`` instead of parsing into the
+        clustering pipeline. Same restart/crash semantics; additional size-cap
+        bail when the raw file exceeds ``max_size_mb``.
         """
         meta = self.store.claim_worker(session_id, pid=os.getpid())
         args = meta.args
@@ -571,12 +686,16 @@ class HangBuster:
         predicate_override = args.get("predicate")
         auto_sample = bool(args.get("auto_sample", False))
         udid = args["udid"]
-        predicate = _resolve_predicate(predicate_override, bundle_id)
+        predicate = _resolve_predicate(predicate_override)
+        max_restarts = env_int("IOS_SIM_HANG_MAX_RESTARTS", DEFAULT_MAX_STREAM_RESTARTS)
+        raw_capture = bool(args.get("raw_capture", False))
+        max_size_bytes = int(args.get("max_size_mb", 10)) * 1024 * 1024 if raw_capture else 0
 
         events_path = self.store.events_path(session_id)
-        counters = {"total": 0, "matched": 0, "dropped": 0}
+        counters = {"total": 0, "matched": 0, "dropped": 0, "stream_restarts": 0}
         sampled_fingerprints: set[str] = set()
         stop_flag = {"value": False}
+        cap_state = {"hit": False}  # set by raw reader when size cap exceeded
 
         def _on_sigterm(_signum, _frame):
             stop_flag["value"] = True
@@ -585,8 +704,11 @@ class HangBuster:
         signal.signal(signal.SIGINT, _on_sigterm)
 
         cmd = ["xcrun", "simctl", "spawn", udid, "log", "stream", "--predicate", predicate]
-        try:
-            proc = subprocess.Popen(
+        if raw_capture:
+            cmd.extend(["--style", "ndjson"])
+
+        def _spawn_log_stream() -> subprocess.Popen:
+            return subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -594,76 +716,264 @@ class HangBuster:
                 text=True,
                 bufsize=1,
             )
-        except FileNotFoundError:
-            self.store.mark_crashed(session_id)
-            return 2
 
-        last_fsync = time.time()
-        last_event_at = time.time()
-        stream_silence_seconds = 30.0
+        proc: subprocess.Popen | None = None
+        crashed = False
+        try:
+            with contextlib.ExitStack() as stack:
+                out_handle = stack.enter_context(open(events_path, "a", buffering=1))
+                raw_handle = (
+                    stack.enter_context(open(self.store.raw_path(session_id), "a", buffering=1))
+                    if raw_capture
+                    else None
+                )
+                for attempt in range(max_restarts + 1):
+                    if stop_flag["value"]:
+                        break
+                    if attempt > 0:
+                        counters["stream_restarts"] = attempt
+                        out_handle.write(
+                            json.dumps(
+                                {
+                                    "event": "stream_restart",
+                                    "attempt": attempt,
+                                    "at_ms": int(time.time() * 1000),
+                                }
+                            )
+                            + "\n"
+                        )
+                        out_handle.flush()
+                        time.sleep(RESTART_BACKOFF_SECONDS)
+                        if stop_flag["value"]:
+                            break
+                    try:
+                        proc = _spawn_log_stream()
+                    except FileNotFoundError:
+                        crashed = True
+                        break
 
-        with open(events_path, "a", buffering=1) as out_handle:
-            while not stop_flag["value"]:
-                if proc.stdout is None:
-                    break
-                ready, _, _ = select.select([proc.stdout], [], [], 0.25)
-                if not ready:
-                    # No data this tick — check for stream silence + writer fsync.
-                    if time.time() - last_event_at > stream_silence_seconds:
+                    if raw_capture:
+                        exit_code = self._read_stream_into_raw(
+                            proc=proc,
+                            raw_handle=raw_handle,
+                            stop_flag=stop_flag,
+                            counters=counters,
+                            max_size_bytes=max_size_bytes,
+                            session_id=session_id,
+                            cap_state=cap_state,
+                        )
+                    else:
+                        exit_code = self._read_stream_into_events(
+                            proc=proc,
+                            out_handle=out_handle,
+                            stop_flag=stop_flag,
+                            counters=counters,
+                            bundle_id=bundle_id,
+                            min_hang_ms=min_hang_ms,
+                            auto_sample=auto_sample,
+                            sampled_fingerprints=sampled_fingerprints,
+                            session_id=session_id,
+                            session_start_ms=meta.started_at_ms,
+                        )
+
+                    if cap_state["hit"]:
+                        # Size-cap is a clean stop, not a crash. Record marker.
+                        out_handle.write(
+                            json.dumps(
+                                {
+                                    "event": "size_cap_hit",
+                                    "bytes": self.store.raw_path(session_id).stat().st_size,
+                                    "at_ms": int(time.time() * 1000),
+                                }
+                            )
+                            + "\n"
+                        )
+                        out_handle.flush()
+                        self._mark_truncated(session_id)
+                        break
+
+                    if stop_flag["value"]:
+                        # Clean SIGTERM. Don't restart, don't mark crashed.
                         out_handle.write(
                             json.dumps({"event": "stream_ended", "at_ms": int(time.time() * 1000)})
                             + "\n"
                         )
                         out_handle.flush()
                         break
-                    if time.time() - last_fsync > 1.0:
-                        out_handle.flush()
-                        os.fsync(out_handle.fileno())
-                        last_fsync = time.time()
-                    continue
-                line = proc.stdout.readline()
-                if not line:
-                    break
-                counters["total"] += 1
-                last_event_at = time.time()
-                raw_event = _pipeline_parse_log_line(line.rstrip())
-                if raw_event is None:
-                    continue
-                counters["matched"] += 1
-                duration = raw_event.get("duration_ms")
-                if duration is None or duration < min_hang_ms:
-                    counters["dropped"] += 1
-                    continue
-                normalised = build_normalised_event(
-                    raw_event,
-                    session_start_ms=meta.started_at_ms,
-                    current_ms=int(time.time() * 1000),
-                )
-                if normalised is None:
-                    continue
-                if auto_sample and normalised.fingerprint not in sampled_fingerprints:
-                    sampled_fingerprints.add(normalised.fingerprint)
-                    self._stash_auto_sample(
-                        session_id, normalised, _attempt_auto_sample(normalised.pid)
+
+                    # Subprocess died without a stop request. Record it.
+                    out_handle.write(
+                        json.dumps(
+                            {
+                                "event": "stream_died",
+                                "exit_code": exit_code,
+                                "attempt": attempt,
+                                "at_ms": int(time.time() * 1000),
+                            }
+                        )
+                        + "\n"
                     )
-                out_handle.write(event_to_jsonl(normalised) + "\n")
+                    out_handle.flush()
+                else:
+                    # for/else: ran every restart without a clean break — exhausted.
+                    crashed = True
 
-            # Drain on shutdown — flush any pending lines + cleanup subprocess.
-            out_handle.flush()
-            with contextlib.suppress(OSError):
-                os.fsync(out_handle.fileno())
+                with contextlib.suppress(OSError):
+                    os.fsync(out_handle.fileno())
+        finally:
+            # raw_handle / out_handle are closed by ExitStack on with-block exit.
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
 
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            if crashed and not stop_flag["value"]:
+                self.store.mark_crashed(session_id)
+            # SessionStore.persist_worker_counters preserves terminal status
+            # (stopped from parent's stop(), or crashed above) and avoids
+            # clobbering it back to running.
+            self.store.persist_worker_counters(session_id, counters)
 
-        # Flush line counters; SessionStore preserves status=stopped if the parent's
-        # stop() already raced ahead, otherwise marks status=running.
-        self.store.persist_worker_counters(session_id, counters)
-        return 0
+        return 2 if crashed else 0
+
+    def _read_stream_into_raw(
+        self,
+        *,
+        proc: subprocess.Popen,
+        raw_handle,
+        stop_flag: dict,
+        counters: dict,
+        max_size_bytes: int,
+        session_id: str,
+        cap_state: dict,
+    ) -> int | None:
+        """Raw NDJSON capture: dump lines verbatim to raw.ndjson, no parsing.
+
+        Sets ``cap_state['hit'] = True`` and returns when the file exceeds
+        ``max_size_bytes``. The caller treats that as a clean stop (no
+        restart, no crash) and writes a ``size_cap_hit`` marker.
+        """
+        raw_path = self.store.raw_path(session_id)
+        bytes_written = raw_path.stat().st_size if raw_path.exists() else 0
+        last_fsync = time.time()
+        while not stop_flag["value"]:
+            if proc.stdout is None:
+                return proc.poll()
+            ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+            if not ready:
+                if time.time() - last_fsync > 1.0:
+                    raw_handle.flush()
+                    with contextlib.suppress(OSError):
+                        os.fsync(raw_handle.fileno())
+                    last_fsync = time.time()
+                exit_code = proc.poll()
+                if exit_code is not None:
+                    return exit_code
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(timeout=0.5)
+                return proc.poll()
+            counters["total"] += 1
+            # Drop non-JSON banners like `log stream`'s "Filtering the log data..." and
+            # any pwuid warnings. Raw consumers expect strict NDJSON.
+            stripped = line.lstrip()
+            if not stripped.startswith("{"):
+                continue
+            raw_handle.write(line if line.endswith("\n") else line + "\n")
+            bytes_written += len(line) + (0 if line.endswith("\n") else 1)
+            if max_size_bytes > 0 and bytes_written >= max_size_bytes:
+                cap_state["hit"] = True
+                raw_handle.flush()
+                with contextlib.suppress(OSError):
+                    os.fsync(raw_handle.fileno())
+                return proc.poll()
+        return proc.poll()
+
+    def _mark_truncated(self, session_id: str) -> None:
+        """Best-effort: set extras.truncated=True. Called when size cap hit."""
+        try:
+            meta = self.store.load_meta(session_id)
+        except FileNotFoundError:
+            return
+        meta.extras["truncated"] = True
+        # Write meta directly via the public store path; intentional: SessionStore
+        # exposes no extras setter and we want one round-trip not two.
+        self.store._write_meta(meta)
+
+    def _read_stream_into_events(
+        self,
+        *,
+        proc: subprocess.Popen,
+        out_handle,
+        stop_flag: dict,
+        counters: dict,
+        bundle_id: str | None,
+        min_hang_ms: int,
+        auto_sample: bool,
+        sampled_fingerprints: set[str],
+        session_id: str,
+        session_start_ms: int,
+    ) -> int | None:
+        """Read lines until EOF / subprocess death / stop request.
+
+        Returns the subprocess exit code (None if still alive when stop_flag
+        was set, otherwise the recorded poll() value at exit time). Does not
+        emit ``stream_died`` / ``stream_ended`` events itself — the caller
+        decides which marker to write based on stop_flag.
+        """
+        last_fsync = time.time()
+        while not stop_flag["value"]:
+            if proc.stdout is None:
+                return proc.poll()
+            ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+            if not ready:
+                if time.time() - last_fsync > 1.0:
+                    out_handle.flush()
+                    with contextlib.suppress(OSError):
+                        os.fsync(out_handle.fileno())
+                    last_fsync = time.time()
+                # If the subprocess silently died, poll() returns its code now.
+                # Otherwise keep waiting — quiet log streams are normal.
+                exit_code = proc.poll()
+                if exit_code is not None:
+                    return exit_code
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                # EOF — subprocess closed stdout. Wait briefly for poll() to
+                # settle so we report a meaningful exit code.
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(timeout=0.5)
+                return proc.poll()
+            counters["total"] += 1
+            raw_event = _pipeline_parse_log_line(line.rstrip())
+            if raw_event is None:
+                continue
+            if bundle_id and not matches_bundle(raw_event, bundle_id):
+                continue
+            counters["matched"] += 1
+            duration = raw_event.get("duration_ms")
+            if duration is None or duration < min_hang_ms:
+                counters["dropped"] += 1
+                continue
+            normalised = build_normalised_event(
+                raw_event,
+                session_start_ms=session_start_ms,
+                current_ms=int(time.time() * 1000),
+            )
+            if normalised is None:
+                continue
+            if auto_sample and normalised.fingerprint not in sampled_fingerprints:
+                sampled_fingerprints.add(normalised.fingerprint)
+                self._stash_auto_sample(
+                    session_id, normalised, _attempt_auto_sample(normalised.pid)
+                )
+            out_handle.write(event_to_jsonl(normalised) + "\n")
+        return proc.poll()
 
     # === PRIVATE ===
 
@@ -693,19 +1003,13 @@ class HangBuster:
         except RuntimeError as error:
             raise RuntimeError(str(error)) from error
 
-    def _stash_auto_sample(self, session_id: str, normalised, sample: dict | None) -> None:
-        """Record an auto-sample side-channel for later cluster annotation."""
-        sample_path = self.store.session_dir(session_id) / "auto_samples.json"
-        existing = {}
-        if sample_path.exists():
-            try:
-                with open(sample_path) as handle:
-                    existing = json.load(handle)
-            except (OSError, json.JSONDecodeError):
-                existing = {}
-        existing[normalised.fingerprint] = sample
-        with open(sample_path, "w") as handle:
-            json.dump(existing, handle)
+    def _stash_auto_sample(self, session_id: str, normalised, sample: dict) -> None:
+        """Record an auto-sample side-channel for later cluster annotation.
+
+        Delegates to SessionStore's append-only JSONL writer — concurrent stashes
+        from a busy worker no longer race against each other.
+        """
+        self.store.stash_auto_sample(session_id, normalised.fingerprint, sample)
 
 
 def _attempt_auto_sample(pid: int) -> dict:
@@ -807,7 +1111,14 @@ Environment variables:
     _add_legacy_args(parser)
 
     # Filters / target
-    parser.add_argument("--bundle-id", help="Filter to a specific app bundle ID")
+    parser.add_argument(
+        "--bundle-id",
+        help=(
+            "Post-parse filter: drop events whose process name does not contain the "
+            "app suffix from this bundle ID. Hang capture itself stays simulator-global "
+            "(RunningBoard/SpringBoard events are kept)."
+        ),
+    )
     parser.add_argument("--predicate", help="Override the default os_log predicate")
     parser.add_argument("--udid", help="Device UDID (uses booted simulator if omitted)")
 
@@ -846,6 +1157,27 @@ Environment variables:
     )
     parser.add_argument("--terse", action="store_true", help="--stop: force L0 one-line output")
 
+    # Raw capture (HangBuster)
+    parser.add_argument(
+        "--raw-capture",
+        action="store_true",
+        help=(
+            "With --start: capture raw os_log NDJSON to raw.ndjson instead of bucketed events. "
+            "Explore afterwards with: zcat <session>/raw.ndjson.gz | jq ..."
+        ),
+    )
+    parser.add_argument(
+        "--max-size-mb",
+        type=int,
+        default=10,
+        help="Raw-capture per-session size cap in MB (default 10). Worker stops at cap.",
+    )
+    parser.add_argument(
+        "--no-gzip",
+        action="store_true",
+        help="Skip gzip of raw.ndjson on --stop (raw-capture mode only).",
+    )
+
     # Output
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     parser.add_argument("--verbose", action="store_true", help="Include raw lines (legacy modes)")
@@ -869,6 +1201,9 @@ Environment variables:
             "bundle_id": args.bundle_id,
             "predicate": args.predicate,
             "auto_sample": args.auto_sample,
+            "raw_capture": args.raw_capture,
+            "max_size_mb": args.max_size_mb,
+            "no_gzip": args.no_gzip,
         }
         try:
             session_id = buster.start(start_args, udid=args.udid)

@@ -58,9 +58,8 @@ def test_diff_detects_new_critical_cluster():
 def test_diff_detects_resolved_cluster():
     a = make_summary(session_id="hang-a")
     # B has fewer fingerprints than A — at least one resolved.
-    b_events = [
-        e for e in make_events() if e.symbol != "[ImageDecoder decode:]"
-    ]
+    dropped_symbol = "[ImageDecoderForLargeRasterAssets decodeWithOptions:]"
+    b_events = [e for e in make_events() if e.symbol != dropped_symbol]
     b = SummaryBuilder(
         session_id="hang-b",
         started_at="2026-05-22T14:35:00",
@@ -68,7 +67,7 @@ def test_diff_detects_resolved_cluster():
     ).build(b_events)
     result = diff_sessions(a, b)
     assert any(
-        c["symbol_or_prefix"] == "[ImageDecoder decode:]" for c in result["resolved_clusters"]
+        c["symbol_or_prefix"] == dropped_symbol for c in result["resolved_clusters"]
     )
 
 
@@ -131,3 +130,148 @@ def test_format_diff_version_mismatch_carries_warning():
     b.fingerprint_version = 99
     out = format_diff(diff_sessions(a, b))
     assert "mismatch" in out.lower()
+
+
+# === shared helper for SessionSummary fabrication ===
+
+
+def _summary_with_clusters(session_id: str, clusters_spec: list[tuple[str, float, str]]):
+    """Build a SessionSummary from (fingerprint, max_dur, severity) tuples."""
+    from common.hang_pipeline import Cluster, NormalisedEvent, SessionSummary, Severity
+
+    clusters = [
+        Cluster(
+            fingerprint=fp,
+            count=1,
+            max_duration_ms=max_dur,
+            total_duration_ms=max_dur,
+            first_delta_ms=0,
+            severity=Severity(sev),
+            symbol_or_prefix=fp,
+            sample_event=NormalisedEvent(
+                delta_ms=0,
+                process="p",
+                pid=1,
+                duration_ms=max_dur,
+                severity=Severity(sev),
+                symbol=fp,
+                message_prefix=fp,
+                fingerprint=fp,
+            ),
+        )
+        for fp, max_dur, sev in clusters_spec
+    ]
+    return SessionSummary(
+        session_id=session_id,
+        started_at="t",
+        duration_ms=1000,
+        event_count=len(clusters),
+        dropped_below_threshold=0,
+        matched_lines=len(clusters),
+        total_lines=len(clusters),
+        clusters=clusters,
+        aggregates={},
+    )
+
+
+# === zero-duration drift handling (#79) ===
+
+
+def test_diff_zero_to_zero_counts_as_stable():
+    a = _summary_with_clusters("hang-a", [("fp:silent", 0.0, "minor")])
+    b = _summary_with_clusters("hang-b", [("fp:silent", 0.0, "minor")])
+    result = diff_sessions(a, b)
+    assert result["stable_count"] == 1
+    assert not result["drift"]
+
+
+def test_diff_zero_to_nonzero_is_drift_with_inf_delta():
+    a = _summary_with_clusters("hang-a", [("fp:newsignal", 0.0, "minor")])
+    b = _summary_with_clusters("hang-b", [("fp:newsignal", 800.0, "critical")])
+    result = diff_sessions(a, b)
+    assert len(result["drift"]) == 1
+    assert result["drift"][0]["delta_pct"] == float("inf")
+    assert result["drift"][0]["max_duration_ms_a"] == 0.0
+    assert result["drift"][0]["max_duration_ms_b"] == 800.0
+
+
+def test_diff_nonzero_to_zero_is_drift_with_minus_one_hundred():
+    a = _summary_with_clusters("hang-a", [("fp:fixed", 800.0, "critical")])
+    b = _summary_with_clusters("hang-b", [("fp:fixed", 0.0, "minor")])
+    result = diff_sessions(a, b)
+    assert len(result["drift"]) == 1
+    assert result["drift"][0]["delta_pct"] == -100.0
+
+
+def test_diff_nonzero_unchanged_still_uses_threshold():
+    # Regression guard — the new zero-handling branches must not break the standard path.
+    a = _summary_with_clusters("hang-a", [("fp:steady", 500.0, "critical")])
+    b = _summary_with_clusters("hang-b", [("fp:steady", 505.0, "critical")])  # 1% drift
+    result = diff_sessions(a, b)
+    assert result["stable_count"] == 1
+    assert not result["drift"]
+
+
+def test_format_diff_renders_inf_delta_as_new():
+    a = _summary_with_clusters("hang-a", [("fp:newsignal", 0.0, "minor")])
+    b = _summary_with_clusters("hang-b", [("fp:newsignal", 800.0, "critical")])
+    out = format_diff(diff_sessions(a, b))
+    assert "new" in out
+    assert "inf" not in out.lower()
+
+
+# === verdict coverage (#82): the 3 verdicts not exercised elsewhere ===
+
+
+def test_diff_verdict_regression_new_minor():
+    # A is empty, B has one new MINOR cluster — verdict should NOT be "new critical".
+    a = _summary_with_clusters("hang-a", [])
+    b = _summary_with_clusters("hang-b", [("fp:newminor", 200.0, "minor")])
+    result = diff_sessions(a, b)
+    assert result["verdict"] == "regression: 1 new minor"
+
+
+def test_diff_verdict_improvement_resolved():
+    a = _summary_with_clusters("hang-a", [("fp:wasthere", 500.0, "critical")])
+    b = _summary_with_clusters("hang-b", [])
+    result = diff_sessions(a, b)
+    assert result["verdict"] == "improvement: 1 resolved"
+
+
+def test_diff_verdict_drift_mixed_signs():
+    # Shared fingerprints with one worsening + one improving in B.
+    a = _summary_with_clusters("hang-a", [("fp:up", 500.0, "critical"), ("fp:down", 800.0, "critical")])
+    b = _summary_with_clusters("hang-b", [("fp:up", 800.0, "critical"), ("fp:down", 500.0, "critical")])
+    result = diff_sessions(a, b)
+    assert result["verdict"] == "drift: 1 worsened, 1 improved"
+
+
+# === format_diff render coverage (#82) ===
+
+
+def test_format_diff_renders_new_block():
+    a = _summary_with_clusters("hang-a", [])
+    b = _summary_with_clusters("hang-b", [("fp:fresh", 1500.0, "critical")])
+    out = format_diff(diff_sessions(a, b))
+    assert "New (" in out
+    assert "fp:fresh" in out
+    assert "1500" in out
+
+
+def test_format_diff_renders_resolved_block():
+    a = _summary_with_clusters("hang-a", [("fp:gone", 700.0, "warn")])
+    b = _summary_with_clusters("hang-b", [])
+    out = format_diff(diff_sessions(a, b))
+    assert "Resolved (" in out
+    assert "fp:gone" in out
+
+
+def test_format_diff_renders_drift_block():
+    # 60% bump triggers drift entry.
+    a = _summary_with_clusters("hang-a", [("fp:slow", 500.0, "critical")])
+    b = _summary_with_clusters("hang-b", [("fp:slow", 800.0, "critical")])
+    out = format_diff(diff_sessions(a, b))
+    assert "Drift (" in out
+    assert "fp:slow" in out
+    assert "500" in out
+    assert "800" in out

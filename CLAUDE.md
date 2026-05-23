@@ -4,11 +4,11 @@ This file provides guidance to Claude Code and developers working with this repo
 
 ## Project Overview
 
-iOS Simulator Skill is a production-ready Agent Skill providing 21 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
+iOS Simulator Skill is a production-ready Agent Skill providing 29 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
 
 **Key Statistics:**
-- 27 production scripts (~9,000 lines)
-- 5 script categories (Build, Navigation, Testing, Permissions, Lifecycle)
+- 29 production scripts
+- 7 script categories (Build, Device State, Navigation, Testing, Permissions, Simulator Discovery, Lifecycle)
 - 7 shared utility modules (~2,400 lines)
 - 100% token-optimized default output
 - 88 unit tests across pipeline / sessions / token-budget / diff (run `pytest tests/`)
@@ -23,7 +23,7 @@ ios-simulator-skill/            # Repository root
 │   └── skills/
 │       └── ios-simulator-skill/
 │           ├── SKILL.md       # Entry point (table of contents)
-│           └── scripts/       # 27 production scripts
+│           └── scripts/       # 29 production scripts
 │               ├── build_and_test.py
 │               ├── xcode/     # Xcode integration module
 │               ├── log_monitor.py
@@ -122,6 +122,10 @@ python scripts/simctl_boot.py --type iPhone
 - **build_and_test.py**: Build with progressive disclosure
 - **log_monitor.py**: Real-time log monitoring
 
+### Device State (2)
+- **appearance.py**: Dark mode, Dynamic Type, locale/region
+- **location.py**: GPS coordinates, city presets, GPX route playback
+
 ### Navigation & Interaction (5)
 - **screen_mapper.py**: Analyze screen
 - **navigator.py**: Semantic element finding
@@ -129,19 +133,26 @@ python scripts/simctl_boot.py --type iPhone
 - **keyboard.py**: Text input and keys
 - **app_launcher.py**: App lifecycle
 
-### Testing & Analysis (6)
+### Testing & Analysis (9)
 - **accessibility_audit.py**: WCAG compliance
 - **visual_diff.py**: Screenshot comparison
 - **test_recorder.py**: Test documentation
 - **app_state_capture.py**: Debugging snapshots
 - **sim_health_check.sh**: Environment verification
-- **hang_watcher.py** (HangBuster): session-scoped hang recorder with progressive disclosure (`--start`/`--stop`/`--get-details`/`--diff`); legacy `--watch`/`--since` paths preserved
+- **model_inspector.py**: Core Data and SwiftData model inspection
+- **container.py**: App sandbox files, UserDefaults, Core Data store paths
+- **hang_watcher.py** (HangBuster): session-scoped hang recorder with progressive disclosure (`--start`/`--stop`/`--get-details`/`--diff`); raw NDJSON mode (`--raw-capture` + size cap + gzip) for `jq` exploration; bounded auto-restart on stream EOF (`IOS_SIM_HANG_MAX_RESTARTS`) so crashed workers are marked `crashed` not stale `running`; aggregate disk cap (`IOS_SIM_HANG_TOTAL_CAP_MB`) pruned on every `--start`; legacy `--watch`/`--since` paths preserved
+- **localization_audit.py**: String catalog gaps, missing keys, placeholder mismatches
 
 ### Advanced Testing & Permissions (4)
 - **clipboard.py**: Clipboard management
 - **status_bar.py**: Status bar control
 - **push_notification.py**: Push notifications
 - **privacy_manager.py**: Permission management
+
+### Simulator Discovery (2)
+- **sim_list.py**: List simulators with progressive disclosure (96% token reduction)
+- **simulator_selector.py**: Suggest best simulator from recent use, latest iOS, boot status
 
 ### Device Lifecycle Management (5)
 - **simctl_boot.py**: Boot device
@@ -175,11 +186,14 @@ Pure-function HangBuster filter pipeline (parse → normalise → threshold → 
 - `diff_sessions()` with `fingerprint_version` guard
 - Dataclasses: `NormalisedEvent`, `Cluster`, `SessionSummary`, `Severity` (StrEnum)
 
-### hang_sessions.py (~355 lines)
-- `SessionStore`: filesystem-backed session repository at `~/.ios-simulator-skill/sessions/<id>/{meta.json, events.jsonl, summary.json}`
+### hang_sessions.py (~400 lines)
+- `SessionStore`: filesystem-backed session repository at `~/.ios-simulator-skill/sessions/<id>/{meta.json, events.jsonl, summary.json, raw.ndjson.gz?, auto_samples.jsonl?}`
 - Session ID format: `hang-YYYYMMDD-HHmmss-<4hex>` (random suffix avoids same-second collisions)
 - Atomic meta writes (`.tmp` + `replace`); worker writes its own pid (no pidfile race)
+- Status state machine: `pending → running → (stopped | crashed)`. `mark_crashed` records `stopped_at_ms` so `build_summary` reflects the capture window, not the time of inspection. `persist_worker_counters` preserves terminal status (cannot clobber CRASHED/STOPPED back to RUNNING).
 - TTL prune via `IOS_SIM_HANG_SESSION_TTL_HOURS` on every `--start`
+- Aggregate cap via `IOS_SIM_HANG_TOTAL_CAP_MB` (`prune_to_aggregate_cap`) — oldest-first eviction; runs alongside TTL prune on every `--start`
+- `raw_path()` + `session_total_bytes()` accessors for raw-capture mode
 
 ## Quality Standards
 
