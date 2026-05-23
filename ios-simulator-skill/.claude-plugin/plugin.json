@@ -1,6 +1,6 @@
 {
   "name": "ios-simulator-skill",
-  "description": "22 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management.",
+  "description": "29 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management.",
   "author": {
     "name": "Conor Luddy"
   },

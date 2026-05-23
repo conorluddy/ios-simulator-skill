@@ -8,7 +8,7 @@
     {
       "name": "ios-simulator-skill",
       "source": "./ios-simulator-skill",
-      "description": "22 production-ready scripts for iOS app testing, building, and automation"
+      "description": "29 production-ready scripts for iOS app testing, building, and automation"
     }
   ]
 }

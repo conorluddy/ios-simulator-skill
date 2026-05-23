@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
 version: 1.5.0
-description: 27 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
+description: 29 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
 ---
 
 # iOS Simulator Skill
@@ -40,7 +40,7 @@ Use this priority:
 
 Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree costs 10–50 tokens in default mode.
 
-## 27 Production Scripts
+## 29 Production Scripts
 
 ### Build & Development (2 scripts)
 
@@ -200,36 +200,53 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - Audit trail with test scenario tracking
     - Options: `--bundle-id`, `--grant`, `--revoke`, `--reset`, `--list`, `--json`
 
+### Simulator Discovery (2 scripts)
+
+23. **sim_list.py** - List simulators with progressive disclosure
+    - Concise summary by default (total / available / booted)
+    - Full details on demand via cache IDs
+    - Filter by device type
+    - Suggest recommended simulators with `--suggest`
+    - 96% token reduction vs raw `simctl list` (57k → 2k tokens)
+    - Options: `--get-details`, `--suggest`, `--device-type`, `--json`
+
+24. **simulator_selector.py** - Suggest the best simulator for the job
+    - Ranks candidates by recent use (from `config.json`), latest iOS, common test models, and boot status
+    - List all available simulators with `--list`
+    - Boot a selected simulator directly with `--boot`
+    - JSON output for programmatic use
+    - Options: `--suggest`, `--list`, `--boot`, `--json`
+
 ### Device Lifecycle Management (5 scripts)
 
-23. **simctl_boot.py** - Boot simulators with optional readiness verification
+25. **simctl_boot.py** - Boot simulators with optional readiness verification
     - Boot by UDID or device name
     - Wait for device ready with timeout
     - Batch boot operations (--all, --type)
     - Performance timing
     - Options: `--udid`, `--name`, `--wait-ready`, `--timeout`, `--all`, `--type`, `--json`
 
-24. **simctl_shutdown.py** - Gracefully shutdown simulators
+26. **simctl_shutdown.py** - Gracefully shutdown simulators
     - Shutdown by UDID or device name
     - Optional verification of shutdown completion
     - Batch shutdown operations
     - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--json`
 
-25. **simctl_create.py** - Create simulators dynamically
+27. **simctl_create.py** - Create simulators dynamically
     - Create by device type and iOS version
     - List available device types and runtimes
     - Custom device naming
     - Returns UDID for CI/CD integration
     - Options: `--device`, `--runtime`, `--name`, `--list-devices`, `--list-runtimes`, `--json`
 
-26. **simctl_delete.py** - Permanently delete simulators
+28. **simctl_delete.py** - Permanently delete simulators
     - Delete by UDID or device name
     - Safety confirmation by default (skip with --yes)
     - Batch delete operations
     - Smart deletion (--old N to keep N per device type)
     - Options: `--udid`, `--name`, `--yes`, `--all`, `--type`, `--old`, `--json`
 
-27. **simctl_erase.py** - Factory reset simulators without deletion
+29. **simctl_erase.py** - Factory reset simulators without deletion
     - Preserve device UUID (faster than delete+create)
     - Erase all, by type, or booted simulators
     - Optional verification
