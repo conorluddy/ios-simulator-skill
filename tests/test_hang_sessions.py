@@ -251,3 +251,34 @@ def test_meta_json_is_valid(store: SessionStore):
     with open(store.session_dir(meta.session_id) / "meta.json") as handle:
         payload = json.load(handle)
     assert payload["args"]["foo"] == "bar"
+
+
+# === crashed-worker recovery (#82) ===
+
+
+def test_mark_crashed_sets_status(store: SessionStore):
+    meta = store.create({})
+    store.mark_crashed(meta.session_id)
+    assert store.load_meta(meta.session_id).status == "crashed"
+
+
+def test_mark_crashed_after_claim_overrides_running(store: SessionStore):
+    meta = store.create({})
+    store.claim_worker(meta.session_id, pid=os.getpid())
+    store.mark_crashed(meta.session_id)
+    assert store.load_meta(meta.session_id).status == "crashed"
+
+
+def test_mark_crashed_silent_on_missing_session(store: SessionStore):
+    # Worker died before claim_worker; meta may be gone after a TTL prune.
+    store.mark_crashed("hang-19700101-000000-dead")  # never existed
+    # No exception, no side effect; just returns.
+
+
+def test_load_summary_returns_none_when_missing(store: SessionStore):
+    """A session that was created but never reached --stop has no summary.json.
+    load_summary must return None rather than raising."""
+    meta = store.create({})
+    store.claim_worker(meta.session_id, pid=os.getpid())
+    store.mark_crashed(meta.session_id)
+    assert store.load_summary(meta.session_id) is None
