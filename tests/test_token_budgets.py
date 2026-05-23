@@ -72,3 +72,46 @@ def test_compress_with_no_budget_returns_l1():
     summary = make_summary()
     out = compress_to_budget(summary, max_tokens=None)
     assert "Drill:" in out
+
+
+# === fixture-stress assertions (#82) ===
+
+
+def test_fixture_covers_all_severity_tiers():
+    """The contract tests are only meaningful if the fixture actually exercises
+    every severity band. Guard against a future fixture regression."""
+    summary = make_summary()
+    severities_present = {c.severity.value for c in summary.clusters}
+    assert severities_present == {"minor", "warn", "critical", "frozen"}
+
+
+def test_fixture_has_at_least_ten_clusters():
+    summary = make_summary()
+    assert len(summary.clusters) >= 10
+
+
+def test_l2_renders_all_aggregate_branches():
+    """L2 formatter has four optional branches (severity histogram, bursts,
+    quiet periods, process distribution). Fixture must populate all four so
+    none are silently skipped."""
+    summary = make_summary()
+    out = format_l2(summary)
+    assert "Severity:" in out
+    assert "Bursts:" in out
+    assert "Quiet periods:" in out
+    assert "Processes:" in out
+
+
+def test_l1_floor_is_meaningful():
+    """L1 should be far enough above zero that the top-N lines actually render."""
+    summary = make_summary()
+    out = format_l1(summary)
+    # Header (~30 tokens) + 3 cluster lines + drill hint should land well above 60.
+    assert estimate_tokens(out) >= 60
+
+
+def test_l2_floor_renders_full_summary():
+    """L2 must include header + every cluster + every aggregate branch — easily 200+ tokens."""
+    summary = make_summary()
+    out = format_l2(summary)
+    assert estimate_tokens(out) >= 200

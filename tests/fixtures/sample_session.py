@@ -19,50 +19,62 @@ from common.hang_pipeline import (
 def make_events(count: int = 50, duration_window_ms: int = 30_000) -> list[NormalisedEvent]:
     """Produce ``count`` synthetic events spread over ``duration_window_ms``.
 
-    Distribution: ~10 unique fingerprints, biased toward a few hot clusters so
-    output stays compact under the token-budget contract.
+    Mixes all four Severity tiers, ≥10 unique fingerprints, two processes, and
+    a temporal burst + quiet gap so SummaryBuilder's aggregators have content
+    to surface. Stress-shape rather than soft-shape so the token-budget tests
+    actually exercise the formatter.
     """
-    events: list[NormalisedEvent] = []
-    symbols = [
-        "[ImageDecoder decode:]",
-        "[NetworkSession fetch:]",
-        "MainViewModel.refresh()",
-        "[FileCache flush]",
-        "RunningBoard watchdog",
-        "[Layout calculateBounds]",
-        "[Database query:]",
-        "AnimationCoordinator.tick",
-        "[AudioEngine render]",
-        "[Notification post]",
+    # (symbol, base_duration_ms, severity_band, process) — long symbol prefixes for stress.
+    specs = [
+        ("[ImageDecoderForLargeRasterAssets decodeWithOptions:]", 1100, "critical", "MyApp"),
+        ("[NetworkSession.background fetchUpstreamPayload:]", 900, "critical", "MyApp"),
+        ("MainViewModel.refreshFromRemoteSource(timeout:)", 700, "critical", "MyApp"),
+        ("[FileCache flushAllDirtyPagesToDisk]", 380, "warn", "MyApp"),
+        ("RunningBoard watchdog: assertion expired", 350, "warn", "MyApp"),
+        ("[Layout calculateBoundsInsideContainer:withConstraints:]", 310, "warn", "MyApp"),
+        ("[Database executeUnboundedQuery:onConnection:]", 180, "minor", "MyApp"),
+        ("AnimationCoordinator.tickWithDisplayLinkFrame", 150, "minor", "Helper"),
+        ("[AudioEngine renderQuantum:withInterruptions:]", 120, "minor", "Helper"),
+        ("[Notification postOnDistributedCenter:]", 100, "minor", "Helper"),
+        ("MainThreadDispatch.semaphoreWaitLongerThanForever()", 2800, "frozen", "MyApp"),
+        ("[DiskArbitration mountAllRetrying:]", 3200, "frozen", "Helper"),
     ]
-    # Hot clusters: first 3 symbols get most of the volume.
-    hot_share = [22, 12, 8]  # 42 events across hot clusters
-    cold_share = [1] * (count - sum(hot_share))  # remaining spread across cold clusters
-    shares = hot_share + cold_share
+    # Per-cluster event counts — first cluster is hot (drives near-max count).
+    counts = [18, 6, 4, 5, 4, 3, 3, 2, 2, 1, 1, 1]
     delta_step = duration_window_ms // count
-    for i, share_idx in enumerate(_flatten_share(shares)):
-        symbol = symbols[share_idx % len(symbols)]
-        # Hot clusters get higher durations.
-        duration = 600 + (share_idx * 80) + (i % 5) * 20
-        events.append(
-            NormalisedEvent(
-                delta_ms=delta_step * i,
-                process="MyApp",
-                pid=4242,
-                duration_ms=duration,
-                severity=bucket_severity(duration),
-                symbol=symbol,
-                message_prefix=f"hang in {symbol}",
-                fingerprint=compute_fingerprint(symbol, f"hang in {symbol}"),
-                raw_message=f"Hang detected: {duration}ms in {symbol}",
+    events: list[NormalisedEvent] = []
+    event_idx = 0
+    for spec_idx, ((symbol, base_dur, _band, process), per_cluster) in enumerate(
+        zip(specs, counts, strict=True)
+    ):
+        for j in range(per_cluster):
+            # Pack the first cluster temporally close to trigger detect_temporal_bursts.
+            if spec_idx == 0:
+                delta = j * 120  # 18 events inside a 2.1s window
+            else:
+                # Other clusters spread across the window with a deliberate quiet gap
+                # in the middle for detect_quiet_periods to pick up.
+                delta = delta_step * event_idx
+                if delta_step * event_idx > duration_window_ms // 2:
+                    delta += 7000  # 7s gap → triggers quiet_period detection
+            duration = base_dur + (j % 4) * 25
+            events.append(
+                NormalisedEvent(
+                    delta_ms=delta,
+                    process=process,
+                    pid=4242 if process == "MyApp" else 5151,
+                    duration_ms=duration,
+                    severity=bucket_severity(duration),
+                    symbol=symbol,
+                    message_prefix=f"hang in {symbol}",
+                    fingerprint=compute_fingerprint(symbol, f"hang in {symbol}"),
+                    raw_message=f"Hang detected: {duration}ms in {symbol}",
+                )
             )
-        )
+            event_idx += 1
+            if event_idx >= count:
+                return events
     return events
-
-
-def _flatten_share(shares: list[int]) -> list[int]:
-    """Convert per-bucket counts into a flat index list."""
-    return [idx for idx, count in enumerate(shares) for _ in range(count)]
 
 
 def make_summary(
