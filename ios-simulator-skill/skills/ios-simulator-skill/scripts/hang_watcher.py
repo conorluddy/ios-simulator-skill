@@ -144,7 +144,7 @@ class HangWatcher:
             True if stream ran without fatal errors.
         """
         resolved_udid = self._resolve_udid()
-        effective_predicate = _resolve_predicate(predicate, bundle_id)
+        effective_predicate = _resolve_predicate(predicate)
         cmd = self._build_stream_cmd(resolved_udid, effective_predicate)
 
         if verbose or not json_mode:
@@ -153,7 +153,7 @@ class HangWatcher:
                 file=sys.stderr,
             )
             if bundle_id:
-                print(f"Filter: {bundle_id}", file=sys.stderr)
+                print(f"Post-parse filter: {bundle_id}", file=sys.stderr)
             print(f"Predicate: {effective_predicate}", file=sys.stderr)
 
         self._register_signal_handler()
@@ -240,7 +240,7 @@ class HangWatcher:
             True if command ran without fatal errors.
         """
         resolved_udid = self._resolve_udid()
-        effective_predicate = _resolve_predicate(predicate, bundle_id)
+        effective_predicate = _resolve_predicate(predicate)
         start_timestamp = self._compute_start_timestamp(since_duration)
         cmd = self._build_show_cmd(resolved_udid, effective_predicate, start_timestamp)
 
@@ -372,9 +372,8 @@ class HangWatcher:
         return _pipeline_extract_duration_ms(message)
 
     def _matches_bundle(self, event: dict, bundle_id: str) -> bool:
-        """Check if event process name matches the bundle ID."""
-        app_name = bundle_id.rsplit(".", maxsplit=1)[-1].lower()
-        return app_name in event.get("process", "").lower()
+        """Delegate to module-level ``matches_bundle`` (kept for legacy callers)."""
+        return matches_bundle(event, bundle_id)
 
     def _format_event(self, event: dict) -> str:
         """Format a hang event for human-readable terminal output."""
@@ -406,14 +405,26 @@ class HangWatcher:
 # === HANGBUSTER (session mode) ===
 
 
-def _resolve_predicate(predicate: str | None, bundle_id: str | None) -> str:
-    """Resolution chain: CLI override → env var → default. Bundle filter ANDed in if set."""
-    base = predicate or os.getenv("IOS_SIM_HANG_PREDICATE") or DEFAULT_HANG_PREDICATE
-    if bundle_id:
-        app_name = bundle_id.rsplit(".", maxsplit=1)[-1]
-        bundle_clause = f'(processImagePath CONTAINS "/{app_name}.app/" OR process == "{app_name}")'
-        base = f"({base}) AND {bundle_clause}"
-    return base
+def _resolve_predicate(predicate: str | None) -> str:
+    """Resolution chain: CLI override → env var → default.
+
+    Bundle filtering is *not* applied here — see ``matches_bundle()``. The
+    default hang predicate matches events from RunningBoard, SpringBoard, and
+    the watchdog, none of which run inside the target app's process. ANDing a
+    ``process == <app>`` clause silently drops the bulk of useful hang signal.
+    """
+    return predicate or os.getenv("IOS_SIM_HANG_PREDICATE") or DEFAULT_HANG_PREDICATE
+
+
+def matches_bundle(event: dict, bundle_id: str) -> bool:
+    """Check if a parsed log event's process name matches the bundle ID.
+
+    Applied post-parse so hang events from system processes (RunningBoard,
+    SpringBoard) still flow through the pipeline; ``--bundle-id`` narrows the
+    final output rather than the os_log predicate.
+    """
+    app_name = bundle_id.rsplit(".", maxsplit=1)[-1].lower()
+    return app_name in event.get("process", "").lower()
 
 
 class HangBuster:
@@ -571,7 +582,7 @@ class HangBuster:
         predicate_override = args.get("predicate")
         auto_sample = bool(args.get("auto_sample", False))
         udid = args["udid"]
-        predicate = _resolve_predicate(predicate_override, bundle_id)
+        predicate = _resolve_predicate(predicate_override)
 
         events_path = self.store.events_path(session_id)
         counters = {"total": 0, "matched": 0, "dropped": 0}
@@ -628,6 +639,8 @@ class HangBuster:
                 last_event_at = time.time()
                 raw_event = _pipeline_parse_log_line(line.rstrip())
                 if raw_event is None:
+                    continue
+                if bundle_id and not matches_bundle(raw_event, bundle_id):
                     continue
                 counters["matched"] += 1
                 duration = raw_event.get("duration_ms")
@@ -801,7 +814,14 @@ Environment variables:
     _add_legacy_args(parser)
 
     # Filters / target
-    parser.add_argument("--bundle-id", help="Filter to a specific app bundle ID")
+    parser.add_argument(
+        "--bundle-id",
+        help=(
+            "Post-parse filter: drop events whose process name does not contain the "
+            "app suffix from this bundle ID. Hang capture itself stays simulator-global "
+            "(RunningBoard/SpringBoard events are kept)."
+        ),
+    )
     parser.add_argument("--predicate", help="Override the default os_log predicate")
     parser.add_argument("--udid", help="Device UDID (uses booted simulator if omitted)")
 
