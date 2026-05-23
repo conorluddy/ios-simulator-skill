@@ -198,6 +198,41 @@ class SessionStore:
         with open(path) as handle:
             return summary_from_json(json.load(handle))
 
+    def stash_auto_sample(self, session_id: str, fingerprint: str, sample: dict) -> None:
+        """Append an auto-sample record to ``<session>/auto_samples.jsonl``.
+
+        Append-only JSONL avoids the read-modify-write race that an aggregate
+        JSON dict would have under concurrent worker stashes. Readers reduce
+        last-write-wins per fingerprint.
+        """
+        path = self._auto_samples_path(session_id)
+        line = json.dumps({"fingerprint": fingerprint, "sample": sample}, separators=(",", ":"))
+        with open(path, "a") as handle:
+            handle.write(line + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def read_auto_samples(self, session_id: str) -> dict[str, dict]:
+        """Return ``{fingerprint: sample}`` with last-write-wins per fingerprint."""
+        path = self._auto_samples_path(session_id)
+        if not path.exists():
+            return {}
+        samples: dict[str, dict] = {}
+        with open(path) as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                fingerprint = payload.get("fingerprint")
+                if fingerprint is None:
+                    continue
+                samples[fingerprint] = payload.get("sample")
+        return samples
+
     def read_events(self, session_id: str) -> list:
         """Read all events.jsonl lines, returning NormalisedEvent instances.
 
@@ -306,6 +341,9 @@ class SessionStore:
 
     def _summary_path(self, session_id: str) -> Path:
         return self.base_dir / session_id / "summary.json"
+
+    def _auto_samples_path(self, session_id: str) -> Path:
+        return self.base_dir / session_id / "auto_samples.jsonl"
 
     def _write_meta(self, meta: SessionMeta) -> None:
         path = self._meta_path(meta.session_id)

@@ -693,19 +693,13 @@ class HangBuster:
         except RuntimeError as error:
             raise RuntimeError(str(error)) from error
 
-    def _stash_auto_sample(self, session_id: str, normalised, sample: dict | None) -> None:
-        """Record an auto-sample side-channel for later cluster annotation."""
-        sample_path = self.store.session_dir(session_id) / "auto_samples.json"
-        existing = {}
-        if sample_path.exists():
-            try:
-                with open(sample_path) as handle:
-                    existing = json.load(handle)
-            except (OSError, json.JSONDecodeError):
-                existing = {}
-        existing[normalised.fingerprint] = sample
-        with open(sample_path, "w") as handle:
-            json.dump(existing, handle)
+    def _stash_auto_sample(self, session_id: str, normalised, sample: dict) -> None:
+        """Record an auto-sample side-channel for later cluster annotation.
+
+        Delegates to SessionStore's append-only JSONL writer — concurrent stashes
+        from a busy worker no longer race against each other.
+        """
+        self.store.stash_auto_sample(session_id, normalised.fingerprint, sample)
 
 
 def _attempt_auto_sample(pid: int) -> dict:
