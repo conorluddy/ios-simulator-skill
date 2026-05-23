@@ -273,8 +273,59 @@ class SessionStore:
         """Worker writes here. Public so the worker can open it line-buffered."""
         return self._events_path(session_id)
 
+    def raw_path(self, session_id: str, gzipped: bool = False) -> Path:
+        """Raw-capture NDJSON path. ``gzipped=True`` returns the post-stop path."""
+        name = "raw.ndjson.gz" if gzipped else "raw.ndjson"
+        return self.base_dir / session_id / name
+
     def session_dir(self, session_id: str) -> Path:
         return self.base_dir / session_id
+
+    def session_total_bytes(self, session_id: str) -> int:
+        """Sum of all files under a session dir. Used by aggregate-cap pruning."""
+        total = 0
+        session_path = self.session_dir(session_id)
+        if not session_path.exists():
+            return 0
+        for path in session_path.rglob("*"):
+            if path.is_file():
+                with contextlib.suppress(OSError):
+                    total += path.stat().st_size
+        return total
+
+    def prune_to_aggregate_cap(self, max_bytes: int) -> int:
+        """Drop oldest sessions until total bytes ≤ max_bytes. Returns deletions.
+
+        Pairs with ``prune_expired``: TTL handles age, this handles disk usage
+        when activity outpaces TTL. Both are called automatically on every
+        ``create`` so the user never has to clean up manually.
+        """
+        if max_bytes <= 0:
+            return 0
+        # Oldest first — deletion order.
+        entries: list[tuple[int, str, int]] = []  # (started_at_ms, session_id, bytes)
+        total = 0
+        for entry in self.base_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            try:
+                meta = self.load_meta(entry.name)
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue
+            size = self.session_total_bytes(entry.name)
+            total += size
+            entries.append((meta.started_at_ms, entry.name, size))
+        if total <= max_bytes:
+            return 0
+        entries.sort(key=lambda e: e[0])  # oldest first
+        deleted = 0
+        for _, session_id, size in entries:
+            if total <= max_bytes:
+                break
+            _remove_tree(self.session_dir(session_id))
+            total -= size
+            deleted += 1
+        return deleted
 
     def list_sessions(self) -> list[SessionMeta]:
         """All non-expired session metas, newest first."""

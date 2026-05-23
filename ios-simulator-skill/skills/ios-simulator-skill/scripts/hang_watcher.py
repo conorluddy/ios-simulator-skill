@@ -449,6 +449,9 @@ class HangBuster:
     def start(self, args: dict, udid: str | None) -> str:
         """Create session, detach worker, return session_id once worker registers."""
         self.store.prune_expired()
+        aggregate_cap_mb = env_int("IOS_SIM_HANG_TOTAL_CAP_MB", 100)
+        if aggregate_cap_mb > 0:
+            self.store.prune_to_aggregate_cap(aggregate_cap_mb * 1024 * 1024)
         resolved_udid = self._resolve_udid(udid)
         meta = self.store.create({**args, "udid": resolved_udid})
         cmd = [
@@ -489,6 +492,11 @@ class HangBuster:
             self._wait_for_worker_exit(session_id, timeout_seconds=2.0)
         meta = self.store.load_meta(session_id)
         line_counters = meta.extras.get("line_counters", {})
+
+        if meta.args.get("raw_capture"):
+            # Raw-capture sessions skip the clustering pipeline entirely.
+            return self._stop_raw_session(session_id, meta, line_counters, json_mode)
+
         summary = self.store.build_summary(
             session_id,
             matched_lines=line_counters.get("matched", 0),
@@ -506,6 +514,63 @@ class HangBuster:
         budget = budget_tokens or env_int("IOS_SIM_HANG_BUDGET_TOKENS", 0) or None
         return compress_to_budget(summary, max_tokens=budget, default_top_n=effective_top_n)
 
+    def _stop_raw_session(self, session_id: str, meta, line_counters: dict, json_mode: bool) -> str:
+        """Finalise a raw-capture session: gzip raw.ndjson, write status, report.
+
+        No summary.json is written for raw sessions — clustering is not applied.
+        ``--get-details`` redirects to the raw file.
+        """
+        import gzip
+        import shutil
+
+        raw_path = self.store.raw_path(session_id)
+        gz_path = self.store.raw_path(session_id, gzipped=True)
+        raw_bytes = raw_path.stat().st_size if raw_path.exists() else 0
+        no_gzip = bool(meta.args.get("no_gzip"))
+        final_path = raw_path
+        if not no_gzip and raw_path.exists() and raw_bytes > 0:
+            with open(raw_path, "rb") as src, gzip.open(gz_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            raw_path.unlink()
+            final_path = gz_path
+            meta.extras["raw_gzipped"] = True
+            meta.extras["raw_bytes_compressed"] = gz_path.stat().st_size
+
+        meta.extras["raw_bytes"] = raw_bytes
+        # Mark stopped without going through build_summary (no summary.json for raw).
+        meta.status = "stopped"
+        from datetime import datetime as _dt
+
+        now = _dt.now()
+        meta.stopped_at = now.isoformat()
+        meta.stopped_at_ms = int(now.timestamp() * 1000)
+        self.store._write_meta(meta)
+        truncated = bool(meta.extras.get("truncated"))
+        if json_mode:
+            return json.dumps(
+                {
+                    "session_id": session_id,
+                    "mode": "raw",
+                    "raw_path": str(final_path),
+                    "raw_bytes": raw_bytes,
+                    "raw_bytes_compressed": meta.extras.get("raw_bytes_compressed"),
+                    "truncated": truncated,
+                    "total_lines": line_counters.get("total", 0),
+                    "stream_restarts": line_counters.get("stream_restarts", 0),
+                },
+                indent=2,
+            )
+        size_mb = raw_bytes / (1024 * 1024)
+        gz_mb = (meta.extras.get("raw_bytes_compressed") or 0) / (1024 * 1024)
+        trunc_str = " [TRUNCATED at size cap]" if truncated else ""
+        gz_str = f" → {gz_mb:.2f} MB gzipped" if gz_path.exists() else ""
+        explore_cmd = "zcat" if gz_path.exists() else "cat"
+        return (
+            f"Session {session_id}: raw mode, {line_counters.get('total', 0)} lines, "
+            f"{size_mb:.2f} MB{gz_str}{trunc_str}\n"
+            f"Explore: {explore_cmd} {final_path} | jq ..."
+        )
+
     def get_details(
         self,
         session_id: str,
@@ -515,6 +580,17 @@ class HangBuster:
         json_mode: bool = False,
     ) -> str:
         """Drill into a stored session. ``cluster`` is 1-indexed for human use."""
+        try:
+            meta = self.store.load_meta(session_id)
+        except FileNotFoundError:
+            return f"Unknown session: {session_id}"
+        if meta.args.get("raw_capture"):
+            # Raw sessions have no clusters — point at the file.
+            gz_path = self.store.raw_path(session_id, gzipped=True)
+            ndjson_path = self.store.raw_path(session_id)
+            target = gz_path if gz_path.exists() else ndjson_path
+            cmd = "zcat" if gz_path.exists() else "cat"
+            return f"Raw session — explore with: {cmd} {target} | jq ..."
         summary = self.store.load_summary(session_id)
         if summary is None:
             return f"No summary for {session_id}. Run --stop first."
@@ -555,9 +631,14 @@ class HangBuster:
             )
             duration_str = f"  capture={duration_s:.1f}s" if duration_s is not None else ""
             restart_str = f"  restarts={restarts}" if restarts else ""
+            raw_str = ""
+            if meta.args.get("raw_capture"):
+                size = meta.extras.get("raw_bytes_compressed") or meta.extras.get("raw_bytes") or 0
+                trunc = "T" if meta.extras.get("truncated") else "-"
+                raw_str = f"  raw={size / 1024 / 1024:.2f}MB(trunc:{trunc})"
             lines.append(
                 f"  {meta.session_id}  {meta.status:8s}  started={meta.started_at}  "
-                f"stopped={stopped}{duration_str}{restart_str}"
+                f"stopped={stopped}{duration_str}{restart_str}{raw_str}"
             )
         if len(metas) > 20:
             lines.append(f"  ... {len(metas) - 20} more")
@@ -592,6 +673,11 @@ class HangBuster:
         cleanly. EOF / subprocess death triggers a bounded restart loop
         (``IOS_SIM_HANG_MAX_RESTARTS``); on exhaustion the session is marked
         ``crashed`` rather than left in stale ``running`` state.
+
+        In ``--raw-capture`` mode the worker spawns ``log stream --style ndjson``
+        and dumps raw lines to ``raw.ndjson`` instead of parsing into the
+        clustering pipeline. Same restart/crash semantics; additional size-cap
+        bail when the raw file exceeds ``max_size_mb``.
         """
         meta = self.store.claim_worker(session_id, pid=os.getpid())
         args = meta.args
@@ -602,11 +688,14 @@ class HangBuster:
         udid = args["udid"]
         predicate = _resolve_predicate(predicate_override)
         max_restarts = env_int("IOS_SIM_HANG_MAX_RESTARTS", DEFAULT_MAX_STREAM_RESTARTS)
+        raw_capture = bool(args.get("raw_capture", False))
+        max_size_bytes = int(args.get("max_size_mb", 10)) * 1024 * 1024 if raw_capture else 0
 
         events_path = self.store.events_path(session_id)
         counters = {"total": 0, "matched": 0, "dropped": 0, "stream_restarts": 0}
         sampled_fingerprints: set[str] = set()
         stop_flag = {"value": False}
+        cap_state = {"hit": False}  # set by raw reader when size cap exceeded
 
         def _on_sigterm(_signum, _frame):
             stop_flag["value"] = True
@@ -615,6 +704,8 @@ class HangBuster:
         signal.signal(signal.SIGINT, _on_sigterm)
 
         cmd = ["xcrun", "simctl", "spawn", udid, "log", "stream", "--predicate", predicate]
+        if raw_capture:
+            cmd.extend(["--style", "ndjson"])
 
         def _spawn_log_stream() -> subprocess.Popen:
             return subprocess.Popen(
@@ -629,7 +720,13 @@ class HangBuster:
         proc: subprocess.Popen | None = None
         crashed = False
         try:
-            with open(events_path, "a", buffering=1) as out_handle:
+            with contextlib.ExitStack() as stack:
+                out_handle = stack.enter_context(open(events_path, "a", buffering=1))
+                raw_handle = (
+                    stack.enter_context(open(self.store.raw_path(session_id), "a", buffering=1))
+                    if raw_capture
+                    else None
+                )
                 for attempt in range(max_restarts + 1):
                     if stop_flag["value"]:
                         break
@@ -655,18 +752,45 @@ class HangBuster:
                         crashed = True
                         break
 
-                    exit_code = self._read_stream_into_events(
-                        proc=proc,
-                        out_handle=out_handle,
-                        stop_flag=stop_flag,
-                        counters=counters,
-                        bundle_id=bundle_id,
-                        min_hang_ms=min_hang_ms,
-                        auto_sample=auto_sample,
-                        sampled_fingerprints=sampled_fingerprints,
-                        session_id=session_id,
-                        session_start_ms=meta.started_at_ms,
-                    )
+                    if raw_capture:
+                        exit_code = self._read_stream_into_raw(
+                            proc=proc,
+                            raw_handle=raw_handle,
+                            stop_flag=stop_flag,
+                            counters=counters,
+                            max_size_bytes=max_size_bytes,
+                            session_id=session_id,
+                            cap_state=cap_state,
+                        )
+                    else:
+                        exit_code = self._read_stream_into_events(
+                            proc=proc,
+                            out_handle=out_handle,
+                            stop_flag=stop_flag,
+                            counters=counters,
+                            bundle_id=bundle_id,
+                            min_hang_ms=min_hang_ms,
+                            auto_sample=auto_sample,
+                            sampled_fingerprints=sampled_fingerprints,
+                            session_id=session_id,
+                            session_start_ms=meta.started_at_ms,
+                        )
+
+                    if cap_state["hit"]:
+                        # Size-cap is a clean stop, not a crash. Record marker.
+                        out_handle.write(
+                            json.dumps(
+                                {
+                                    "event": "size_cap_hit",
+                                    "bytes": self.store.raw_path(session_id).stat().st_size,
+                                    "at_ms": int(time.time() * 1000),
+                                }
+                            )
+                            + "\n"
+                        )
+                        out_handle.flush()
+                        self._mark_truncated(session_id)
+                        break
 
                     if stop_flag["value"]:
                         # Clean SIGTERM. Don't restart, don't mark crashed.
@@ -697,6 +821,7 @@ class HangBuster:
                 with contextlib.suppress(OSError):
                     os.fsync(out_handle.fileno())
         finally:
+            # raw_handle / out_handle are closed by ExitStack on with-block exit.
             if proc is not None and proc.poll() is None:
                 proc.terminate()
                 try:
@@ -712,6 +837,72 @@ class HangBuster:
             self.store.persist_worker_counters(session_id, counters)
 
         return 2 if crashed else 0
+
+    def _read_stream_into_raw(
+        self,
+        *,
+        proc: subprocess.Popen,
+        raw_handle,
+        stop_flag: dict,
+        counters: dict,
+        max_size_bytes: int,
+        session_id: str,
+        cap_state: dict,
+    ) -> int | None:
+        """Raw NDJSON capture: dump lines verbatim to raw.ndjson, no parsing.
+
+        Sets ``cap_state['hit'] = True`` and returns when the file exceeds
+        ``max_size_bytes``. The caller treats that as a clean stop (no
+        restart, no crash) and writes a ``size_cap_hit`` marker.
+        """
+        raw_path = self.store.raw_path(session_id)
+        bytes_written = raw_path.stat().st_size if raw_path.exists() else 0
+        last_fsync = time.time()
+        while not stop_flag["value"]:
+            if proc.stdout is None:
+                return proc.poll()
+            ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+            if not ready:
+                if time.time() - last_fsync > 1.0:
+                    raw_handle.flush()
+                    with contextlib.suppress(OSError):
+                        os.fsync(raw_handle.fileno())
+                    last_fsync = time.time()
+                exit_code = proc.poll()
+                if exit_code is not None:
+                    return exit_code
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(timeout=0.5)
+                return proc.poll()
+            counters["total"] += 1
+            # Drop non-JSON banners like `log stream`'s "Filtering the log data..." and
+            # any pwuid warnings. Raw consumers expect strict NDJSON.
+            stripped = line.lstrip()
+            if not stripped.startswith("{"):
+                continue
+            raw_handle.write(line if line.endswith("\n") else line + "\n")
+            bytes_written += len(line) + (0 if line.endswith("\n") else 1)
+            if max_size_bytes > 0 and bytes_written >= max_size_bytes:
+                cap_state["hit"] = True
+                raw_handle.flush()
+                with contextlib.suppress(OSError):
+                    os.fsync(raw_handle.fileno())
+                return proc.poll()
+        return proc.poll()
+
+    def _mark_truncated(self, session_id: str) -> None:
+        """Best-effort: set extras.truncated=True. Called when size cap hit."""
+        try:
+            meta = self.store.load_meta(session_id)
+        except FileNotFoundError:
+            return
+        meta.extras["truncated"] = True
+        # Write meta directly via the public store path; intentional: SessionStore
+        # exposes no extras setter and we want one round-trip not two.
+        self.store._write_meta(meta)
 
     def _read_stream_into_events(
         self,
@@ -966,6 +1157,27 @@ Environment variables:
     )
     parser.add_argument("--terse", action="store_true", help="--stop: force L0 one-line output")
 
+    # Raw capture (HangBuster)
+    parser.add_argument(
+        "--raw-capture",
+        action="store_true",
+        help=(
+            "With --start: capture raw os_log NDJSON to raw.ndjson instead of bucketed events. "
+            "Explore afterwards with: zcat <session>/raw.ndjson.gz | jq ..."
+        ),
+    )
+    parser.add_argument(
+        "--max-size-mb",
+        type=int,
+        default=10,
+        help="Raw-capture per-session size cap in MB (default 10). Worker stops at cap.",
+    )
+    parser.add_argument(
+        "--no-gzip",
+        action="store_true",
+        help="Skip gzip of raw.ndjson on --stop (raw-capture mode only).",
+    )
+
     # Output
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     parser.add_argument("--verbose", action="store_true", help="Include raw lines (legacy modes)")
@@ -989,6 +1201,9 @@ Environment variables:
             "bundle_id": args.bundle_id,
             "predicate": args.predicate,
             "auto_sample": args.auto_sample,
+            "raw_capture": args.raw_capture,
+            "max_size_mb": args.max_size_mb,
+            "no_gzip": args.no_gzip,
         }
         try:
             session_id = buster.start(start_args, udid=args.udid)

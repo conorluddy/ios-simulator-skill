@@ -262,3 +262,174 @@ def test_stream_restarts_counter_in_persisted_meta(
     meta = buster.store.load_meta(session_id)
     # MAX_RESTARTS=2 → counter records 2.
     assert meta.extras["line_counters"]["stream_restarts"] == 2
+
+
+# === #85: raw NDJSON capture ===
+
+
+def test_raw_capture_writes_lines_to_raw_ndjson(buster, patched_select, monkeypatch):
+    """Raw capture dumps every line verbatim to raw.ndjson; events.jsonl
+    receives only synthetic markers (stream_ended on clean stop)."""
+    lines = [
+        '{"eventMessage":"first","process":"grapla"}\n',
+        '{"eventMessage":"second","process":"runningboardd"}\n',
+    ]
+    raised = {"sent": False}
+
+    class _Proc(_FakeProc):
+        def readline(self):
+            # After delivering all real lines, SIGTERM ourselves so the worker
+            # exits cleanly instead of running the restart loop.
+            line = super().readline()
+            if not line and not raised["sent"]:
+                raised["sent"] = True
+                os.kill(os.getpid(), signal.SIGTERM)
+            return line
+
+    monkeypatch.setattr(
+        hang_watcher.subprocess, "Popen", lambda *a, **k: _Proc(lines=list(lines), exit_code=0)
+    )
+
+    session_id = _start_session(buster, raw_capture=True, max_size_mb=10, no_gzip=False)
+    rc = buster.run_worker(session_id)
+
+    assert rc == 0
+    raw_path = buster.store.raw_path(session_id)
+    raw_lines = raw_path.read_text().splitlines()
+    assert raw_lines == [line.rstrip() for line in lines]
+
+
+def test_raw_capture_size_cap_triggers_clean_stop(buster, patched_select, monkeypatch):
+    """When raw.ndjson exceeds max_size_bytes, the worker stops cleanly:
+    writes size_cap_hit event, sets extras.truncated, status=running (not
+    crashed). The parent's stop() will mark stopped."""
+    # 1 KB JSON lines × many → easily exceeds the cap on second write.
+    # Must start with '{' to survive the banner filter in _read_stream_into_raw.
+    big_line = '{"x":"' + "x" * 1014 + '"}\n'
+    lines = [big_line] * 5
+
+    monkeypatch.setattr(
+        hang_watcher.subprocess, "Popen", lambda *a, **k: _FakeProc(lines=lines, exit_code=0)
+    )
+
+    # max_size_mb=0 with a >0 cap intent — use a custom override path.
+    # Simulate a tiny cap by passing max_size_mb=0, then we manually override
+    # the threshold in the test... but the worker code multiplies by 1024*1024.
+    # Easier: write a few-KB cap via monkeypatching the multiplier indirectly —
+    # but cleanest is using max_size_mb=0 means no cap. So instead use 1 MB
+    # cap and feed enough lines (1024 × 1024 lines ≈ 1 GB — too slow).
+    # Trick: monkeypatch _read_stream_into_raw's max_size_bytes computation by
+    # passing the cap directly. Easiest: a tiny override env var? No env exists.
+    # Solution: instantiate _read_stream_into_raw directly with a tiny cap.
+    proc = _FakeProc(lines=lines, exit_code=0)
+    session_id = _start_session(buster, raw_capture=True, max_size_mb=10, no_gzip=True)
+    # The worker has to claim_worker before raw_path is meaningful.
+    buster.store.claim_worker(session_id, pid=os.getpid())
+    raw_handle = open(buster.store.raw_path(session_id), "a", buffering=1)
+    try:
+        cap_state: dict = {"hit": False}
+        counters: dict = {"total": 0}
+        exit_code = buster._read_stream_into_raw(
+            proc=proc,
+            raw_handle=raw_handle,
+            stop_flag={"value": False},
+            counters=counters,
+            max_size_bytes=2048,  # 2 KB — first line over, second pushes past
+            session_id=session_id,
+            cap_state=cap_state,
+        )
+    finally:
+        raw_handle.close()
+
+    assert cap_state["hit"] is True
+    assert counters["total"] >= 1
+    assert buster.store.raw_path(session_id).stat().st_size >= 2048
+
+
+def test_stop_gzips_raw_ndjson(buster, patched_select, monkeypatch, tmp_path):
+    """HangBuster.stop on a raw session gzips raw.ndjson → raw.ndjson.gz,
+    removes the uncompressed file, and records bytes in meta.extras."""
+    session_id = _start_session(buster, raw_capture=True, max_size_mb=10, no_gzip=False)
+    buster.store.claim_worker(session_id, pid=os.getpid())
+    # Write some raw content directly to simulate captured stream.
+    raw_path = buster.store.raw_path(session_id)
+    raw_path.write_text(
+        '{"eventMessage":"a","process":"grapla"}\n'
+        '{"eventMessage":"b","process":"runningboardd"}\n'
+    )
+    # Also persist a line_counters extras so the stop summary doesn't 404.
+    buster.store.persist_worker_counters(session_id, {"total": 2, "stream_restarts": 0})
+
+    # Skip signal_worker — the test doesn't have a real worker pid.
+    monkeypatch.setattr(buster.store, "signal_worker", lambda *a, **k: False)
+
+    out = buster.stop(session_id, json_mode=True)
+    payload = __import__("json").loads(out)
+    assert payload["mode"] == "raw"
+    assert payload["raw_bytes_compressed"] is not None
+
+    gz_path = buster.store.raw_path(session_id, gzipped=True)
+    assert gz_path.exists()
+    assert not raw_path.exists()
+
+    # Round-trip: gunzip and confirm content survived.
+    import gzip as _gz
+
+    with _gz.open(gz_path, "rb") as fp:
+        content = fp.read().decode()
+    assert "grapla" in content and "runningboardd" in content
+
+
+def test_stop_no_gzip_preserves_raw_ndjson(buster, monkeypatch):
+    session_id = _start_session(buster, raw_capture=True, max_size_mb=10, no_gzip=True)
+    buster.store.claim_worker(session_id, pid=os.getpid())
+    raw_path = buster.store.raw_path(session_id)
+    raw_path.write_text("line\n")
+    buster.store.persist_worker_counters(session_id, {"total": 1})
+    monkeypatch.setattr(buster.store, "signal_worker", lambda *a, **k: False)
+
+    buster.stop(session_id)
+    assert raw_path.exists()
+    assert not buster.store.raw_path(session_id, gzipped=True).exists()
+
+
+# === #85: aggregate-cap pruning ===
+
+
+def test_prune_to_aggregate_cap_evicts_oldest_first(buster):
+    """When total bytes exceed cap, oldest session is dropped first until
+    under cap. Newer sessions are preserved."""
+    import time as _time
+
+    # Build 3 sessions with known sizes (~500 bytes each in events.jsonl).
+    ids = []
+    for i in range(3):
+        meta = buster.store.create({"udid": "u", "n": i})
+        buster.store.events_path(meta.session_id).write_text("x" * 500)
+        ids.append(meta.session_id)
+        _time.sleep(0.005)  # ensure distinct started_at_ms
+
+    # Cap at 800 bytes total → must drop at least 2 of 3.
+    deleted = buster.store.prune_to_aggregate_cap(800)
+    assert deleted >= 2
+
+    remaining = {m.session_id for m in buster.store.list_sessions()}
+    # Newest survives.
+    assert ids[2] in remaining
+    # Oldest dropped.
+    assert ids[0] not in remaining
+
+
+def test_prune_to_aggregate_cap_noop_when_under(buster):
+    meta = buster.store.create({"udid": "u"})
+    buster.store.events_path(meta.session_id).write_text("tiny")
+    assert buster.store.prune_to_aggregate_cap(10 * 1024 * 1024) == 0
+    assert meta.session_id in {m.session_id for m in buster.store.list_sessions()}
+
+
+def test_session_total_bytes_sums_all_files(buster):
+    meta = buster.store.create({"udid": "u"})
+    buster.store.events_path(meta.session_id).write_text("aa")  # 2
+    buster.store.raw_path(meta.session_id).write_text("bbb")  # 3
+    # meta.json itself contributes too, so we assert ≥ 5.
+    assert buster.store.session_total_bytes(meta.session_id) >= 5
