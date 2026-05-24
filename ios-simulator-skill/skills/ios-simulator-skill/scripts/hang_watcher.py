@@ -605,7 +605,9 @@ class HangBuster:
                 e for e in self.store.read_events(session_id) if e.fingerprint == target.fingerprint
             ]
             if resample:
-                target.auto_sample = _attempt_auto_sample(events[0].pid if events else 0)
+                target.auto_sample = _attempt_auto_sample(
+                    meta.args.get("udid", ""), events[0].pid if events else 0
+                )
             if json_mode:
                 from common.hang_pipeline import cluster_to_json
 
@@ -774,6 +776,7 @@ class HangBuster:
                             sampled_fingerprints=sampled_fingerprints,
                             session_id=session_id,
                             session_start_ms=meta.started_at_ms,
+                            udid=udid,
                         )
 
                     if cap_state["hit"]:
@@ -917,6 +920,7 @@ class HangBuster:
         sampled_fingerprints: set[str],
         session_id: str,
         session_start_ms: int,
+        udid: str,
     ) -> int | None:
         """Read lines until EOF / subprocess death / stop request.
 
@@ -970,7 +974,7 @@ class HangBuster:
             if auto_sample and normalised.fingerprint not in sampled_fingerprints:
                 sampled_fingerprints.add(normalised.fingerprint)
                 self._stash_auto_sample(
-                    session_id, normalised, _attempt_auto_sample(normalised.pid)
+                    session_id, normalised, _attempt_auto_sample(udid, normalised.pid)
                 )
             out_handle.write(event_to_jsonl(normalised) + "\n")
         return proc.poll()
@@ -1012,26 +1016,86 @@ class HangBuster:
         self.store.stash_auto_sample(session_id, normalised.fingerprint, sample)
 
 
-def _attempt_auto_sample(pid: int) -> dict:
-    """Soft-import main_thread_sampler and capture a 2s stack sample.
+SAMPLE_DURATION_SECONDS = 1
+SAMPLE_TIMEOUT_SECONDS = 5
 
-    Issue #62 is a soft dependency — graceful degrade with placeholder record
-    when the module isn't present.
+
+def _attempt_auto_sample(udid: str, pid: int) -> dict:
+    """Capture a main-thread stack via ``xcrun simctl spawn <udid> sample``.
+
+    Shells out to the in-simulator ``sample`` binary, which writes a textual
+    main-thread profile to stdout. Short duration keeps the worker hot path
+    responsive; fingerprint dedup at the caller means we sample at most once
+    per unique hang pattern per session.
     """
-    try:
-        from main_thread_sampler import sample_pid  # type: ignore[import-not-found]
-    except ImportError:
-        print(
-            "warning: --auto-sample requested but main_thread_sampler unavailable",
-            file=sys.stderr,
-        )
-        return {"stack": None, "reason": "main_thread_sampler not available"}
+    if not udid:
+        return {
+            "kind": "simctl-sample",
+            "stack": None,
+            "captured_at_ms": int(time.time() * 1000),
+            "symbolicated": False,
+            "reason": "no udid available",
+        }
     if not pid:
-        return {"stack": None, "reason": "no pid available"}
+        return {
+            "kind": "simctl-sample",
+            "stack": None,
+            "captured_at_ms": int(time.time() * 1000),
+            "symbolicated": False,
+            "reason": "no pid available",
+        }
+    cmd = [
+        "xcrun",
+        "simctl",
+        "spawn",
+        udid,
+        "sample",
+        str(pid),
+        str(SAMPLE_DURATION_SECONDS),
+        "-mayDie",
+        "-file",
+        "-",
+    ]
+    captured_at_ms = int(time.time() * 1000)
     try:
-        return {"stack": sample_pid(pid, duration_seconds=2), "reason": "ok"}
-    except Exception as error:
-        return {"stack": None, "reason": f"sample failed: {error}"}
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=SAMPLE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "kind": "simctl-sample",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": "timeout",
+        }
+    except FileNotFoundError:
+        return {
+            "kind": "simctl-sample",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": "xcrun not found",
+        }
+    if result.returncode != 0 or not result.stdout.strip():
+        return {
+            "kind": "simctl-sample",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": (result.stderr.strip() or f"sample exited {result.returncode}")[:200],
+        }
+    return {
+        "kind": "simctl-sample",
+        "stack": result.stdout,
+        "captured_at_ms": captured_at_ms,
+        "symbolicated": False,
+        "reason": None,
+    }
 
 
 # === CLI ===
@@ -1136,7 +1200,7 @@ Environment variables:
     parser.add_argument(
         "--auto-sample",
         action="store_true",
-        help="On hang, capture a main-thread stack via main_thread_sampler (#62)",
+        help="On hang, capture a main-thread stack via `xcrun simctl spawn <udid> sample`",
     )
     parser.add_argument("--top", type=int, dest="top_n", help="Top-N clusters to retain in summary")
     parser.add_argument(
