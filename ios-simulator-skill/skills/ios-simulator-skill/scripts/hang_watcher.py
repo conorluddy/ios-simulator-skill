@@ -55,6 +55,7 @@ from common.hang_pipeline import (  # noqa: E402
     format_l1,
     format_l2,
     summary_to_json,
+    symbolicate_stack,
 )
 from common.hang_pipeline import (  # noqa: E402
     extract_duration_ms as _pipeline_extract_duration_ms,
@@ -578,6 +579,9 @@ class HangBuster:
         raw: bool = False,
         resample: bool = False,
         json_mode: bool = False,
+        symbolicate: bool = False,
+        app_binary: str | None = None,
+        dsym: str | None = None,
     ) -> str:
         """Drill into a stored session. ``cluster`` is 1-indexed for human use."""
         try:
@@ -609,6 +613,8 @@ class HangBuster:
                     meta.args.get("udid", ""), events[0].pid if events else 0
                 )
                 target.auto_samples = [fresh]
+            if symbolicate:
+                _apply_symbolication(target, app_binary, dsym)
             if json_mode:
                 from common.hang_pipeline import cluster_to_json
 
@@ -1032,6 +1038,7 @@ SAMPLE_DURATION_SECONDS = 1
 SAMPLE_TIMEOUT_SECONDS = 5
 SPINDUMP_DURATION_SECONDS = 1
 SPINDUMP_TIMEOUT_SECONDS = 10
+ATOS_TIMEOUT_SECONDS = 10
 
 
 def _attempt_auto_sample(udid: str, pid: int) -> dict:
@@ -1188,6 +1195,65 @@ def _attempt_auto_spindump(udid: str, pid: int) -> dict:
     }
 
 
+def _apply_symbolication(cluster, app_binary: str | None, dsym: str | None) -> None:
+    """In-place: rewrite each auto-sample's stack via atos using the chosen target.
+
+    No-ops if no target path is resolvable or atos returns nothing — failures
+    must never strip the existing (unsymbolicated) stack, only enhance it.
+    """
+    target = _resolve_symbolication_target(app_binary, dsym)
+    if not target:
+        return
+    samples = cluster.auto_samples or ([cluster.auto_sample] if cluster.auto_sample else [])
+    for sample in samples:
+        if not sample or not sample.get("stack"):
+            continue
+        original = sample["stack"]
+        rewritten = symbolicate_stack(original, lambda addrs: _run_atos(target, addrs))
+        if rewritten != original:
+            sample["stack"] = rewritten
+            sample["symbolicated"] = True
+
+
+def _run_atos(binary_path: str, addresses: list[str]) -> dict[str, str]:
+    """Resolve a batch of runtime addresses via ``xcrun atos -o <path>``.
+
+    Returns ``{addr: resolved_text}`` for every input address; addresses atos
+    couldn't resolve come back as themselves (atos echoes the input). Failures
+    return an empty dict so callers can fall through cleanly.
+    """
+    if not binary_path or not addresses:
+        return {}
+    cmd = ["xcrun", "atos", "-o", binary_path, *addresses]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=ATOS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {}
+    if result.returncode != 0:
+        return {}
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    # atos prints one resolved line per input address, in input order.
+    return dict(zip(addresses, lines, strict=False))
+
+
+def _resolve_symbolication_target(app_binary: str | None, dsym: str | None) -> str | None:
+    """Pick the path atos should resolve against. dSYM wins when both set."""
+    explicit = dsym or app_binary
+    if explicit:
+        return explicit
+    env_dsym = os.environ.get("IOS_SIM_HANG_DSYM", "").strip()
+    if env_dsym:
+        return env_dsym
+    env_binary = os.environ.get("IOS_SIM_HANG_APP_BINARY", "").strip()
+    return env_binary or None
+
+
 # === CLI ===
 
 
@@ -1312,6 +1378,19 @@ Environment variables:
     )
     parser.add_argument("--raw", action="store_true", help="With --get-details: dump events.jsonl")
     parser.add_argument(
+        "--symbolicate",
+        action="store_true",
+        help="With --get-details: resolve [0x...] frames via `xcrun atos`",
+    )
+    parser.add_argument(
+        "--app-binary",
+        help="Path to unstripped app binary for --symbolicate (env: IOS_SIM_HANG_APP_BINARY)",
+    )
+    parser.add_argument(
+        "--dsym",
+        help="Path to .dSYM for --symbolicate (preferred over --app-binary; env: IOS_SIM_HANG_DSYM)",
+    )
+    parser.add_argument(
         "--older-than", help="With --clear-sessions: delete sessions older than e.g. 24h"
     )
     parser.add_argument("--terse", action="store_true", help="--stop: force L0 one-line output")
@@ -1394,6 +1473,9 @@ Environment variables:
             raw=args.raw,
             resample=args.resample,
             json_mode=args.json,
+            symbolicate=args.symbolicate,
+            app_binary=args.app_binary,
+            dsym=args.dsym,
         )
         print(out)
         sys.exit(0)

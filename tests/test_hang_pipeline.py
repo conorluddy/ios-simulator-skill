@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from common.hang_pipeline import (
     FINGERPRINT_VERSION,
     Cluster,
@@ -412,6 +411,54 @@ def test_format_cluster_detail_reports_failure_reason():
     cluster.auto_samples = [{"kind": "spindump", "stack": None, "reason": "timeout"}]
     out = format_cluster_detail(cluster, [])
     assert "spindump: unavailable (timeout)" in out
+
+
+def test_extract_stack_addresses_finds_bracketed_hex():
+    from common.hang_pipeline import extract_stack_addresses
+
+    stack = (
+        "    2 _start  (in libdyld.dylib) + 1234  [0x180abcdef0]\n"
+        "    + 2 main + 56 (MyApp + 1234) [0x10004abcd]\n"
+        "    + 2 main + 56 (MyApp + 1234) [0x10004abcd]\n"  # duplicate
+        "no address here\n"
+    )
+    addrs = extract_stack_addresses(stack)
+    assert addrs == ["0x180abcdef0", "0x10004abcd"]
+
+
+def test_symbolicate_stack_rewrites_resolved_addresses():
+    from common.hang_pipeline import symbolicate_stack
+
+    stack = "  frame_a [0xAAA]\n  frame_b [0xBBB]\n"
+    resolved_map = {"0xAAA": "Foo.bar (Foo.swift:42)", "0xBBB": "0xBBB"}
+    out = symbolicate_stack(stack, lambda _addrs: resolved_map)
+    assert "[0xAAA → Foo.bar (Foo.swift:42)]" in out
+    # 0xBBB resolver echoed the address — should be left alone (no arrow).
+    assert "[0xBBB]" in out
+    assert "→" in out.split("0xBBB")[0] or "[0xBBB →" not in out
+
+
+def test_symbolicate_stack_no_op_when_resolver_empty():
+    from common.hang_pipeline import symbolicate_stack
+
+    stack = "  frame_a [0xAAA]\n"
+    out = symbolicate_stack(stack, lambda _addrs: {})
+    assert out == stack
+
+
+def test_symbolicate_stack_no_op_when_no_addresses():
+    from common.hang_pipeline import symbolicate_stack
+
+    stack = "plain text\nno addresses\n"
+    called = {"n": 0}
+
+    def _resolver(addrs):
+        called["n"] += 1
+        return {}
+
+    out = symbolicate_stack(stack, _resolver)
+    assert out == stack
+    assert called["n"] == 0
 
 
 def test_summary_builder_attaches_auto_samples_by_fingerprint():
