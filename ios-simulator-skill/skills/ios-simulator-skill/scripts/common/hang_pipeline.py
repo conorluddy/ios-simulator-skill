@@ -19,6 +19,7 @@ import itertools
 import json
 import math
 import re
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -490,6 +491,48 @@ def _iter_auto_samples(cluster: Cluster) -> list[dict]:
     if cluster.auto_sample:
         return [cluster.auto_sample]
     return []
+
+
+_ADDRESS_RE = re.compile(r"\[(0x[0-9a-fA-F]+)\]")
+
+
+def extract_stack_addresses(stack: str) -> list[str]:
+    """Return unique ``0x...`` addresses from a sample/spindump stack, in order.
+
+    Both ``sample`` and ``spindump`` print frame addresses in ``[0xADDR]``
+    notation at the end of each frame line. We match that form and only that
+    form — looser regexes risk grabbing unrelated hex tokens.
+    """
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for match in _ADDRESS_RE.finditer(stack):
+        addr = match.group(1)
+        if addr not in seen:
+            seen.add(addr)
+            ordered.append(addr)
+    return ordered
+
+
+def symbolicate_stack(stack: str, resolver: Callable[[list[str]], dict[str, str]]) -> str:
+    """Rewrite ``[0xADDR]`` tokens with ``[0xADDR → resolved]`` using ``resolver``.
+
+    ``resolver`` takes the deduped address list and returns ``{addr: text}``.
+    Addresses with no resolution (or a resolved text equal to the address
+    itself) are left unchanged so we don't add noise where atos couldn't help.
+    """
+    addresses = extract_stack_addresses(stack)
+    if not addresses:
+        return stack
+    resolved = resolver(addresses) or {}
+
+    def _replace(match: re.Match) -> str:
+        addr = match.group(1)
+        text = resolved.get(addr)
+        if not text or text.strip() == addr:
+            return match.group(0)
+        return f"[{addr} → {text.strip()}]"
+
+    return _ADDRESS_RE.sub(_replace, stack)
 
 
 def _format_auto_sample(sample: dict) -> list[str]:

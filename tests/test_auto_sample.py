@@ -170,3 +170,78 @@ def test_spindump_nonzero_exit_returns_reason(monkeypatch):
 
     assert result["stack"] is None
     assert "No such process" in result["reason"]
+
+
+# === atos ===
+
+
+def test_run_atos_returns_mapping_in_input_order(monkeypatch):
+    captured: dict = {}
+
+    def _fake_run(cmd, **_kw):
+        captured["cmd"] = cmd
+        return _FakeCompleted(
+            stdout="Foo.bar() (in MyApp) (Foo.swift:42)\n" "Baz.qux() (in MyApp) (Baz.swift:7)\n"
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    resolved = hang_watcher._run_atos("/tmp/MyApp", ["0xAAA", "0xBBB"])
+
+    assert resolved == {
+        "0xAAA": "Foo.bar() (in MyApp) (Foo.swift:42)",
+        "0xBBB": "Baz.qux() (in MyApp) (Baz.swift:7)",
+    }
+    assert captured["cmd"][:4] == ["xcrun", "atos", "-o", "/tmp/MyApp"]
+
+
+def test_run_atos_empty_inputs_short_circuit(monkeypatch):
+    called = {"n": 0}
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *_a, **_kw: (called.__setitem__("n", called["n"] + 1) or _FakeCompleted()),
+    )
+
+    assert hang_watcher._run_atos("", ["0xAAA"]) == {}
+    assert hang_watcher._run_atos("/tmp/MyApp", []) == {}
+    assert called["n"] == 0
+
+
+def test_run_atos_timeout_returns_empty(monkeypatch):
+    def _fake_run(cmd, **_kw):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=10)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    assert hang_watcher._run_atos("/tmp/MyApp", ["0xAAA"]) == {}
+
+
+def test_run_atos_nonzero_exit_returns_empty(monkeypatch):
+    def _fake_run(*_a, **_kw):
+        return _FakeCompleted(stdout="", stderr="bad dwarf\n", returncode=1)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    assert hang_watcher._run_atos("/tmp/MyApp", ["0xAAA"]) == {}
+
+
+def test_resolve_symbolication_target_prefers_dsym(monkeypatch):
+    monkeypatch.delenv("IOS_SIM_HANG_APP_BINARY", raising=False)
+    monkeypatch.delenv("IOS_SIM_HANG_DSYM", raising=False)
+    assert (
+        hang_watcher._resolve_symbolication_target("/bin/foo", "/dsyms/foo.dSYM")
+        == "/dsyms/foo.dSYM"
+    )
+    assert hang_watcher._resolve_symbolication_target("/bin/foo", None) == "/bin/foo"
+
+
+def test_resolve_symbolication_target_env_fallback(monkeypatch):
+    monkeypatch.setenv("IOS_SIM_HANG_DSYM", "/env/foo.dSYM")
+    assert hang_watcher._resolve_symbolication_target(None, None) == "/env/foo.dSYM"
+    monkeypatch.delenv("IOS_SIM_HANG_DSYM")
+    monkeypatch.setenv("IOS_SIM_HANG_APP_BINARY", "/env/foo")
+    assert hang_watcher._resolve_symbolication_target(None, None) == "/env/foo"
+
+
+def test_resolve_symbolication_target_returns_none_when_unset(monkeypatch):
+    monkeypatch.delenv("IOS_SIM_HANG_APP_BINARY", raising=False)
+    monkeypatch.delenv("IOS_SIM_HANG_DSYM", raising=False)
+    assert hang_watcher._resolve_symbolication_target(None, None) is None
