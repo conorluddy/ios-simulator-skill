@@ -221,12 +221,17 @@ class SessionStore:
             handle.flush()
             os.fsync(handle.fileno())
 
-    def read_auto_samples(self, session_id: str) -> dict[str, dict]:
-        """Return ``{fingerprint: sample}`` with last-write-wins per fingerprint."""
+    def read_auto_samples(self, session_id: str) -> dict[str, list[dict]]:
+        """Return ``{fingerprint: [sample, ...]}`` preserving write order.
+
+        Multiple capture mechanisms (e.g. ``--auto-sample`` + ``--auto-spindump``)
+        can stash distinct records under one fingerprint; callers disambiguate
+        via the ``kind`` field on each sample payload.
+        """
         path = self._auto_samples_path(session_id)
         if not path.exists():
             return {}
-        samples: dict[str, dict] = {}
+        samples: dict[str, list[dict]] = {}
         with open(path) as handle:
             for raw in handle:
                 line = raw.strip()
@@ -239,7 +244,7 @@ class SessionStore:
                 fingerprint = payload.get("fingerprint")
                 if fingerprint is None:
                     continue
-                samples[fingerprint] = payload.get("sample")
+                samples.setdefault(fingerprint, []).append(payload.get("sample"))
         return samples
 
     def read_events(self, session_id: str) -> list:
@@ -395,7 +400,11 @@ class SessionStore:
             dropped_below_threshold=dropped_below_threshold,
             extras=extras or {},
         )
-        return builder.build(events, top_n=top_n)
+        return builder.build(
+            events,
+            top_n=top_n,
+            auto_samples_by_fp=self.read_auto_samples(session_id),
+        )
 
     # === PRIVATE ===
 
