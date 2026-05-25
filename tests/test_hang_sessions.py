@@ -242,7 +242,7 @@ def test_resolve_cutoff_ms_rejects_invalid():
 def test_meta_write_is_atomic(store: SessionStore):
     meta = store.create({})
     # No .tmp residue after write.
-    tmp = (store.session_dir(meta.session_id) / "meta.json.tmp")
+    tmp = store.session_dir(meta.session_id) / "meta.json.tmp"
     assert not tmp.exists()
 
 
@@ -263,17 +263,20 @@ def test_stash_auto_sample_appends_jsonl(store: SessionStore):
 
     samples = store.read_auto_samples(meta.session_id)
     assert set(samples.keys()) == {"fp:aaa", "fp:bbb"}
-    assert samples["fp:aaa"]["stack"] == ["a", "b"]
-    assert samples["fp:bbb"]["stack"] == ["c"]
+    assert samples["fp:aaa"][0]["stack"] == ["a", "b"]
+    assert samples["fp:bbb"][0]["stack"] == ["c"]
 
 
-def test_stash_auto_sample_last_write_wins_per_fingerprint(store: SessionStore):
+def test_read_auto_samples_preserves_multi_kind_per_fingerprint(store: SessionStore):
+    """Two distinct capture mechanisms (sample + spindump) under one fingerprint
+    must both round-trip, in write order, so format_cluster_detail can render both."""
     meta = store.create({})
-    store.stash_auto_sample(meta.session_id, "fp:dup", {"reason": "first"})
-    store.stash_auto_sample(meta.session_id, "fp:dup", {"reason": "second"})
+    store.stash_auto_sample(meta.session_id, "fp:dup", {"kind": "simctl-sample", "stack": "s"})
+    store.stash_auto_sample(meta.session_id, "fp:dup", {"kind": "spindump", "stack": "d"})
 
     samples = store.read_auto_samples(meta.session_id)
-    assert samples["fp:dup"]["reason"] == "second"
+    kinds = [s["kind"] for s in samples["fp:dup"]]
+    assert kinds == ["simctl-sample", "spindump"]
 
 
 def test_read_auto_samples_returns_empty_when_missing(store: SessionStore):

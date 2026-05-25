@@ -605,9 +605,10 @@ class HangBuster:
                 e for e in self.store.read_events(session_id) if e.fingerprint == target.fingerprint
             ]
             if resample:
-                target.auto_sample = _attempt_auto_sample(
+                fresh = _attempt_auto_sample(
                     meta.args.get("udid", ""), events[0].pid if events else 0
                 )
+                target.auto_samples = [fresh]
             if json_mode:
                 from common.hang_pipeline import cluster_to_json
 
@@ -687,6 +688,7 @@ class HangBuster:
         bundle_id = args.get("bundle_id")
         predicate_override = args.get("predicate")
         auto_sample = bool(args.get("auto_sample", False))
+        auto_spindump = bool(args.get("auto_spindump", False))
         udid = args["udid"]
         predicate = _resolve_predicate(predicate_override)
         max_restarts = env_int("IOS_SIM_HANG_MAX_RESTARTS", DEFAULT_MAX_STREAM_RESTARTS)
@@ -696,6 +698,7 @@ class HangBuster:
         events_path = self.store.events_path(session_id)
         counters = {"total": 0, "matched": 0, "dropped": 0, "stream_restarts": 0}
         sampled_fingerprints: set[str] = set()
+        spindumped_fingerprints: set[str] = set()
         stop_flag = {"value": False}
         cap_state = {"hit": False}  # set by raw reader when size cap exceeded
 
@@ -773,7 +776,9 @@ class HangBuster:
                             bundle_id=bundle_id,
                             min_hang_ms=min_hang_ms,
                             auto_sample=auto_sample,
+                            auto_spindump=auto_spindump,
                             sampled_fingerprints=sampled_fingerprints,
+                            spindumped_fingerprints=spindumped_fingerprints,
                             session_id=session_id,
                             session_start_ms=meta.started_at_ms,
                             udid=udid,
@@ -917,7 +922,9 @@ class HangBuster:
         bundle_id: str | None,
         min_hang_ms: int,
         auto_sample: bool,
+        auto_spindump: bool,
         sampled_fingerprints: set[str],
+        spindumped_fingerprints: set[str],
         session_id: str,
         session_start_ms: int,
         udid: str,
@@ -976,6 +983,11 @@ class HangBuster:
                 self._stash_auto_sample(
                     session_id, normalised, _attempt_auto_sample(udid, normalised.pid)
                 )
+            if auto_spindump and normalised.fingerprint not in spindumped_fingerprints:
+                spindumped_fingerprints.add(normalised.fingerprint)
+                self._stash_auto_sample(
+                    session_id, normalised, _attempt_auto_spindump(udid, normalised.pid)
+                )
             out_handle.write(event_to_jsonl(normalised) + "\n")
         return proc.poll()
 
@@ -1018,6 +1030,8 @@ class HangBuster:
 
 SAMPLE_DURATION_SECONDS = 1
 SAMPLE_TIMEOUT_SECONDS = 5
+SPINDUMP_DURATION_SECONDS = 1
+SPINDUMP_TIMEOUT_SECONDS = 10
 
 
 def _attempt_auto_sample(udid: str, pid: int) -> dict:
@@ -1091,6 +1105,82 @@ def _attempt_auto_sample(udid: str, pid: int) -> dict:
         }
     return {
         "kind": "simctl-sample",
+        "stack": result.stdout,
+        "captured_at_ms": captured_at_ms,
+        "symbolicated": False,
+        "reason": None,
+    }
+
+
+def _attempt_auto_spindump(udid: str, pid: int) -> dict:
+    """Capture a hang report via ``xcrun simctl spawn <udid> spindump``.
+
+    ``spindump`` is Apple's own hang-report tool — it produces a structured
+    text report explicitly designed for the "what was main thread doing"
+    question. Heavier than ``sample`` so we run a slightly longer timeout.
+    """
+    captured_at_ms = int(time.time() * 1000)
+    if not udid:
+        return {
+            "kind": "spindump",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": "no udid available",
+        }
+    if not pid:
+        return {
+            "kind": "spindump",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": "no pid available",
+        }
+    cmd = [
+        "xcrun",
+        "simctl",
+        "spawn",
+        udid,
+        "spindump",
+        str(pid),
+        str(SPINDUMP_DURATION_SECONDS),
+        "-file",
+        "-",
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=SPINDUMP_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "kind": "spindump",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": "timeout",
+        }
+    except FileNotFoundError:
+        return {
+            "kind": "spindump",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": "xcrun not found",
+        }
+    if result.returncode != 0 or not result.stdout.strip():
+        return {
+            "kind": "spindump",
+            "stack": None,
+            "captured_at_ms": captured_at_ms,
+            "symbolicated": False,
+            "reason": (result.stderr.strip() or f"spindump exited {result.returncode}")[:200],
+        }
+    return {
+        "kind": "spindump",
         "stack": result.stdout,
         "captured_at_ms": captured_at_ms,
         "symbolicated": False,
@@ -1202,6 +1292,11 @@ Environment variables:
         action="store_true",
         help="On hang, capture a main-thread stack via `xcrun simctl spawn <udid> sample`",
     )
+    parser.add_argument(
+        "--auto-spindump",
+        action="store_true",
+        help="On hang, capture a spindump report via `xcrun simctl spawn <udid> spindump`",
+    )
     parser.add_argument("--top", type=int, dest="top_n", help="Top-N clusters to retain in summary")
     parser.add_argument(
         "--all", action="store_true", dest="all_clusters", help="Keep all clusters (no top-N cap)"
@@ -1265,6 +1360,7 @@ Environment variables:
             "bundle_id": args.bundle_id,
             "predicate": args.predicate,
             "auto_sample": args.auto_sample,
+            "auto_spindump": args.auto_spindump,
             "raw_capture": args.raw_capture,
             "max_size_mb": args.max_size_mb,
             "no_gzip": args.no_gzip,

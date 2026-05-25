@@ -113,3 +113,60 @@ def test_xcrun_missing_returns_reason(monkeypatch):
 
     assert result["stack"] is None
     assert result["reason"] == "xcrun not found"
+
+
+# === spindump ===
+
+
+def test_spindump_returns_stack_on_success(monkeypatch):
+    captured: dict = {}
+
+    def _fake_run(cmd, **_kw):
+        captured["cmd"] = cmd
+        return _FakeCompleted(stdout="Process: Foo [1234]\nThread 0x1 main\n  foo()\n")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    result = hang_watcher._attempt_auto_spindump("ABC-123", 1234)
+
+    assert result["kind"] == "spindump"
+    assert "Process: Foo" in result["stack"]
+    assert result["reason"] is None
+    assert captured["cmd"][:5] == ["xcrun", "simctl", "spawn", "ABC-123", "spindump"]
+    assert "1234" in captured["cmd"]
+
+
+def test_spindump_missing_udid_short_circuits(monkeypatch):
+    called = {"n": 0}
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *_a, **_kw: (called.__setitem__("n", called["n"] + 1) or _FakeCompleted()),
+    )
+    result = hang_watcher._attempt_auto_spindump("", 1234)
+
+    assert result["stack"] is None
+    assert result["reason"] == "no udid available"
+    assert called["n"] == 0
+
+
+def test_spindump_timeout_returns_reason(monkeypatch):
+    def _fake_run(cmd, **_kw):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=10)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    result = hang_watcher._attempt_auto_spindump("ABC-123", 1234)
+
+    assert result["stack"] is None
+    assert result["reason"] == "timeout"
+    assert result["kind"] == "spindump"
+
+
+def test_spindump_nonzero_exit_returns_reason(monkeypatch):
+    def _fake_run(*_a, **_kw):
+        return _FakeCompleted(stdout="", stderr="No such process\n", returncode=1)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    result = hang_watcher._attempt_auto_spindump("ABC-123", 1234)
+
+    assert result["stack"] is None
+    assert "No such process" in result["reason"]

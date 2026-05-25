@@ -114,6 +114,7 @@ class Cluster:
     symbol_or_prefix: str
     sample_event: NormalisedEvent
     auto_sample: dict | None = None
+    auto_samples: list[dict] | None = None
 
 
 @dataclass
@@ -476,14 +477,31 @@ def format_cluster_detail(cluster: Cluster, events: list[NormalisedEvent]) -> st
         )
         if event.raw_message:
             lines.append(f"      msg: {event.raw_message[:120]}")
-    if cluster.auto_sample:
-        stack = cluster.auto_sample.get("stack")
-        if stack:
-            lines.append("Auto-sample stack (top 10):")
-            lines.extend(f"  {frame}" for frame in stack[:10])
-        else:
-            lines.append(f"Auto-sample unavailable: {cluster.auto_sample.get('reason', 'unknown')}")
+    for sample in _iter_auto_samples(cluster):
+        lines.extend(_format_auto_sample(sample))
     return "\n".join(lines)
+
+
+def _iter_auto_samples(cluster: Cluster) -> list[dict]:
+    """Yield auto-samples for a cluster, preferring the multi-kind list and
+    falling back to the legacy single ``auto_sample`` field for old summaries."""
+    if cluster.auto_samples:
+        return cluster.auto_samples
+    if cluster.auto_sample:
+        return [cluster.auto_sample]
+    return []
+
+
+def _format_auto_sample(sample: dict) -> list[str]:
+    """Render one auto-sample block: header + first 10 stack lines or a reason."""
+    kind = sample.get("kind") or "auto-sample"
+    stack = sample.get("stack")
+    if not stack:
+        return [f"{kind}: unavailable ({sample.get('reason', 'unknown')})"]
+    # Stack is multi-line text from `sample` or `spindump`. Show the first 10
+    # non-empty lines so the cluster detail stays bounded.
+    head = [line for line in stack.splitlines() if line.strip()][:10]
+    return [f"{kind} stack (top 10):", *(f"  {line}" for line in head)]
 
 
 def format_diff(diff: dict) -> str:
@@ -724,6 +742,7 @@ def _cluster_from_json(payload: dict) -> Cluster:
         symbol_or_prefix=payload["symbol_or_prefix"],
         sample_event=sample,
         auto_sample=payload.get("auto_sample"),
+        auto_samples=payload.get("auto_samples"),
     )
 
 
@@ -763,9 +782,24 @@ class SummaryBuilder:
     dropped_below_threshold: int = 0
     extras: dict = field(default_factory=dict)
 
-    def build(self, events: list[NormalisedEvent], top_n: int | None = None) -> SessionSummary:
-        """Cluster, aggregate, rank, and emit a SessionSummary."""
+    def build(
+        self,
+        events: list[NormalisedEvent],
+        top_n: int | None = None,
+        auto_samples_by_fp: dict[str, list[dict]] | None = None,
+    ) -> SessionSummary:
+        """Cluster, aggregate, rank, and emit a SessionSummary.
+
+        ``auto_samples_by_fp`` attaches per-fingerprint stack captures (from
+        ``--auto-sample`` / ``--auto-spindump``) onto the matching clusters so
+        they survive into ``summary.json``.
+        """
         clusters = rank_clusters(cluster_events(events), top_n=top_n)
+        if auto_samples_by_fp:
+            for cluster in clusters:
+                samples = auto_samples_by_fp.get(cluster.fingerprint)
+                if samples:
+                    cluster.auto_samples = samples
         aggregates = {
             "bursts": detect_temporal_bursts(events),
             "quiet_periods": detect_quiet_periods(events),
