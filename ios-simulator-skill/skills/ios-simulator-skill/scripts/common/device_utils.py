@@ -17,6 +17,7 @@ Used by:
 import json
 import re
 import subprocess
+import sys
 
 
 def build_simctl_command(
@@ -121,21 +122,20 @@ def build_idb_command(
     return cmd
 
 
-def get_booted_device_udid() -> str | None:
+def get_booted_device_udids() -> list[str]:
     """
-    Auto-detect currently booted simulator UDID.
+    List the UDIDs of every currently booted simulator.
 
-    Queries xcrun simctl for booted devices and returns first match.
+    Queries `xcrun simctl list devices booted` and extracts each UDID in the
+    order reported.
 
     Returns:
-        UDID of booted simulator, or None if no simulator is booted.
+        UDIDs of all booted simulators, or an empty list if none are booted
+        (or the query fails).
 
     Example:
-        udid = get_booted_device_udid()
-        if udid:
-            print(f"Booted simulator: {udid}")
-        else:
-            print("No simulator is currently booted")
+        udids = get_booted_device_udids()
+        # ["ABC123-...", "DEF456-..."] when two simulators are running
     """
     try:
         result = subprocess.run(
@@ -144,18 +144,48 @@ def get_booted_device_udid() -> str | None:
             text=True,
             check=True,
         )
-
-        # Parse output to find UDID
-        # Format: "  iPhone 16 Pro (ABC123-DEF456) (Booted)"
-        for line in result.stdout.split("\n"):
-            # Look for UUID pattern in parentheses
-            match = re.search(r"\(([A-F0-9\-]{36})\)", line)
-            if match:
-                return match.group(1)
-
-        return None
     except subprocess.CalledProcessError:
+        return []
+
+    # Format: "  iPhone 16 Pro (ABC123-DEF456) (Booted)"
+    udids: list[str] = []
+    for line in result.stdout.split("\n"):
+        match = re.search(r"\(([A-F0-9\-]{36})\)", line)
+        if match:
+            udids.append(match.group(1))
+    return udids
+
+
+def get_booted_device_udid() -> str | None:
+    """
+    Auto-detect a booted simulator UDID.
+
+    Returns the first booted simulator. When more than one simulator is booted
+    the choice is ambiguous — gesture/tap commands can silently target a device
+    other than the one you are watching (idb reports success on the wrong
+    device, so nothing appears to happen). In that case a warning is printed to
+    stderr naming the selected device and advising an explicit ``--udid``.
+
+    Returns:
+        UDID of a booted simulator, or None if no simulator is booted.
+
+    Example:
+        udid = get_booted_device_udid()
+        if udid:
+            print(f"Booted simulator: {udid}")
+        else:
+            print("No simulator is currently booted")
+    """
+    udids = get_booted_device_udids()
+    if not udids:
         return None
+    if len(udids) > 1:
+        print(
+            f"Warning: {len(udids)} booted simulators detected ({', '.join(udids)}). "
+            f"Auto-selecting {udids[0]} — pass --udid to target a specific device.",
+            file=sys.stderr,
+        )
+    return udids[0]
 
 
 def resolve_udid(udid_arg: str | None) -> str:
