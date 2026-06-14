@@ -109,7 +109,8 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Deep link navigation
    - List installed apps
    - Check app state
-   - Options: `--launch`, `--terminate`, `--install`, `--uninstall`, `--open-url`, `--list`, `--state`, `--json`
+   - Pass launch arguments (`--args`) and environment variables (`--env KEY=VALUE`, injected as `SIMCTL_CHILD_*`) to the app on launch/restart
+   - Options: `--launch`, `--terminate`, `--restart`, `--install`, `--uninstall`, `--open-url`, `--list`, `--state`, `--args`, `--env`, `--wait-for-debugger`
 
 ### Testing & Analysis (9 scripts)
 

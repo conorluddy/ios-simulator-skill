@@ -6,10 +6,19 @@ Launches, terminates, and manages iOS apps in the simulator.
 Handles deep links and app switching.
 
 Usage: python scripts/app_launcher.py --launch com.example.app
+
+Launch arguments and environment variables can be passed to the app:
+    python scripts/app_launcher.py --launch com.example.app \
+        --env DEBUG=1 --args -uiTestingMode 1
+
+--args consumes everything after it (argparse REMAINDER), so it must be the
+last flag on the command line. --env is repeatable and each KEY=VALUE pair is
+injected into the app process as SIMCTL_CHILD_KEY=VALUE.
 """
 
 import argparse
 import contextlib
+import os
 import subprocess
 import sys
 import time
@@ -28,24 +37,37 @@ class AppLauncher:
         """Initialize app launcher."""
         self.udid = udid
 
-    def launch(self, bundle_id: str, wait_for_debugger: bool = False) -> tuple[bool, int | None]:
+    def launch(
+        self,
+        bundle_id: str,
+        wait_for_debugger: bool = False,
+        launch_args: list[str] | None = None,
+        env_vars: dict[str, str] | None = None,
+    ) -> tuple[bool, int | None]:
         """
         Launch an app.
 
         Args:
             bundle_id: App bundle identifier
             wait_for_debugger: Wait for debugger attachment
+            launch_args: Arguments passed to the app as trailing simctl args
+            env_vars: Variables injected into the app process as SIMCTL_CHILD_*
 
         Returns:
             (success, pid) tuple
         """
-        cmd = build_simctl_command("launch", self.udid, bundle_id)
+        cmd = build_simctl_command("launch", self.udid, bundle_id, *(launch_args or []))
 
         if wait_for_debugger:
             cmd.insert(3, "--wait-for-debugger")  # Insert after "launch" operation
 
+        # Inherit the parent env unless caller supplied app env vars (SIMCTL_CHILD_*).
+        run_env = None
+        if env_vars:
+            run_env = {**os.environ, **{f"SIMCTL_CHILD_{k}": v for k, v in env_vars.items()}}
+
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=run_env)
             # Parse PID from output if available
             pid = None
             if result.stdout:
@@ -201,13 +223,21 @@ class AppLauncher:
         except subprocess.CalledProcessError:
             return "unknown"
 
-    def restart_app(self, bundle_id: str, delay: float = RELAUNCH_DELAY_SECONDS) -> bool:
+    def restart_app(
+        self,
+        bundle_id: str,
+        delay: float = RELAUNCH_DELAY_SECONDS,
+        launch_args: list[str] | None = None,
+        env_vars: dict[str, str] | None = None,
+    ) -> bool:
         """
         Restart an app (terminate then launch).
 
         Args:
             bundle_id: App bundle identifier
             delay: Delay between terminate and launch
+            launch_args: Arguments forwarded to the relaunch
+            env_vars: Variables forwarded to the relaunch as SIMCTL_CHILD_*
 
         Returns:
             Success status
@@ -217,7 +247,7 @@ class AppLauncher:
         time.sleep(delay)
 
         # Launch
-        success, _ = self.launch(bundle_id)
+        success, _ = self.launch(bundle_id, launch_args=launch_args, env_vars=env_vars)
         return success
 
 
@@ -243,8 +273,30 @@ def main():
         "--udid",
         help="Device UDID (auto-detects booted simulator if not provided)",
     )
+    parser.add_argument(
+        "--env",
+        action="append",
+        metavar="KEY=VALUE",
+        help="App environment variable (repeatable); injected as SIMCTL_CHILD_KEY",
+    )
+    # REMAINDER must be the last flag on the command line.
+    parser.add_argument(
+        "--args",
+        nargs=argparse.REMAINDER,
+        help="Launch arguments for the app (everything after this flag)",
+    )
 
     args = parser.parse_args()
+
+    # Parse --env KEY=VALUE pairs, failing fast on malformed input.
+    env_vars: dict[str, str] = {}
+    for pair in args.env or []:
+        key, separator, value = pair.partition("=")
+        if not separator or not key:
+            print(f"Error: invalid --env '{pair}', expected KEY=VALUE", file=sys.stderr)
+            sys.exit(1)
+        env_vars[key] = value
+    launch_args = args.args or None
 
     # Resolve UDID with auto-detection
     try:
@@ -257,7 +309,12 @@ def main():
 
     # Execute requested action
     if args.launch:
-        success, pid = launcher.launch(args.launch, args.wait_for_debugger)
+        success, pid = launcher.launch(
+            args.launch,
+            args.wait_for_debugger,
+            launch_args=launch_args,
+            env_vars=env_vars or None,
+        )
         if success:
             if pid:
                 print(f"Launched {args.launch} (PID: {pid})")
@@ -275,7 +332,7 @@ def main():
             sys.exit(1)
 
     elif args.restart:
-        if launcher.restart_app(args.restart):
+        if launcher.restart_app(args.restart, launch_args=launch_args, env_vars=env_vars or None):
             print(f"Restarted {args.restart}")
         else:
             print(f"Failed to restart {args.restart}")
