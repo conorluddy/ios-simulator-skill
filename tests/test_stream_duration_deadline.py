@@ -73,3 +73,48 @@ def test_hang_watcher_duration_fires_on_quiet_stream(monkeypatch):
 
     assert len(seen) == LINE_COUNT  # burst fully drained, no tail loss
     assert 1.0 <= elapsed < 5.0  # deadline fired; not blocked until producer EOF
+
+
+# === reader-thread death must not strand the consumer ===
+
+BAD_BYTES_PRODUCER = (
+    "import sys,time\n"
+    'sys.stdout.buffer.write(b"\\xff\\xfe not utf-8\\n")\n'
+    "sys.stdout.buffer.flush()\n"
+    f"time.sleep({QUIET_SECONDS})\n"
+)
+
+
+def _bad_bytes_popen(*_args, **kwargs):
+    """Producer whose output blows up the text-mode decoder mid-stream.
+
+    `log stream` relays arbitrary app-controlled bytes; with text=True the
+    reader can raise UnicodeDecodeError. If the reader thread dies without
+    posting its EOF sentinel, the consumer blocks forever in follow mode —
+    not even Ctrl-C's terminate-for-EOF can wake it. The error must surface
+    on the consumer side immediately, as it did when reads were inline.
+    """
+    return REAL_POPEN([sys.executable, "-c", BAD_BYTES_PRODUCER], **kwargs)
+
+
+def test_log_monitor_reader_death_surfaces_instead_of_hanging(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", _bad_bytes_popen)
+    monitor = log_monitor.LogMonitor()
+
+    start = time.monotonic()
+    assert monitor.stream_logs(duration=10.0) is False  # error path, not success
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 5.0  # immediate, not parked until the deadline (or forever)
+
+
+def test_hang_watcher_reader_death_surfaces_instead_of_hanging(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", _bad_bytes_popen)
+    watcher = hang_watcher.HangWatcher(udid="FAKE-UDID")
+    monkeypatch.setattr(watcher, "_resolve_udid", lambda: "FAKE-UDID")
+
+    start = time.monotonic()
+    assert watcher.watch(duration_seconds=10, predicate="test-predicate") is False
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 5.0  # immediate, not parked until the deadline (or forever)
