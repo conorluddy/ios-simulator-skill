@@ -185,9 +185,14 @@ class HangWatcher:
             line_queue: queue.Queue = queue.Queue()
 
             def _pump(stream=self._process.stdout, sink=line_queue) -> None:
-                for pumped in stream:
-                    sink.put(pumped)
-                sink.put(None)  # EOF sentinel
+                try:
+                    for pumped in stream:
+                        sink.put(pumped)
+                    sink.put(None)  # EOF sentinel
+                except Exception as error:
+                    # Never die silently: without a sentinel the consumer
+                    # would block forever once the reader is gone.
+                    sink.put(error)
 
             threading.Thread(target=_pump, daemon=True).start()
 
@@ -205,6 +210,8 @@ class HangWatcher:
                     break
                 if raw_line is None:
                     break
+                if isinstance(raw_line, Exception):
+                    raise raw_line  # reader failed — route to the error path below
 
                 line = raw_line.rstrip()
                 event = self._parse_line(line)

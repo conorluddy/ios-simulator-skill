@@ -279,9 +279,14 @@ class LogMonitor:
             line_queue: queue.Queue = queue.Queue()
 
             def _pump(stream=self.log_process.stdout, sink=line_queue) -> None:
-                for pumped in stream:
-                    sink.put(pumped)
-                sink.put(None)  # EOF sentinel
+                try:
+                    for pumped in stream:
+                        sink.put(pumped)
+                    sink.put(None)  # EOF sentinel
+                except Exception as error:
+                    # Never die silently: without a sentinel the consumer
+                    # would block forever once the reader is gone.
+                    sink.put(error)
 
             threading.Thread(target=_pump, daemon=True).start()
 
@@ -298,6 +303,8 @@ class LogMonitor:
                     break
                 if line is None:
                     break
+                if isinstance(line, Exception):
+                    raise line  # reader failed — route to the error path below
 
                 # Process the line
                 self.process_log_line(line.rstrip())
