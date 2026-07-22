@@ -32,10 +32,13 @@ Usage Examples:
 
 import argparse
 import json
+import queue
 import re
 import signal
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -267,12 +270,33 @@ class LogMonitor:
                 bufsize=1,  # Line buffered
             )
 
-            # Track start time for duration
-            start_time = datetime.now()
+            # readline() on a quiet stream blocks forever, and select() on the
+            # fd is unreliable for text pipes (lines already drained into the
+            # user-space buffer look "not ready" and would be dropped, while a
+            # partial line looks "ready" and blocks past the deadline). So a
+            # reader thread pumps lines into a queue and the deadline is
+            # enforced by queue.get(timeout=...), which loses nothing.
+            line_queue: queue.Queue = queue.Queue()
 
-            # Process log lines
-            for line in iter(self.log_process.stdout.readline, ""):
-                if not line:
+            def _pump(stream=self.log_process.stdout, sink=line_queue) -> None:
+                for pumped in stream:
+                    sink.put(pumped)
+                sink.put(None)  # EOF sentinel
+
+            threading.Thread(target=_pump, daemon=True).start()
+
+            deadline = time.monotonic() + duration if duration else None
+            while not self.interrupted:
+                timeout = None
+                if deadline is not None:
+                    timeout = deadline - time.monotonic()
+                    if timeout <= 0:
+                        break
+                try:
+                    line = line_queue.get(timeout=timeout)
+                except queue.Empty:
+                    break
+                if line is None:
                     break
 
                 # Process the line
@@ -284,16 +308,14 @@ class LogMonitor:
                     if severity in self.severity_filter:
                         print(line.rstrip())
 
-                # Check duration
-                if duration and (datetime.now() - start_time).total_seconds() >= duration:
-                    break
-
-                # Check if interrupted
-                if self.interrupted:
-                    break
-
-            # Wait for process to finish
-            self.log_process.wait()
+            # log stream never exits on its own — stop it before reaping,
+            # and never wait unbounded.
+            self.log_process.terminate()
+            try:
+                self.log_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.log_process.kill()
+                self.log_process.wait()
             return True
 
         except Exception as e:

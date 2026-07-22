@@ -27,11 +27,13 @@ import argparse
 import contextlib
 import json
 import os
+import queue
 import re
 import select
 import signal
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -175,10 +177,33 @@ class HangWatcher:
                 bufsize=1,
             )
 
-            start_time = datetime.now()
+            # readline() on a hang-quiet stream blocks forever, and select()
+            # on the fd can both miss lines already sitting in the text
+            # buffer and block mid-line past the deadline. A reader thread +
+            # queue.get(timeout=...) enforces --duration without losing
+            # buffered lines.
+            line_queue: queue.Queue = queue.Queue()
 
-            for raw_line in iter(self._process.stdout.readline, ""):
-                if not raw_line:
+            def _pump(stream=self._process.stdout, sink=line_queue) -> None:
+                for pumped in stream:
+                    sink.put(pumped)
+                sink.put(None)  # EOF sentinel
+
+            threading.Thread(target=_pump, daemon=True).start()
+
+            deadline = time.monotonic() + duration_seconds if duration_seconds else None
+
+            while not self.interrupted:
+                timeout = None
+                if deadline is not None:
+                    timeout = deadline - time.monotonic()
+                    if timeout <= 0:
+                        break
+                try:
+                    raw_line = line_queue.get(timeout=timeout)
+                except queue.Empty:
+                    break
+                if raw_line is None:
                     break
 
                 line = raw_line.rstrip()
@@ -200,12 +225,6 @@ class HangWatcher:
 
                 elif verbose and line.strip():
                     print(f"  [skip] {line}", file=sys.stderr)
-
-                if (
-                    duration_seconds
-                    and (datetime.now() - start_time).total_seconds() >= duration_seconds
-                ):
-                    break
 
                 if self.interrupted:
                     break
