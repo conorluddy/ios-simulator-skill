@@ -139,7 +139,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `clipboard.py` | Copy text to simulator clipboard for paste testing | `--copy`, `--test-name` |
 | `status_bar.py` | Override status bar (time, battery, network) | `--preset`, `--time`, `--battery-level`, `--clear` |
 | `push_notification.py` | Send simulated push notifications | `--bundle-id`, `--title`, `--body`, `--payload` |
-| `privacy_manager.py` | Grant, revoke, reset app permissions (13 services) | `--bundle-id`, `--grant`, `--revoke`, `--reset` |
+| `privacy_manager.py` | Grant, revoke, reset app permissions (15 services) | `--bundle-id`, `--grant`, `--revoke`, `--reset` |
 
 #### Device Lifecycle
 
