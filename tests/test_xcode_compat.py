@@ -6,7 +6,9 @@ from unittest.mock import patch
 from common.xcode_compat import ensure_idb_companion_developer_dir
 
 
-def _make_xcode(tmp_path: Path, *, shared_frameworks: bool, legacy_private_frameworks: bool) -> Path:
+def _make_xcode(
+    tmp_path: Path, *, shared_frameworks: bool, legacy_private_frameworks: bool
+) -> Path:
     """Build a fake Xcode.app skeleton with just enough to exercise the shim."""
     contents = tmp_path / "Xcode.app" / "Contents"
     developer = contents / "Developer"
@@ -47,10 +49,13 @@ class TestEnsureIdbCompanionDeveloperDir:
         shimmed_developer_dir = Path(__import__("os").environ["DEVELOPER_DIR"])
         assert shimmed_developer_dir == shim_root / "Contents" / "Developer"
 
-        shimmed_simulator_kit = shimmed_developer_dir / "Library" / "PrivateFrameworks" / "SimulatorKit.framework"
-        assert shimmed_simulator_kit.resolve() == (
-            developer.parent / "SharedFrameworks" / "SimulatorKit.framework"
-        ).resolve()
+        shimmed_simulator_kit = (
+            shimmed_developer_dir / "Library" / "PrivateFrameworks" / "SimulatorKit.framework"
+        )
+        assert (
+            shimmed_simulator_kit.resolve()
+            == (developer.parent / "SharedFrameworks" / "SimulatorKit.framework").resolve()
+        )
 
     def test_neither_layout_present_leaves_developer_dir_alone(self, tmp_path, monkeypatch):
         """Xcode with SimulatorKit in neither location: not our bug to fix, don't touch env."""
@@ -76,7 +81,10 @@ class TestEnsureIdbCompanionDeveloperDir:
         with (
             patch("common.xcode_compat._developer_dir", return_value=developer),
             patch("common.xcode_compat.SHIM_ROOT", shim_root),
-            patch("common.xcode_compat._build_shim", wraps=__import__("common.xcode_compat", fromlist=["_build_shim"])._build_shim) as build_shim,
+            patch(
+                "common.xcode_compat._build_shim",
+                wraps=__import__("common.xcode_compat", fromlist=["_build_shim"])._build_shim,
+            ) as build_shim,
         ):
             ensure_idb_companion_developer_dir()
             ensure_idb_companion_developer_dir()

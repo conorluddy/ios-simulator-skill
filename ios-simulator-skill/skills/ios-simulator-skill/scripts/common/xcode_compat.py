@@ -78,7 +78,9 @@ def _shim_points_at(symlink_path: Path, target: Path) -> bool:
         return False
 
 
-def _build_shim(real_developer_dir: Path, shim_developer_dir: Path, shared_simulator_kit: Path) -> None:
+def _build_shim(
+    real_developer_dir: Path, shim_developer_dir: Path, shared_simulator_kit: Path
+) -> None:
     xcode_contents = real_developer_dir.parent  # .../Xcode.app/Contents
     shim_contents = shim_developer_dir.parent
 
