@@ -11,7 +11,7 @@ iOS Simulator Skill is a production-ready Agent Skill providing 29 scripts for i
 - 7 script categories (Build, Device State, Navigation, Testing, Permissions, Simulator Discovery, Lifecycle)
 - 7 shared utility modules (~2,400 lines)
 - 100% token-optimized default output
-- 88 unit tests across pipeline / sessions / token-budget / diff (run `pytest tests/`)
+- 184 unit tests across pipeline / sessions / token-budget / diff / privacy (run `pytest tests/`)
 
 ## Project Structure
 

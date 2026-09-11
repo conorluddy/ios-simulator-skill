@@ -2,8 +2,9 @@
 """
 iOS Privacy & Permissions Manager
 
-Grant/revoke app permissions for testing permission flows.
-Supports 13+ services with audit trail tracking.
+Grant/revoke/reset app permissions for testing permission flows.
+Service names are the tokens `xcrun simctl privacy` accepts (verified
+against Xcode 27 command line tools).
 
 Usage: python scripts/privacy_manager.py --grant camera --bundle-id com.app
 """
@@ -15,26 +16,57 @@ from datetime import datetime
 
 from common import resolve_udid
 
+# === SERVICE CATALOGUE ===
+
+# Canonical service tokens accepted by `xcrun simctl privacy <device> <action> <service>`.
+# Keep in sync with `xcrun simctl help privacy`; simctl fails with a bare
+# NSPOSIXErrorDomain code=1 for anything not in this set, so we validate first.
+SUPPORTED_SERVICES: dict[str, str] = {
+    "all": "All services listed here",
+    "calendar": "Calendar access",
+    "calls": "Call history",
+    "camera": "Camera access",
+    "contacts": "Full contact details",
+    "contacts-limited": "Basic contact info only",
+    "location": "Location services while app is in use",
+    "location-always": "Location services at all times",
+    "media-library": "Media library access",
+    "microphone": "Audio input access",
+    "motion": "Motion & fitness data",
+    "photos": "Full photo library access",
+    "photos-add": "Adding photos to the library",
+    "reminders": "Reminders access",
+    "siri": "Use of the app with Siri",
+}
+
+# Legacy spellings kept working so existing scripts do not break.
+SERVICE_ALIASES: dict[str, str] = {
+    "mediaLibrary": "media-library",
+    "medialibrary": "media-library",
+    "photosAdd": "photos-add",
+    "locationAlways": "location-always",
+    "contactsLimited": "contacts-limited",
+}
+
+
+def canonicalise_service(service: str) -> str | None:
+    """Resolve a service name to its simctl token, or None if unsupported.
+
+    Args:
+        service: Service name as supplied by the caller, possibly a legacy alias
+
+    Returns:
+        The canonical simctl token, or None if simctl would reject it
+    """
+    resolved = SERVICE_ALIASES.get(service, service)
+    return resolved if resolved in SUPPORTED_SERVICES else None
+
 
 class PrivacyManager:
     """Manages iOS app privacy and permissions."""
 
-    # Supported services
-    SUPPORTED_SERVICES = {
-        "camera": "Camera access",
-        "microphone": "Microphone access",
-        "location": "Location services",
-        "contacts": "Contacts access",
-        "photos": "Photos library access",
-        "calendar": "Calendar access",
-        "health": "Health data access",
-        "reminders": "Reminders access",
-        "motion": "Motion & fitness",
-        "keyboard": "Keyboard access",
-        "mediaLibrary": "Media library",
-        "calls": "Call history",
-        "siri": "Siri access",
-    }
+    # Retained as a class attribute for backwards compatibility.
+    SUPPORTED_SERVICES = SUPPORTED_SERVICES
 
     def __init__(self, udid: str | None = None):
         """Initialize privacy manager.
@@ -44,132 +76,53 @@ class PrivacyManager:
         """
         self.udid = udid
 
-    def grant_permission(
+    def apply_permission(
         self,
+        action: str,
         bundle_id: str,
         service: str,
         scenario: str | None = None,
         step: int | None = None,
-    ) -> bool:
+    ) -> tuple[bool, str]:
         """
-        Grant permission for app.
+        Grant, revoke, or reset a privacy permission for an app.
 
         Args:
+            action: One of "grant", "revoke", "reset"
             bundle_id: App bundle ID
-            service: Service name (camera, microphone, location, etc.)
+            service: Service name (camera, microphone, location, ...)
             scenario: Test scenario name for audit trail
             step: Step number in test scenario
 
         Returns:
-            Success status
+            Tuple of (success, message). On failure the message carries
+            simctl's own stderr so the caller can see why.
         """
-        if service not in self.SUPPORTED_SERVICES:
-            print(f"Error: Unknown service '{service}'")
-            print(f"Supported: {', '.join(self.SUPPORTED_SERVICES.keys())}")
-            return False
+        token = canonicalise_service(service)
+        if token is None:
+            supported = ", ".join(SUPPORTED_SERVICES)
+            return (False, f"Unknown service '{service}'. Supported: {supported}")
 
-        cmd = ["xcrun", "simctl", "privacy"]
-
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.extend(["grant", service, bundle_id])
+        cmd = [
+            "xcrun",
+            "simctl",
+            "privacy",
+            self.udid or "booted",
+            action,
+            token,
+            bundle_id,
+        ]
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, text=True)
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or error.stdout or "").strip()
+            return (False, f"simctl privacy {action} {token} failed: {detail}")
+        except FileNotFoundError:
+            return (False, "xcrun not found. Install the Xcode command line tools.")
 
-            # Log audit entry
-            self._log_audit("grant", bundle_id, service, scenario, step)
-
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def revoke_permission(
-        self,
-        bundle_id: str,
-        service: str,
-        scenario: str | None = None,
-        step: int | None = None,
-    ) -> bool:
-        """
-        Revoke permission for app.
-
-        Args:
-            bundle_id: App bundle ID
-            service: Service name
-            scenario: Test scenario name for audit trail
-            step: Step number in test scenario
-
-        Returns:
-            Success status
-        """
-        if service not in self.SUPPORTED_SERVICES:
-            print(f"Error: Unknown service '{service}'")
-            return False
-
-        cmd = ["xcrun", "simctl", "privacy"]
-
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.extend(["revoke", service, bundle_id])
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-
-            # Log audit entry
-            self._log_audit("revoke", bundle_id, service, scenario, step)
-
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def reset_permission(
-        self,
-        bundle_id: str,
-        service: str,
-        scenario: str | None = None,
-        step: int | None = None,
-    ) -> bool:
-        """
-        Reset permission to default.
-
-        Args:
-            bundle_id: App bundle ID
-            service: Service name
-            scenario: Test scenario name for audit trail
-            step: Step number in test scenario
-
-        Returns:
-            Success status
-        """
-        if service not in self.SUPPORTED_SERVICES:
-            print(f"Error: Unknown service '{service}'")
-            return False
-
-        cmd = ["xcrun", "simctl", "privacy"]
-
-        if self.udid:
-            cmd.append(self.udid)
-        else:
-            cmd.append("booted")
-
-        cmd.extend(["reset", service, bundle_id])
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-
-            # Log audit entry
-            self._log_audit("reset", bundle_id, service, scenario, step)
-
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        self._log_audit(action, bundle_id, token, scenario, step)
+        return (True, SUPPORTED_SERVICES[token])
 
     @staticmethod
     def _log_audit(
@@ -241,8 +194,8 @@ def main():
     # List supported services
     if args.list:
         print("Supported Privacy Services:\n")
-        for service, description in PrivacyManager.SUPPORTED_SERVICES.items():
-            print(f"  {service:<15} - {description}")
+        for service, description in SUPPORTED_SERVICES.items():
+            print(f"  {service:<18} - {description}")
         print()
         print("Examples:")
         print("  python scripts/privacy_manager.py --grant camera --bundle-id com.app")
@@ -254,34 +207,22 @@ def main():
     try:
         udid = resolve_udid(args.udid)
     except RuntimeError as e:
-        print(f"Error: {e}")
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     manager = PrivacyManager(udid=udid)
 
-    # Parse service names (support comma-separated list)
-    if args.grant:
-        services = [s.strip() for s in args.grant.split(",")]
-        action = "grant"
-        action_fn = manager.grant_permission
-    elif args.revoke:
-        services = [s.strip() for s in args.revoke.split(",")]
-        action = "revoke"
-        action_fn = manager.revoke_permission
-    else:  # reset
-        services = [s.strip() for s in args.reset.split(",")]
-        action = "reset"
-        action_fn = manager.reset_permission
+    action, raw_services = (
+        ("grant", args.grant)
+        if args.grant
+        else ("revoke", args.revoke) if args.revoke else ("reset", args.reset)
+    )
+    services = [s.strip() for s in raw_services.split(",") if s.strip()]
 
-    # Execute action for each service
     all_success = True
     for service in services:
-        if service not in PrivacyManager.SUPPORTED_SERVICES:
-            print(f"Error: Unknown service '{service}'")
-            all_success = False
-            continue
-
-        success = action_fn(
+        success, message = manager.apply_permission(
+            action,
             args.bundle_id,
             service,
             scenario=args.scenario,
@@ -289,21 +230,13 @@ def main():
         )
 
         if success:
-            description = PrivacyManager.SUPPORTED_SERVICES[service]
-            print(f"✓ {action.capitalize()} {service}: {description}")
+            print(f"\u2713 {action.capitalize()} {service}: {message}")
         else:
-            print(f"✗ Failed to {action} {service}")
+            print(f"\u2717 Failed to {action} {service}: {message}", file=sys.stderr)
             all_success = False
 
     if not all_success:
         sys.exit(1)
-
-    # Summary
-    if len(services) > 1:
-        print(f"\nPermissions {action}ed: {', '.join(services)}")
-
-    if args.scenario:
-        print(f"Test scenario: {args.scenario}" + (f" (step {args.step})" if args.step else ""))
 
 
 if __name__ == "__main__":
