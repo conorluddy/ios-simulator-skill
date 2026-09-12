@@ -3,7 +3,13 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from common.xcode_compat import ensure_idb_companion_developer_dir
+import json
+
+from common.xcode_compat import (
+    _evict_from_idb_registry,
+    _retire_stale_companions,
+    ensure_idb_companion_developer_dir,
+)
 
 
 def _make_xcode(
@@ -90,3 +96,120 @@ class TestEnsureIdbCompanionDeveloperDir:
             ensure_idb_companion_developer_dir()
 
         assert build_shim.call_count == 1
+
+
+class TestShimRootIsAnAppBundle:
+    """xcrun refuses a DEVELOPER_DIR with no enclosing .app, and DEVELOPER_DIR is process-wide."""
+
+    def test_shim_developer_dir_sits_inside_an_app_bundle(self, tmp_path, monkeypatch):
+        developer = _make_xcode(tmp_path, shared_frameworks=True, legacy_private_frameworks=False)
+        shim_root = tmp_path / "Xcode27Shim.app"
+        monkeypatch.delenv("DEVELOPER_DIR", raising=False)
+        with (
+            patch("common.xcode_compat._developer_dir", return_value=developer),
+            patch("common.xcode_compat.SHIM_ROOT", shim_root),
+            patch("common.xcode_compat._retire_stale_companions"),
+        ):
+            ensure_idb_companion_developer_dir()
+
+        shimmed = Path(__import__("os").environ["DEVELOPER_DIR"])
+        enclosing_bundle = shimmed.parent.parent
+        assert enclosing_bundle.suffix == ".app"
+
+    def test_default_shim_root_is_an_app_bundle(self):
+        from common.xcode_compat import SHIM_ROOT
+
+        assert SHIM_ROOT.suffix == ".app"
+
+
+class TestRetireStaleCompanions:
+    """A companion inherits DEVELOPER_DIR at launch; a pre-shim one stays broken for its life."""
+
+    def test_companion_outside_the_shim_is_killed(self):
+        shim = Path("/shim/Contents/Developer")
+        with (
+            patch("common.xcode_compat._running_companion_pids", return_value=[4242]),
+            patch("common.xcode_compat._companion_developer_dir", return_value=None),
+            patch("common.xcode_compat._evict_from_idb_registry"),
+            patch("common.xcode_compat._terminate") as terminate,
+        ):
+            _retire_stale_companions(shim)
+        terminate.assert_called_once_with(4242)
+
+    def test_killed_companion_is_evicted_from_the_registry(self):
+        """Leaving a dead pid in idb's registry makes the next call fail instead of respawn."""
+        shim = Path("/shim/Contents/Developer")
+        with (
+            patch("common.xcode_compat._running_companion_pids", return_value=[4242]),
+            patch("common.xcode_compat._companion_developer_dir", return_value=None),
+            patch("common.xcode_compat._terminate"),
+            patch("common.xcode_compat._evict_from_idb_registry") as evict,
+        ):
+            _retire_stale_companions(shim)
+        evict.assert_called_once_with({4242})
+
+    def test_companion_already_under_the_shim_is_left_running(self):
+        shim = Path("/shim/Contents/Developer")
+        with (
+            patch("common.xcode_compat._running_companion_pids", return_value=[4242]),
+            patch("common.xcode_compat._companion_developer_dir", return_value=str(shim)),
+            patch("common.xcode_compat._evict_from_idb_registry") as evict,
+            patch("common.xcode_compat._terminate") as terminate,
+        ):
+            _retire_stale_companions(shim)
+        terminate.assert_not_called()
+        evict.assert_not_called()
+
+    def test_no_companion_running_is_a_no_op(self):
+        with (
+            patch("common.xcode_compat._running_companion_pids", return_value=[]),
+            patch("common.xcode_compat._terminate") as terminate,
+        ):
+            _retire_stale_companions(Path("/shim/Contents/Developer"))
+        terminate.assert_not_called()
+
+
+class TestEvictFromIdbRegistry:
+    """idb dials the socket its registry names; a dead entry must go, socket and all."""
+
+    def test_retired_entry_and_its_socket_are_removed(self, tmp_path):
+        socket_path = tmp_path / "dead_companion.sock"
+        socket_path.write_text("")
+        registry = tmp_path / "state"
+        registry.write_text(
+            json.dumps(
+                [
+                    {"udid": "DEAD", "pid": 4242, "path": str(socket_path)},
+                    {"udid": "LIVE", "pid": 777, "path": str(tmp_path / "live.sock")},
+                ]
+            )
+        )
+        with patch(
+            "common.xcode_compat.Path",
+            side_effect=lambda p: registry if p == "/tmp/idb/state" else Path(p),
+        ):
+            _evict_from_idb_registry({4242})
+
+        assert json.loads(registry.read_text()) == [
+            {"udid": "LIVE", "pid": 777, "path": str(tmp_path / "live.sock")}
+        ]
+        assert not socket_path.exists()
+
+    def test_registry_without_retired_entries_is_left_untouched(self, tmp_path):
+        registry = tmp_path / "state"
+        original = json.dumps([{"udid": "LIVE", "pid": 777, "path": str(tmp_path / "live.sock")}])
+        registry.write_text(original)
+        with patch(
+            "common.xcode_compat.Path",
+            side_effect=lambda p: registry if p == "/tmp/idb/state" else Path(p),
+        ):
+            _evict_from_idb_registry({4242})
+        assert registry.read_text() == original
+
+    def test_missing_registry_is_a_no_op(self, tmp_path):
+        missing = tmp_path / "absent"
+        with patch(
+            "common.xcode_compat.Path",
+            side_effect=lambda p: missing if p == "/tmp/idb/state" else Path(p),
+        ):
+            _evict_from_idb_registry({4242})  # must not raise
