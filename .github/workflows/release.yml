@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # The distributable skill lives inside the plugin layout; keep this in one place.
+  SKILL_DIR: ios-simulator-skill/skills/ios-simulator-skill
+
 jobs:
   package:
     name: Package skill and upload to release
@@ -18,20 +22,26 @@ jobs:
 
       - name: Validate skill structure
         run: |
-          echo "Validating ios-simulator-skill/ directory structure..."
-          test -f ios-simulator-skill/SKILL.md || { echo "ERROR: ios-simulator-skill/SKILL.md not found"; exit 1; }
-          test -d ios-simulator-skill/scripts || { echo "ERROR: ios-simulator-skill/scripts directory not found"; exit 1; }
+          echo "Validating skill directory structure..."
+          test -f "$SKILL_DIR/SKILL.md" || { echo "ERROR: $SKILL_DIR/SKILL.md not found"; exit 1; }
+          test -d "$SKILL_DIR/scripts" || { echo "ERROR: $SKILL_DIR/scripts not found"; exit 1; }
+          test -f ios-simulator-skill/.claude-plugin/plugin.json || { echo "ERROR: plugin.json not found"; exit 1; }
           echo "✅ Skill structure validated successfully"
 
       - name: Create skill package
         run: |
-          cd ios-simulator-skill
-          zip -r ../ios-simulator-skill-${{ github.ref_name }}.zip . \
+          # Package the skill directory itself, so SKILL.md and scripts/ sit at the
+          # root of the zip - what the documented
+          # `unzip skill.zip -d ~/.claude/skills/ios-simulator-skill` expects.
+          cd "$SKILL_DIR"
+          zip -r "$GITHUB_WORKSPACE/ios-simulator-skill-${{ github.ref_name }}.zip" . \
             -x "*.pyc" \
             -x "__pycache__/*" \
-            -x "*.DS_Store"
-          cd ..
+            -x "*.DS_Store" \
+            -x "config.json"
+          cd "$GITHUB_WORKSPACE"
           echo "📦 Created package: ios-simulator-skill-${{ github.ref_name }}.zip"
+          unzip -l "ios-simulator-skill-${{ github.ref_name }}.zip" | head -20
           ls -lh ios-simulator-skill-${{ github.ref_name }}.zip
 
       - name: Upload package to release
