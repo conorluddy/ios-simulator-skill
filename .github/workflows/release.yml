@@ -40,14 +40,18 @@ jobs:
             -x "*.DS_Store" \
             -x "config.json"
           cd "$GITHUB_WORKSPACE"
+          cp "ios-simulator-skill-${{ github.ref_name }}.zip" ios-simulator-skill.zip
           echo "📦 Created package: ios-simulator-skill-${{ github.ref_name }}.zip"
+          echo "📦 Stable alias:    ios-simulator-skill.zip"
           unzip -l "ios-simulator-skill-${{ github.ref_name }}.zip" | head -20
           ls -lh ios-simulator-skill-${{ github.ref_name }}.zip
 
       - name: Upload package to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ios-simulator-skill-${{ github.ref_name }}.zip
+          files: |
+            ios-simulator-skill-${{ github.ref_name }}.zip
+            ios-simulator-skill.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
 

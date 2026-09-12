@@ -26,17 +26,30 @@ In Claude Code:
 /plugin install ios-simulator-skill@conorluddy
 ```
 
-### Via Git Clone
+### Manual install
+
+A skill is loaded from `SKILL.md` at the root of its directory — `~/.claude/skills/<name>/SKILL.md`.
+This repository is a *plugin*, so the skill itself lives at
+`ios-simulator-skill/skills/ios-simulator-skill/`; cloning the whole repo into your skills
+directory puts `SKILL.md` three levels too deep and the skill will not load.
+
+**From a release** (simplest):
 
 ```bash
-# Personal installation
-git clone https://github.com/conorluddy/ios-simulator-skill.git ~/.claude/skills/ios-simulator-skill
-
-# Project installation
-git clone https://github.com/conorluddy/ios-simulator-skill.git .claude/skills/ios-simulator-skill
+curl -L https://github.com/conorluddy/ios-simulator-skill/releases/latest/download/ios-simulator-skill.zip -o skill.zip
+unzip skill.zip -d ~/.claude/skills/ios-simulator-skill
 ```
 
-Restart Claude Code. The skill loads automatically.
+**From a clone** (to track `main`):
+
+```bash
+git clone https://github.com/conorluddy/ios-simulator-skill.git ~/src/ios-simulator-skill
+cp -R ~/src/ios-simulator-skill/ios-simulator-skill/skills/ios-simulator-skill \
+      ~/.claude/skills/ios-simulator-skill
+```
+
+For a project-local install, use `.claude/skills/ios-simulator-skill` as the destination instead.
+Either way, restart Claude Code afterwards; verify with `ls ~/.claude/skills/ios-simulator-skill/SKILL.md`.
 
 ### Prerequisites
 
