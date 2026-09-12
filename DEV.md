@@ -4,7 +4,7 @@ This is the **development repository** for the iOS Simulator Skill. Users should
 
 ## What is This?
 
-A production-ready Claude Code skill providing 21+ scripts for iOS simulator testing and automation with:
+A production-ready Claude Code skill providing 29 scripts for iOS simulator testing and automation with:
 - 🏗️ **Ultra token-efficient build automation** with progressive disclosure
 - 🔍 **Real-time log monitoring** with intelligent filtering
 - 🎯 **Accessibility-driven navigation** (semantic, not pixel-based)
@@ -34,7 +34,7 @@ See [`ios-simulator-skill/SKILL.md`](ios-simulator-skill/SKILL.md) for usage doc
 
 ### Prerequisites
 
-- macOS 11+ (required for iOS simulator)
+- macOS 15 (Sequoia)+ (required for iOS simulator)
 - Xcode Command Line Tools: `xcode-select --install`
 - Python 3.12+
 - Git
@@ -103,7 +103,7 @@ pre-commit run --all-files
 ios-simulator-skill/                   # Repository root
 ├── ios-simulator-skill/               # Distributable package (packaged in releases)
 │   ├── SKILL.md                      # Entry point with YAML frontmatter
-│   └── scripts/                      # 21+ production scripts (~10,000 lines)
+│   └── scripts/                      # 29 production scripts (~10,000 lines)
 │
 ├── .github/workflows/                 # CI/CD automation
 │   ├── release.yml                   # Auto-package on release

@@ -2,7 +2,7 @@
 
 # iOS Simulator Skill for Claude Code
 
-Production-ready skill for building, testing, and automating iOS apps. 27 scripts optimized for both human developers and AI agents.
+Production-ready skill for building, testing, and automating iOS apps. 29 scripts optimized for both human developers and AI agents.
 
 (If you'd prefer an MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp))
 
@@ -40,11 +40,56 @@ Restart Claude Code. The skill loads automatically.
 
 ### Prerequisites
 
-- macOS 12+
-- Xcode Command Line Tools (`xcode-select --install`)
-- Python 3
-- IDB (optional, for interactive features: `brew tap facebook/fb && brew install idb-companion`)
-- Pillow (optional, for visual diffs: `pip3 install pillow`)
+| Requirement | Version | Needed for |
+|---|---|---|
+| macOS | 15 (Sequoia)+ | everything |
+| Xcode + Command Line Tools | 26+ (`xcode-select --install`) | building, `simctl` |
+| Python | **3.12+** | every script |
+| `idb` (CLI + companion) | **1.5.1+** | tapping, swiping, typing |
+| Pillow | any | visual diffs only (`pip3 install pillow`) |
+
+**Install idb** — required for every interactive script (`navigator.py`, `gesture.py`, `keyboard.py`):
+
+```bash
+brew tap facebook/fb
+brew install facebook/fb/idb-companion facebook/fb/idb-cli
+```
+
+> `brew install idb-companion` no longer works: idb-companion was removed from Homebrew
+> core and now lives in Meta's own `facebook/fb` tap. If you followed older instructions,
+> see [Updating idb](#updating-idb).
+
+To verify everything at once:
+
+```bash
+bash scripts/sim_health_check.sh          # add --json for machine-readable output
+```
+
+### Updating idb
+
+**On Xcode 27, `idb-companion` must be 1.5.1 or newer.** Older builds look for
+`SimulatorKit.framework` where Xcode 26 kept it. Under Xcode 27 the companion still starts and
+the accessibility tree still reads correctly, but every tap, swipe and keystroke is silently
+dropped — `idb` reports success and nothing happens on screen.
+
+```bash
+brew upgrade facebook/fb/idb-companion facebook/fb/idb-cli
+brew list --versions idb-companion        # expect >= 1.5.1
+```
+
+Coming from the old pip package? `pip install fb-idb` still provides a working `idb` CLI, but
+the Homebrew `idb-cli` above is the maintained path. If both are installed, whichever comes
+first on your `PATH` wins — check with `which -a idb`.
+
+### Xcode 27 notes
+
+- **There is no `Simulator.app`.** Xcode 27 replaced it with `DeviceHub.app`, in
+  `Xcode.app/Contents/Applications/`. Scripts drive simulators headlessly via `simctl` and `idb`,
+  so you rarely need either — but `open -a Simulator` will fail.
+- Quitting DeviceHub shuts down the simulator it is hosting.
+- If `idb` calls start failing with `Connection refused` after a crash or a manual `pkill`, a dead
+  companion is still registered. Clear it with `idb disconnect <udid>`; `sim_health_check.sh`
+  detects this.
 
 ## Features
 
@@ -82,7 +127,7 @@ The accessibility tree gives structured data (element types, labels, frames, tap
 
 ### Screenshot Token Optimization
 
-When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 27 scripts is 3-5 lines — 96% reduction vs raw tool output.
+When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 29 scripts is 3-5 lines — 96% reduction vs raw tool output.
 
 | Task | Raw Tools | This Skill | Savings |
 |------|-----------|-----------|---------|
@@ -90,7 +135,7 @@ When screenshots are needed (visual verification, bug reports, diffs), the skill
 | Find & tap button | 100+ lines | 1 line | 99% |
 | Login flow | 400+ lines | 15 lines | 96% |
 
-### All 27 Scripts
+### All 29 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
 
