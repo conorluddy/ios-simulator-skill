@@ -4,7 +4,7 @@
 
 Production-ready skill for building, testing, and automating iOS apps. 29 scripts optimized for both human developers and AI agents.
 
-(If you'd prefer an MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) -> [NPM](https://github.com/conorluddy/xc-mcp](https://www.npmjs.com/package/xc-mcp) )
+(If you'd prefer an MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) -> [NPM](https://www.npmjs.com/package/xc-mcp) )
 
 ## Xcode Build + Simulator Automation
 
