@@ -147,7 +147,7 @@ git push origin v1.1.0
 
 ```bash
 # Test scripts locally with booted simulator
-open -a Simulator
+open -b com.apple.dt.Devices   # Device Hub (Xcode 27+); older Xcode: open -a Simulator
 
 # Run health check
 bash ios-simulator-skill/scripts/sim_health_check.sh
