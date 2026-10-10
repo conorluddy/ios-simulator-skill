@@ -248,7 +248,7 @@ if command -v xcrun &> /dev/null; then
         check_warning "No simulators currently booted"
         echo "       Boot a simulator to begin testing"
         echo "       Example: xcrun simctl boot <device-udid>"
-        echo "       Or: open -a Simulator"
+        echo "       Or open the UI: open -b com.apple.dt.Devices  (Device Hub, Xcode 27+; older Xcode: open -a Simulator)"
     fi
 else
     check_failed "Cannot check booted simulators (simctl not available)"
