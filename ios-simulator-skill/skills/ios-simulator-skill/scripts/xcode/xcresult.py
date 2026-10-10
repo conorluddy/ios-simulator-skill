@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from common.env_config import SLOW_TIMEOUT
+
 
 class XCResultParser:
     """
@@ -344,7 +346,9 @@ class XCResultParser:
         cmd = ["xcrun", "xcresulttool"] + args + ["--path", str(self.xcresult_path)]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=SLOW_TIMEOUT
+            )
 
             if parse_json:
                 return json.loads(result.stdout)
@@ -353,6 +357,9 @@ class XCResultParser:
         except subprocess.CalledProcessError as e:
             print(f"Error running xcresulttool: {e}", file=sys.stderr)
             print(f"stderr: {e.stderr}", file=sys.stderr)
+            return None
+        except subprocess.TimeoutExpired:
+            print(f"Error: xcresulttool timed out after {SLOW_TIMEOUT}s", file=sys.stderr)
             return None
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON from xcresulttool: {e}", file=sys.stderr)

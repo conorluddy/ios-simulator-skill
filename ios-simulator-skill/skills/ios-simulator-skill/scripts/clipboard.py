@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 from common import resolve_udid
+from common.env_config import QUICK_TIMEOUT
 
 
 class ClipboardManager:
@@ -46,9 +47,9 @@ class ClipboardManager:
         cmd.append(text)
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
 

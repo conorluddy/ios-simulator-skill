@@ -44,6 +44,7 @@ import sys
 from typing import Any
 
 from common import get_cache
+from common.env_config import QUICK_TIMEOUT
 
 
 class SimulatorLister:
@@ -73,10 +74,11 @@ class SimulatorLister:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=QUICK_TIMEOUT,
             )
 
             return json.loads(result.stdout)
-        except (subprocess.CalledProcessError, json.JSONDecodeError):
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
             return {"devices": {}, "runtimes": []}
 
     def parse_devices(self, sim_data: dict) -> list[dict]:

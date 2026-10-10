@@ -21,7 +21,7 @@ from common import (
     get_accessibility_tree,
     resolve_udid,
 )
-from common.env_config import env_int
+from common.env_config import QUICK_TIMEOUT, env_int
 
 STATE_SUBPROCESS_TIMEOUT = env_int("IOS_SIM_STATE_SUBPROCESS_TIMEOUT", 15)
 
@@ -62,9 +62,9 @@ class AppStateCapture:
         cmd.extend(["screenshot", str(output_path)])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def capture_accessibility_tree(self, output_path: Path) -> dict:
@@ -152,7 +152,9 @@ class AppStateCapture:
             cmd = ["xcrun", "simctl", "list", "devices"]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+            )
 
             # Parse output for device info (simplified)
             lines = result.stdout.split("\n")
@@ -170,7 +172,7 @@ class AppStateCapture:
                     break
 
             return device_info
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return {}
 
     def capture_all(

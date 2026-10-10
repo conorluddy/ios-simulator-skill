@@ -23,6 +23,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .env_config import QUICK_TIMEOUT
+
 # Try to import PIL for resizing, but make it optional
 try:
     from PIL import Image
@@ -240,7 +242,7 @@ def capture_screenshot(
         temp_path = "/tmp/ios_simulator_screenshot.png"
         cmd = ["xcrun", "simctl", "io", udid, "screenshot", temp_path]
 
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
+        subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT)
 
         if inline:
             # Inline mode: resize and convert to base64

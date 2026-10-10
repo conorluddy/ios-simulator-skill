@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 from common import resolve_udid
+from common.env_config import QUICK_TIMEOUT
 
 
 class StatusBarController:
@@ -101,9 +102,9 @@ class StatusBarController:
             cmd.extend(["--batteryLevel", str(battery_level)])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def clear(self) -> bool:
@@ -123,9 +124,9 @@ class StatusBarController:
         cmd.append("clear")
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
 

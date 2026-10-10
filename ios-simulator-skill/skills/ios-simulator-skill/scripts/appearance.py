@@ -20,6 +20,7 @@ import subprocess
 import sys
 
 from common import resolve_udid
+from common.env_config import QUICK_TIMEOUT, SLOW_TIMEOUT
 
 # === CONSTANTS ===
 
@@ -206,11 +207,14 @@ class AppearanceManager:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=QUICK_TIMEOUT,
             )
             return True, success_message
         except subprocess.CalledProcessError as error:
             stderr = error.stderr.strip() if error.stderr else "unknown error"
             return False, stderr
+        except subprocess.TimeoutExpired:
+            return False, f"simctl timed out after {QUICK_TIMEOUT}s"
 
     def _restart_app(self, bundle_id: str) -> tuple[bool, str]:
         """Terminate then launch an app by bundle ID.
@@ -223,15 +227,22 @@ class AppearanceManager:
         """
         terminate_cmd = ["xcrun", "simctl", "terminate", self.udid, bundle_id]
         # Terminate may fail if app is not running — that is acceptable
-        subprocess.run(terminate_cmd, capture_output=True, check=False)
+        try:
+            subprocess.run(terminate_cmd, capture_output=True, check=False, timeout=QUICK_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return False, f"terminate timed out after {QUICK_TIMEOUT}s"
 
         launch_cmd = ["xcrun", "simctl", "launch", self.udid, bundle_id]
         try:
-            subprocess.run(launch_cmd, capture_output=True, text=True, check=True)
+            subprocess.run(
+                launch_cmd, capture_output=True, text=True, check=True, timeout=SLOW_TIMEOUT
+            )
             return True, f"Launched {bundle_id}"
         except subprocess.CalledProcessError as error:
             stderr = error.stderr.strip() if error.stderr else "launch failed"
             return False, stderr
+        except subprocess.TimeoutExpired:
+            return False, f"launch timed out after {SLOW_TIMEOUT}s"
 
 
 # === CLI ===
