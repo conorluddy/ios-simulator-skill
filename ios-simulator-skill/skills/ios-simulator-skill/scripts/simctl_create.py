@@ -19,6 +19,7 @@ import sys
 from typing import Optional
 
 from common.device_utils import list_simulators
+from common.env_config import QUICK_TIMEOUT
 
 
 class SimulatorCreator:
@@ -139,7 +140,9 @@ class SimulatorCreator:
         """
         try:
             cmd = ["xcrun", "simctl", "list", "devicetypes", "-j"]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+            )
 
             import json
 
@@ -168,7 +171,9 @@ class SimulatorCreator:
         """
         try:
             cmd = ["xcrun", "simctl", "list", "runtimes", "-j"]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+            )
 
             import json
 

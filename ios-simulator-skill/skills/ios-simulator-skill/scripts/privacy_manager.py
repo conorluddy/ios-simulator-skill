@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 
 from common import resolve_udid
+from common.env_config import QUICK_TIMEOUT
 
 # === SERVICE CATALOGUE ===
 
@@ -114,10 +115,12 @@ class PrivacyManager:
         ]
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True, text=True)
+            subprocess.run(cmd, capture_output=True, check=True, text=True, timeout=QUICK_TIMEOUT)
         except subprocess.CalledProcessError as error:
             detail = (error.stderr or error.stdout or "").strip()
             return (False, f"simctl privacy {action} {token} failed: {detail}")
+        except subprocess.TimeoutExpired:
+            return (False, f"simctl privacy {action} {token} timed out after {QUICK_TIMEOUT}s")
         except FileNotFoundError:
             return (False, "xcrun not found. Install the Xcode command line tools.")
 

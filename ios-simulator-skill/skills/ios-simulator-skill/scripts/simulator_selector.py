@@ -31,6 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from common.env_config import QUICK_TIMEOUT, SLOW_TIMEOUT
+
 # Try to import config from build_and_test if available
 try:
     from xcode.config import Config
@@ -105,6 +107,7 @@ class SimulatorSelector:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=QUICK_TIMEOUT,
             )
 
             data = json.loads(result.stdout)
@@ -136,6 +139,9 @@ class SimulatorSelector:
 
         except subprocess.CalledProcessError as e:
             print(f"Error listing simulators: {e.stderr}", file=sys.stderr)
+            return []
+        except subprocess.TimeoutExpired:
+            print(f"Error: listing simulators timed out after {QUICK_TIMEOUT}s", file=sys.stderr)
             return []
         except json.JSONDecodeError as e:
             print(f"Error parsing simulator list: {e}", file=sys.stderr)
@@ -252,10 +258,14 @@ class SimulatorSelector:
                 ["xcrun", "simctl", "boot", udid],
                 capture_output=True,
                 check=True,
+                timeout=SLOW_TIMEOUT,
             )
             return True
         except subprocess.CalledProcessError as e:
             print(f"Error booting simulator: {e.stderr}", file=sys.stderr)
+            return False
+        except subprocess.TimeoutExpired:
+            print(f"Error: booting simulator timed out after {SLOW_TIMEOUT}s", file=sys.stderr)
             return False
 
 

@@ -71,6 +71,7 @@ import sys
 import time
 
 from common import resolve_udid
+from common.env_config import QUICK_TIMEOUT
 
 
 class KeyboardController:
@@ -135,9 +136,9 @@ class KeyboardController:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def press_key(self, key: str, count: int = 1) -> bool:
@@ -166,11 +167,11 @@ class KeyboardController:
 
         try:
             for _ in range(count):
-                subprocess.run(cmd, capture_output=True, check=True)
+                subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
                 if count > 1:
                     time.sleep(0.1)  # Small delay for multiple presses
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def press_key_sequence(self, keys: list[str]) -> bool:
@@ -203,9 +204,9 @@ class KeyboardController:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def press_hardware_button(self, button: str) -> bool:
@@ -227,9 +228,9 @@ class KeyboardController:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def clear_text(self, select_all: bool = True) -> bool:

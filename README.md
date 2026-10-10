@@ -229,6 +229,8 @@ How long to wait on `xcrun simctl` operations.
 | `IOS_SIM_ERASE_TIMEOUT` | `90` (s) | Wait for factory-reset verification. Larger simulators (lots of installed apps + data) can need more than the old 30s. |
 | `IOS_SIM_POLL_INTERVAL` | `0.5` (s) | How often to re-check boot/erase state. Lower → more responsive (more CPU). Higher → quieter on slow CI but adds latency to “ready” detection. |
 | `IOS_SIM_STATE_SUBPROCESS_TIMEOUT` | `15` (s) | Per-subprocess timeout in `app_state_capture.py`. Bump for apps with very large accessibility trees. |
+| `IOS_SIM_QUICK_TIMEOUT` | `30` (s) | Default timeout for short `simctl` / `idb` / `plutil` calls (list, terminate, openurl, `ui`, `io`, tap, swipe, keyboard, privacy, push, status bar). A timed-out call is reported as a failure instead of hanging the script (and the agent session running it). |
+| `IOS_SIM_SLOW_TIMEOUT` | `120` (s) | Default timeout for calls that touch app bundles or boot a device (`install`, `launch`, `uninstall`, `boot`) and for `xcresulttool` on large bundles. |
 
 ### Build & test output caps
 
