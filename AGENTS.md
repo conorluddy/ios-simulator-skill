@@ -1,6 +1,7 @@
-# CLAUDE.md - Developer Guide
+# AGENTS.md - Developer Guide
 
-This file provides guidance to Claude Code and developers working with this repository.
+Canonical guidance for AI coding agents (Codex, Claude Code, and others) and developers working
+with this repository. `CLAUDE.md` only imports this file - edit here, not there.
 
 ## Project Overview
 
