@@ -5,7 +5,7 @@ Intelligent Simulator Selector
 Suggests the best available iOS simulators based on:
 - Recently used (from config)
 - Latest iOS version
-- Common models for testing
+- Mainline iPhone models (newest first)
 - Boot status
 
 Usage Examples:
@@ -66,17 +66,24 @@ class SimulatorInfo:
         }
 
 
+def version_key(version: str) -> tuple[int, int]:
+    """
+    Numeric sort key for "major.minor" versions ("26.10" > "26.2" > "9.0").
+
+    Example:
+        max(["9.0", "26.10", "26.2"], key=version_key)  # "26.10"
+    """
+    parts = [int(p) for p in version.split(".")[:2] if p.isdigit()]
+    parts += [0] * (2 - len(parts))
+    return (parts[0], parts[1])
+
+
 class SimulatorSelector:
     """Intelligent simulator selection."""
 
-    # Common iPhone models ranked by testing priority
-    COMMON_MODELS = [
-        "iPhone 16 Pro",
-        "iPhone 16",
-        "iPhone 15 Pro",
-        "iPhone 15",
-        "iPhone SE (3rd generation)",
-    ]
+    # Mainline iPhones ("iPhone 17", "iPhone 17 Pro") - the usual test targets.
+    # Matched by pattern, not a hardcoded list, so new models rank without edits.
+    MAINLINE_IPHONE = re.compile(r"^iPhone (\d+)( Pro)?$")
 
     def __init__(self):
         """Initialize selector."""
@@ -148,7 +155,7 @@ class SimulatorSelector:
         Ranking factors:
         1. Recently used (from config)
         2. Latest iOS version
-        3. Common models
+        3. Mainline iPhone models
         4. Boot status (Booted preferred)
 
         Args:
@@ -182,15 +189,11 @@ class SimulatorSelector:
                 sim.reasons.append("Recently used")
 
             # Check if latest iOS
-            latest_ios = max(s.ios_version for s in self.simulators)
-            if sim.ios_version == latest_ios:
+            if sim.ios_version == self._latest_ios_version():
                 sim.reasons.append("Latest iOS")
 
-            # Check if common model
-            for j, model in enumerate(self.COMMON_MODELS):
-                if model in sim.name:
-                    sim.reasons.append(f"#{j+1} common model")
-                    break
+            if self.MAINLINE_IPHONE.match(sim.name):
+                sim.reasons.append("Mainline iPhone")
 
             # Check if booted
             if sim.status == "Booted":
@@ -217,25 +220,27 @@ class SimulatorSelector:
             score += 100
 
         # Latest iOS version (50 points)
-        latest_ios = max(s.ios_version for s in self.simulators)
-        if sim.ios_version == latest_ios:
+        if sim.ios_version == self._latest_ios_version():
             score += 50
 
-        # Common models (30-20 points based on ranking)
-        for i, model in enumerate(self.COMMON_MODELS):
-            if model in sim.name:
-                score += 30 - (i * 2)  # Higher ranking models get more points
-                break
+        # Mainline iPhone (20 points, +2 for Pro), newer model numbers break ties
+        mainline = self.MAINLINE_IPHONE.match(sim.name)
+        if mainline:
+            score += 20 + (2 if mainline.group(2) else 0) + int(mainline.group(1)) * 0.1
 
         # Currently booted (10 points)
         if sim.status == "Booted":
             score += 10
 
-        # iOS version number (minor factor for breaking ties)
-        ios_numeric = float(sim.ios_version.replace(".", ""))
-        score += ios_numeric * 0.1
+        # iOS version (minor factor for breaking ties)
+        major, minor = version_key(sim.ios_version)
+        score += major * 0.01 + minor * 0.0001
 
         return score
+
+    def _latest_ios_version(self) -> str:
+        """Highest iOS version among known simulators, compared numerically."""
+        return max((s.ios_version for s in self.simulators), key=version_key)
 
     def boot_simulator(self, udid: str) -> bool:
         """

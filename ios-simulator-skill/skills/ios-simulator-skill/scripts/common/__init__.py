@@ -31,6 +31,7 @@ from .idb_utils import (
     flatten_tree,
     get_accessibility_tree,
     get_screen_size,
+    run_idb,
 )
 from .screenshot_utils import (
     capture_screenshot,
@@ -58,5 +59,6 @@ __all__ = [
     "get_size_preset",
     "resize_screenshot",
     "resolve_udid",
+    "run_idb",
     "transform_screenshot_coords",
 ]

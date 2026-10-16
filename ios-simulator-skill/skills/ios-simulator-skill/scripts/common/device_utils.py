@@ -228,7 +228,7 @@ def resolve_udid(udid_arg: str | None) -> str:
     )
 
 
-def get_device_screen_size(udid: str) -> tuple[int, int]:
+def get_device_screen_size(udid: str | None) -> tuple[int, int]:
     """
     Get actual screen dimensions for device via accessibility tree.
 
