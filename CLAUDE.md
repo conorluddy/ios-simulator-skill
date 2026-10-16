@@ -17,12 +17,18 @@ iOS Simulator Skill is a production-ready Agent Skill providing 29 scripts for i
 
 ```
 ios-simulator-skill/            # Repository root
+├── .claude-plugin/marketplace.json  # Claude Code marketplace
+├── .agents/plugins/marketplace.json # Codex marketplace
 ├── ios-simulator-skill/        # Distributable package
 │   ├── .claude-plugin/
-│   │   └── plugin.json        # Plugin manifest
+│   │   └── plugin.json        # Claude Code plugin manifest
+│   ├── .codex-plugin/
+│   │   └── plugin.json        # Codex plugin manifest (keep version in sync)
+│   ├── assets/icon.svg        # Codex plugin icon
 │   └── skills/
 │       └── ios-simulator-skill/
 │           ├── SKILL.md       # Entry point (table of contents)
+│           ├── agents/openai.yaml  # Codex skill UI metadata
 │           └── scripts/       # 29 production scripts
 │               ├── build_and_test.py
 │               ├── xcode/     # Xcode integration module
@@ -228,7 +234,7 @@ New scripts should:
 
 ## Release Process
 
-1. Update version in SKILL.md frontmatter, pyproject.toml
+1. Update version in SKILL.md frontmatter, pyproject.toml, and both plugin.json manifests (`.claude-plugin/`, `.codex-plugin/`)
 2. Verify CI passes (Black, Ruff)
 3. Create GitHub release with vX.X.X tag
 4. Attach zipped ios-simulator-skill/ directory

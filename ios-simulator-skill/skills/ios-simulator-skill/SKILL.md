@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
 version: 1.5.0
-description: 29 production-ready scripts for iOS app testing, building, and automation. Provides semantic UI navigation, build automation, accessibility testing, and simulator lifecycle management. Optimized for AI agents with minimal token output.
+description: Build, test, and drive iOS apps in the Simulator with 29 token-efficient scripts. Use when asked to build or test an Xcode project, launch an app on a simulator, tap/type/swipe through its UI by accessibility label, take screenshots or visual diffs, audit accessibility, read logs or diagnose hangs, or manage simulators (boot, erase, permissions, location, push, appearance). macOS only; needs Xcode, Python 3.12+ and idb.
 ---
 
 # iOS Simulator Skill
@@ -27,7 +27,11 @@ python scripts/navigator.py --find-text "Login" --tap
 python scripts/navigator.py --find-type TextField --enter-text "user@example.com"
 ```
 
-All scripts support `--help` for detailed options and `--json` for machine-readable output.
+**Paths:** `scripts/` is relative to the directory containing this SKILL.md, not the user's project.
+Run scripts by absolute path (e.g. `python3 <skill-dir>/scripts/navigator.py ...`), or `cd` into the
+skill directory first. Xcode project paths you pass in are still relative to wherever you run from.
+
+All scripts support `--help` for detailed options; most support `--json` for machine-readable output.
 
 ## Navigation Strategy
 

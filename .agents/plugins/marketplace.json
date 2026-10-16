@@ -1,0 +1,20 @@
+{
+  "name": "conorluddy",
+  "interface": {
+    "displayName": "Conor Luddy"
+  },
+  "plugins": [
+    {
+      "name": "ios-simulator-skill",
+      "source": {
+        "source": "local",
+        "path": "./ios-simulator-skill"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

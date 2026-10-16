@@ -17,18 +17,33 @@ If you only need Xcode build tooling without the simulator scripts, see the plug
 
 ## Installation
 
-### Via Plugin Marketplace (Recommended)
-
-In Claude Code:
+### Claude Code — plugin marketplace (recommended)
 
 ```
 /plugin marketplace add conorluddy/ios-simulator-skill
 /plugin install ios-simulator-skill@conorluddy
 ```
 
+### Codex — plugin marketplace (recommended)
+
+```bash
+codex plugin marketplace add conorluddy/ios-simulator-skill
+codex plugin add ios-simulator-skill@conorluddy
+```
+
+Or run `/plugins` inside Codex and install it from the `conorluddy` marketplace. Start a new
+Codex session afterwards. Update later with `codex plugin marketplace upgrade conorluddy`.
+
 ### Manual install
 
-A skill is loaded from `SKILL.md` at the root of its directory — `~/.claude/skills/<name>/SKILL.md`.
+A skill is loaded from `SKILL.md` at the root of its directory:
+
+| Agent | User-level skills | Project-level skills |
+|---|---|---|
+| Claude Code | `~/.claude/skills/<name>/SKILL.md` | `.claude/skills/<name>/SKILL.md` |
+| Codex | `~/.agents/skills/<name>/SKILL.md` | `.agents/skills/<name>/SKILL.md` |
+
+The commands below use the Claude Code path; swap in `~/.agents/skills` for Codex.
 This repository is a *plugin*, so the skill itself lives at
 `ios-simulator-skill/skills/ios-simulator-skill/`; cloning the whole repo into your skills
 directory puts `SKILL.md` three levels too deep and the skill will not load.
@@ -48,8 +63,9 @@ cp -R ~/src/ios-simulator-skill/ios-simulator-skill/skills/ios-simulator-skill \
       ~/.claude/skills/ios-simulator-skill
 ```
 
-For a project-local install, use `.claude/skills/ios-simulator-skill` as the destination instead.
-Either way, restart Claude Code afterwards; verify with `ls ~/.claude/skills/ios-simulator-skill/SKILL.md`.
+For a project-local install, use the project-level path from the table instead.
+Restart Claude Code afterwards (Codex picks up new skills automatically; restart it if the skill
+doesn't appear). Verify with `ls ~/.claude/skills/ios-simulator-skill/SKILL.md`.
 
 ### Prerequisites
 

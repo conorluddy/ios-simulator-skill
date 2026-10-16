@@ -49,6 +49,21 @@ jobs:
           fi
           echo "✅ pyproject.toml version matches"
 
+      - name: Check plugin manifest versions (Claude Code + Codex)
+        run: |
+          EXPECTED="${{ steps.version.outputs.number }}"
+          FAILED=0
+          for MANIFEST in ios-simulator-skill/.claude-plugin/plugin.json ios-simulator-skill/.codex-plugin/plugin.json; do
+            ACTUAL=$(jq -r '.version' "$MANIFEST")
+            echo "$MANIFEST: $ACTUAL"
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+              echo "❌ ERROR: $MANIFEST version $ACTUAL does not match release $EXPECTED"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
+          echo "✅ Plugin manifest versions match"
+
       - name: Check SKILL.md for version reference
         run: |
           if ! grep -q "${{ steps.version.outputs.number }}" ios-simulator-skill/skills/ios-simulator-skill/SKILL.md; then
@@ -67,4 +82,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "All version references are consistent:" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ pyproject.toml: ${{ steps.version.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ plugin.json (Claude Code + Codex): ${{ steps.version.outputs.number }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Git tag: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
