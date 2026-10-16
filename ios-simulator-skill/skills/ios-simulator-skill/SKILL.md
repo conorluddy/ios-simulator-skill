@@ -396,7 +396,7 @@ starting a fresh companion. Fix: `idb disconnect <udid>`.
 
 - **SKILL.md** (this file) - Script reference, requirements, troubleshooting
 - **README.md** - Installation, updating idb, Xcode 27 notes
-- **CLAUDE.md** - Architecture and implementation details
+- **AGENTS.md** (repository root) - Architecture and implementation details
 
 ## Key Design Principles
 
