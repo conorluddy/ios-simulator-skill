@@ -31,6 +31,7 @@ from .idb_utils import (
     flatten_tree,
     get_accessibility_tree,
     get_screen_size,
+    idb_supports_set_value,
     run_idb,
 )
 from .screenshot_utils import (
@@ -57,6 +58,7 @@ __all__ = [
     "get_device_screen_size",
     "get_screen_size",
     "get_size_preset",
+    "idb_supports_set_value",
     "resize_screenshot",
     "resolve_udid",
     "run_idb",

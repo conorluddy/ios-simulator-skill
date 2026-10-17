@@ -14,11 +14,24 @@ Used by:
 - gesture.py - Touch gesture operations
 """
 
+import functools
 import json
 import subprocess
 import sys
 
 from .device_utils import get_device_screen_size
+
+HELP_PROBE_TIMEOUT_SECONDS = 10
+
+
+def idb_supports_set_value() -> bool:
+    """
+    Whether this idb has `ui set-value` (idb 1.7+).
+
+    Probed from `--help` rather than a version number: upstream publishes no
+    changelog, so the help text is the only reliable record of what a client has.
+    """
+    return "--value" in _ui_help("set-value")
 
 
 def run_idb(cmd: list[str]) -> tuple[bool, str]:
@@ -191,3 +204,19 @@ def get_screen_size(udid: str | None = None) -> tuple[int, int]:
         center_x = width // 2
     """
     return get_device_screen_size(udid)
+
+
+@functools.cache
+def _ui_help(command: str) -> str:
+    """`idb ui <command> --help` output, or "" when this idb lacks the command."""
+    try:
+        result = subprocess.run(
+            ["idb", "ui", command, "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=HELP_PROBE_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout if result.returncode == 0 else ""

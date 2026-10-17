@@ -29,3 +29,38 @@ def test_screen_size_falls_back_instead_of_exiting(monkeypatch):
 
     monkeypatch.setattr(device_utils.subprocess, "run", fail)
     assert idb_utils.get_screen_size("U") == (390, 844)
+
+
+def test_capability_probe_reads_help_text(monkeypatch):
+    idb_utils._ui_help.cache_clear()
+    monkeypatch.setattr(
+        idb_utils.subprocess,
+        "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 0, stdout="  --value VALUE"),
+    )
+    assert idb_utils.idb_supports_set_value()
+    idb_utils._ui_help.cache_clear()
+
+
+def test_capability_probe_is_false_for_unknown_command(monkeypatch):
+    idb_utils._ui_help.cache_clear()
+    monkeypatch.setattr(
+        idb_utils.subprocess,
+        "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            cmd, 2, stdout="", stderr="invalid choice"
+        ),
+    )
+    assert not idb_utils.idb_supports_set_value()
+    idb_utils._ui_help.cache_clear()
+
+
+def test_capability_probe_is_false_without_idb(monkeypatch):
+    idb_utils._ui_help.cache_clear()
+
+    def missing(cmd, **kwargs):
+        raise FileNotFoundError(cmd[0])
+
+    monkeypatch.setattr(idb_utils.subprocess, "run", missing)
+    assert not idb_utils.idb_supports_set_value()
+    idb_utils._ui_help.cache_clear()

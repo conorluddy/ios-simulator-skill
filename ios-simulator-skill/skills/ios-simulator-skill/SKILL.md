@@ -89,8 +89,13 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Find by element type
    - Find by accessibility ID
    - Enter text or tap elements
+   - `--tap` on a Button/Link/Switch/Tab with a unique accessibility ID uses an accessibility press
+     (idb 1.7+), so overlays like a floating search bar can't intercept it; output says
+     `(accessibility press)`. Otherwise it taps the frame center
+   - `--set-value TEXT` replaces a field's value without the keyboard (any characters, idb 1.7+).
+     Focus doesn't move, so use `--enter-text` when a Return key must submit afterwards
    - Failures include idb's stderr (e.g. a dead companion)
-   - Options: `--find-text`, `--find-exact`, `--find-type`, `--find-id`, `--index`, `--tap`, `--tap-at`, `--enter-text`, `--list`
+   - Options: `--find-text`, `--find-exact`, `--find-type`, `--find-id`, `--index`, `--tap`, `--tap-at`, `--enter-text`, `--set-value`, `--list`
 
 7. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
    - Directional swipes (up/down/left/right) - `--swipe` is the direction the finger moves
