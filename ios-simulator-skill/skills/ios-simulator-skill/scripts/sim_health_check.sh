@@ -67,6 +67,7 @@ This script checks for:
   - Available simulator devices
   - Xcode 27 SimulatorKit layout compatibility
   - Stale idb companion registrations
+  - idb companion runtime: axbridge guest present, no companions older than the install
 
 Exit codes:
   0 - All checks passed
@@ -122,7 +123,7 @@ check_warning() {
 
 
 # Check 1: macOS
-echo -e "${BLUE}[1/10]${NC} Checking operating system..."
+echo -e "${BLUE}[1/11]${NC} Checking operating system..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
     OS_VERSION=$(sw_vers -productVersion)
     check_passed "macOS detected (version $OS_VERSION)"
@@ -133,7 +134,7 @@ fi
 echo ""
 
 # Check 2: Xcode Command Line Tools
-echo -e "${BLUE}[2/10]${NC} Checking Xcode Command Line Tools..."
+echo -e "${BLUE}[2/11]${NC} Checking Xcode Command Line Tools..."
 if command -v xcrun &> /dev/null; then
     XCODE_PATH=$(xcode-select -p 2>/dev/null || echo "not found")
     if [ "$XCODE_PATH" != "not found" ]; then
@@ -152,7 +153,7 @@ fi
 echo ""
 
 # Check 3: simctl availability
-echo -e "${BLUE}[3/10]${NC} Checking simctl (Simulator Control)..."
+echo -e "${BLUE}[3/11]${NC} Checking simctl (Simulator Control)..."
 if command -v xcrun &> /dev/null && xcrun simctl help &> /dev/null; then
     check_passed "simctl is available"
 else
@@ -167,7 +168,7 @@ IDB_INSTALL_CMD="brew install facebook/fb/idb"
 IDB_UPGRADE_CMD="brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
 # Only known for a Homebrew client, whose path carries the version; check 5 uses it.
 IDB_CLIENT_VERSION=""
-echo -e "${BLUE}[4/10]${NC} Checking idb CLI..."
+echo -e "${BLUE}[4/11]${NC} Checking idb CLI..."
 if command -v idb &> /dev/null; then
     # Probe the idb the scripts will actually run: a pyenv python3 shim puts its own
     # bin/ first on PATH, where an old pip `fb-idb` can shadow the brew idb-cli.
@@ -197,7 +198,7 @@ echo ""
 # Check 5: idb-companion version
 # idb-companion <= 1.1.8 hardcodes the pre-Xcode-27 SimulatorKit path. Under
 # Xcode 27 its HID writes fail, so taps silently do nothing while reads work.
-echo -e "${BLUE}[5/10]${NC} Checking idb-companion >= ${MIN_COMPANION_VERSION}..."
+echo -e "${BLUE}[5/11]${NC} Checking idb-companion >= ${MIN_COMPANION_VERSION}..."
 if command -v idb_companion &> /dev/null; then
     COMPANION_VERSION=$(brew list --versions idb-companion 2>/dev/null | awk '{print $2}')
     if [ -z "$COMPANION_VERSION" ]; then
@@ -227,7 +228,7 @@ fi
 echo ""
 
 # Check 6: Python 3.12+ installation
-echo -e "${BLUE}[6/10]${NC} Checking Python 3.12+..."
+echo -e "${BLUE}[6/11]${NC} Checking Python 3.12+..."
 if command -v python3 &> /dev/null; then
     PYTHON_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
     PYTHON_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
@@ -245,7 +246,7 @@ fi
 echo ""
 
 # Check 7: Available simulators
-echo -e "${BLUE}[7/10]${NC} Checking available iOS Simulators..."
+echo -e "${BLUE}[7/11]${NC} Checking available iOS Simulators..."
 if command -v xcrun &> /dev/null; then
     SIMULATOR_COUNT=$(xcrun simctl list devices available 2>/dev/null | grep -c "iPhone\|iPad" || echo "0")
 
@@ -269,7 +270,7 @@ fi
 echo ""
 
 # Check 8: Booted simulators
-echo -e "${BLUE}[8/10]${NC} Checking booted simulators..."
+echo -e "${BLUE}[8/11]${NC} Checking booted simulators..."
 if command -v xcrun &> /dev/null; then
     BOOTED_SIMS=$(xcrun simctl list devices booted 2>/dev/null | grep -c "iPhone\|iPad" || echo "0")
 
@@ -293,7 +294,7 @@ fi
 echo ""
 
 # Check 9: Required Python packages (optional check)
-echo -e "${BLUE}[9/10]${NC} Checking Python packages..."
+echo -e "${BLUE}[9/11]${NC} Checking Python packages..."
 if command -v python3 &> /dev/null; then
     MISSING_PACKAGES=()
 
@@ -317,7 +318,7 @@ echo ""
 
 # Check 10: Xcode 27 layout and stale companion registrations
 # Two Xcode 27 traps that both present as "idb reports success but nothing happens".
-echo -e "${BLUE}[10/10]${NC} Checking Xcode 27 compatibility..."
+echo -e "${BLUE}[10/11]${NC} Checking Xcode 27 compatibility..."
 XCODE27_ISSUES=0
 
 DEVELOPER_PATH=$(xcode-select -p 2>/dev/null || echo "")
@@ -373,6 +374,58 @@ done
 
 if [ "$XCODE27_ISSUES" -eq 0 ]; then
     check_passed "No known Xcode 27 compatibility issues"
+fi
+echo ""
+
+# Check 11: idb companion runtime
+# Two things idb itself never reports: a missing axbridge guest, and companions still
+# running a binary that has since been upgraded (they keep the old code until restarted).
+echo -e "${BLUE}[11/11]${NC} Checking idb companion runtime..."
+RUNTIME_ISSUES=0
+COMPANION_REAL=""
+if command -v idb_companion &> /dev/null; then
+    COMPANION_REAL=$(realpath "$(command -v idb_companion)" 2>/dev/null || true)
+fi
+
+if [ -n "$COMPANION_REAL" ]; then
+    # idb 1.7 loads its axbridge guest from Resources/ beside the real binary. Without it,
+    # axbridge calls fail with "The SimulatorFrameworkBridge guest binary was not found in
+    # the companion Resources directory". Older companions have no axbridge at all.
+    BRIDGE="$(dirname "$COMPANION_REAL")/Resources/SimulatorFrameworkBridge-iOS"
+    if [ -n "$COMPANION_VERSION" ] && version_lt "$COMPANION_VERSION" "1.7.0"; then
+        echo "       axbridge needs idb-companion 1.7+ (screen_mapper.py --deep, gesture.py --drag)"
+    elif [ ! -x "$BRIDGE" ]; then
+        check_warning "idb-companion has no axbridge guest at $BRIDGE" "brew reinstall facebook/fb/idb-companion"
+        echo "       Needed by screen_mapper.py --deep and gesture.py --drag"
+        RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+    fi
+
+    # Homebrew writes INSTALL_RECEIPT.json at install time; the binary's own mtime is
+    # its build date, so it can't tell an old process from a new one.
+    RECEIPT="$(dirname "$(dirname "$COMPANION_REAL")")/INSTALL_RECEIPT.json"
+    if [ -f "$RECEIPT" ]; then
+        INSTALLED_AT=$(stat -f %m "$RECEIPT")
+        STALE_PIDS=""
+        for pid in $(pgrep -x idb_companion || true); do
+            started=$(LC_ALL=C ps -o lstart= -p "$pid" 2>/dev/null) || continue
+            # shellcheck disable=SC2086 # word-splitting trims ps's padding
+            started_at=$(LC_ALL=C date -j -f "%a %b %d %T %Y" "$(echo $started)" +%s 2>/dev/null) || continue
+            if [ "$started_at" -lt "$INSTALLED_AT" ]; then
+                STALE_PIDS="$STALE_PIDS $pid"
+            fi
+        done
+        if [ -n "$STALE_PIDS" ]; then
+            check_warning "idb companions started before idb-companion was last installed (pids:$STALE_PIDS)" "idb kill"
+            echo "       They still run the old binary. Restart them: idb kill (the next idb call starts a fresh one)"
+            RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+        fi
+    fi
+fi
+
+if [ -z "$COMPANION_REAL" ]; then
+    echo "       Skipped: idb-companion not found (see check 5)"
+elif [ "$RUNTIME_ISSUES" -eq 0 ]; then
+    check_passed "idb companion runtime is current"
 fi
 echo ""
 
