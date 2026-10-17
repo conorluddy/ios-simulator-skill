@@ -164,7 +164,7 @@ cp -r ios-simulator-skill/* ~/.claude/skills/ios-simulator-skill-test/
 
 ## Code Style Guidelines
 
-From [`CLAUDE.md`](CLAUDE.md):
+From [`AGENTS.md`](AGENTS.md):
 
 - **Jackson's Law**: Minimal code to solve the problem
 - **Guard clauses**: Validate inputs first, happy path last

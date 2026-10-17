@@ -25,7 +25,8 @@ jobs:
           echo "Validating skill directory structure..."
           test -f "$SKILL_DIR/SKILL.md" || { echo "ERROR: $SKILL_DIR/SKILL.md not found"; exit 1; }
           test -d "$SKILL_DIR/scripts" || { echo "ERROR: $SKILL_DIR/scripts not found"; exit 1; }
-          test -f ios-simulator-skill/.claude-plugin/plugin.json || { echo "ERROR: plugin.json not found"; exit 1; }
+          test -f ios-simulator-skill/.claude-plugin/plugin.json || { echo "ERROR: .claude-plugin/plugin.json not found"; exit 1; }
+          test -f ios-simulator-skill/.codex-plugin/plugin.json || { echo "ERROR: .codex-plugin/plugin.json not found"; exit 1; }
           echo "✅ Skill structure validated successfully"
 
       - name: Create skill package

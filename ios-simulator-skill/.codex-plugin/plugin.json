@@ -1,0 +1,37 @@
+{
+  "name": "ios-simulator-skill",
+  "version": "1.5.0",
+  "description": "29 scripts for iOS app building, testing, and simulator automation. Semantic UI navigation via the accessibility tree, xcodebuild with progressive error disclosure, accessibility audits, hang detection, and simulator lifecycle management.",
+  "author": {
+    "name": "Conor Luddy",
+    "url": "https://github.com/conorluddy"
+  },
+  "homepage": "https://github.com/conorluddy/ios-simulator-skill",
+  "repository": "https://github.com/conorluddy/ios-simulator-skill",
+  "license": "MIT",
+  "keywords": ["ios", "simulator", "xcode", "testing", "accessibility", "automation"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "iOS Simulator",
+    "shortDescription": "Build, test and drive iOS simulators",
+    "longDescription": "Build Xcode projects and parse results with progressive disclosure, then drive the iOS Simulator semantically: find and tap elements by accessibility label, type, swipe, and launch apps. Includes WCAG accessibility audits, visual diffs, log and hang monitoring, permissions, location, push notifications, and simulator lifecycle management. Requires macOS, Xcode, Python 3.12+ and idb.",
+    "developerName": "Conor Luddy",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Build and test Xcode projects",
+      "Navigate simulator UI by accessibility label",
+      "Audit accessibility",
+      "Manage simulators"
+    ],
+    "websiteURL": "https://github.com/conorluddy/ios-simulator-skill",
+    "supportURL": "https://github.com/conorluddy/ios-simulator-skill/issues",
+    "defaultPrompt": [
+      "Build my app and launch it on the simulator.",
+      "Log in to my app on the simulator and check the next screen.",
+      "Run an accessibility audit on the current simulator screen."
+    ],
+    "brandColor": "#1F1F1F",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg"
+  }
+}
