@@ -1,6 +1,6 @@
 ---
 name: ios-simulator-skill
-version: 1.5.0
+version: 1.6.0
 description: Build, test, and drive iOS apps in the Simulator with 29 token-efficient scripts. Use when asked to build or test an Xcode project, launch an app on a simulator, tap/type/swipe through its UI by accessibility label, take screenshots or visual diffs, audit accessibility, read logs or diagnose hangs, or manage simulators (boot, erase, permissions, location, push, appearance). macOS only; needs Xcode, Python 3.12+ and idb.
 ---
 
