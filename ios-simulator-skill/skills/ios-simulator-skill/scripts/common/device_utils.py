@@ -230,41 +230,35 @@ def resolve_udid(udid_arg: str | None) -> str:
 
 def get_device_screen_size(udid: str | None) -> tuple[int, int]:
     """
-    Get actual screen dimensions for device via accessibility tree.
+    Get the device's screen size in points, as reported by `idb describe`.
 
-    Queries IDB accessibility tree to determine actual device resolution.
+    Uses the target description rather than the accessibility tree: the tree's
+    root is the frontmost app, whose frame is 0x0 while it launches. Every idb
+    client reports screen_dimensions, so this needs no version check.
     Falls back to iPhone 14 defaults (390x844) if detection fails.
 
     Args:
         udid: Device UDID
 
     Returns:
-        Tuple of (width, height) in pixels
+        Tuple of (width, height) in points
 
     Example:
         width, height = get_device_screen_size("ABC123")
         print(f"Device screen: {width}x{height}")
     """
     try:
-        cmd = build_idb_command("ui describe-all", udid, "--json")
+        cmd = build_idb_command("describe", udid, "--json")
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-
-        # Parse JSON response
-        data = json.loads(result.stdout)
-        tree = data[0] if isinstance(data, list) and len(data) > 0 else data
-
-        # Get frame size from root element
-        if tree and "frame" in tree:
-            frame = tree["frame"]
-            width = int(frame.get("width", 390))
-            height = int(frame.get("height", 844))
-            return (width, height)
-
-        # Fallback
-        return (390, 844)
+        dimensions = json.loads(result.stdout)["screen_dimensions"]
+        width = int(dimensions["width_points"])
+        height = int(dimensions["height_points"])
     except Exception:
         # Graceful fallback to iPhone 14 Pro defaults
         return (390, 844)
+    if width <= 0 or height <= 0:
+        return (390, 844)
+    return (width, height)
 
 
 def resolve_device_identifier(identifier: str) -> str:

@@ -202,3 +202,54 @@ def test_set_value_on_old_idb_says_how_to_upgrade(press_nav, monkeypatch):
     assert not ok
     assert "idb 1.7+" in message and "brew upgrade" in message
     assert press_nav.calls == []
+
+
+# === Toggles and the --expect guard ===
+
+
+TOGGLE_TREE = _node(
+    "Application",
+    "Settings",
+    0,
+    0,
+    400,
+    800,
+    [_with_id(_node("CheckBox", "Smart Punctuation", 36, 259, 330, 28), "SmartTyping")],
+)
+TOGGLE_TREE["children"][0]["AXValue"] = "1"
+
+
+@pytest.fixture
+def toggle_nav(monkeypatch):
+    """Navigator over a screen with one toggle that is on."""
+    calls: list[list[str]] = []
+
+    def fake_run(cmd):
+        calls.append(cmd)
+        return (True, "")
+
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: TOGGLE_TREE)
+    monkeypatch.setattr(navigator, "run_idb", fake_run)
+    instance = Navigator("U")
+    instance.calls = calls
+    return instance
+
+
+def test_toggle_reported_as_checkbox_is_pressed(toggle_nav):
+    ok, message = toggle_nav.find_and_tap(identifier="SmartTyping")
+    assert ok
+    assert "accessibility press" in message
+    assert toggle_nav.calls[0][:4] == ["idb", "ui", "tap", "SmartTyping"]
+
+
+def test_expect_taps_when_value_matches(toggle_nav):
+    ok, _ = toggle_nav.find_and_tap(identifier="SmartTyping", expected_value="1")
+    assert ok
+    assert len(toggle_nav.calls) == 1
+
+
+def test_expect_refuses_to_tap_when_value_differs(toggle_nav):
+    ok, message = toggle_nav.find_and_tap(identifier="SmartTyping", expected_value="0")
+    assert not ok
+    assert message == "Not tapped: CheckBox \"Smart Punctuation\" has value '1', expected '0'"
+    assert toggle_nav.calls == []

@@ -31,6 +31,9 @@ Usage Examples:
     # Tap element by accessibility ID
     python scripts/navigator.py --find-id "submitButton" --tap --udid <device-id>
 
+    # Turn a toggle off only if it is on (idempotent; exits 1 without tapping otherwise)
+    python scripts/navigator.py --find-id "SmartTyping" --tap --expect 1 --udid <device-id>
+
     # List all interactive elements
     python scripts/navigator.py --list --udid <device-id>
 
@@ -88,13 +91,14 @@ INTERACTIVE_TYPES = {
     "SecureTextField",
     "SearchField",
     "Switch",
+    "CheckBox",  # iOS 27 reports toggles as CheckBox with a Toggle trait, not Switch
     "Slider",
     "Tab",
 }
 
 # Controls whose accessibility press does what a finger tap does. Text fields are
 # excluded: a press doesn't give them keyboard focus, which typing needs.
-PRESSABLE_TYPES = {"Button", "Link", "Switch", "Tab"}
+PRESSABLE_TYPES = {"Button", "Link", "Switch", "CheckBox", "Tab"}
 
 UPGRADE_IDB_HINT = "brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
 
@@ -331,9 +335,14 @@ class Navigator:
         identifier: str | None = None,
         index: int = 0,
         fuzzy: bool = True,
+        expected_value: str | None = None,
     ) -> tuple[bool, str]:
         """
         Find element and tap it.
+
+        Args:
+            expected_value: Tap only if the element's AXValue equals this (e.g. "1" for a
+                toggle that is on), making "turn X off" safe to repeat
 
         Returns:
             (success, message) tuple
@@ -349,6 +358,13 @@ class Navigator:
             if identifier:
                 criteria.append(f"id={identifier}")
             return (False, f"Not found: {', '.join(criteria)}")
+
+        if expected_value is not None and element.value != expected_value:
+            return (
+                False,
+                f"Not tapped: {element.description} has value {element.value!r}, "
+                f"expected {expected_value!r}",
+            )
 
         if self.tap(element):
             if self.last_tap_was_press:
@@ -418,6 +434,11 @@ def main():
     # Action options
     parser.add_argument("--tap", action="store_true", help="Tap the found element")
     parser.add_argument("--tap-at", help="Tap at coordinates (x,y)")
+    parser.add_argument(
+        "--expect",
+        metavar="VALUE",
+        help="With --tap: only tap if the element's value equals VALUE (toggles: 1 on, 0 off)",
+    )
     parser.add_argument("--enter-text", help="Tap element, then type text (ASCII)")
     parser.add_argument(
         "--set-value",
@@ -458,6 +479,10 @@ def main():
         print(f"Error: {e}")
         sys.exit(1)
 
+    if args.expect is not None and not args.tap:
+        print("Error: --expect requires --tap")
+        sys.exit(1)
+
     navigator = Navigator(udid=udid)
 
     # List mode
@@ -465,11 +490,7 @@ def main():
         elements = navigator.list_elements()
 
         # Filter to tappable elements
-        tappable = [
-            e
-            for e in elements
-            if e.enabled and e.type in ["Button", "Link", "Cell", "TextField", "SecureTextField"]
-        ]
+        tappable = [e for e in elements if e.enabled and e.type in INTERACTIVE_TYPES]
 
         print(f"Tappable elements ({len(tappable)}):")
         for elem in tappable[:MAX_ELEMENTS_LISTED]:
@@ -527,6 +548,7 @@ def main():
             identifier=args.find_id,
             index=args.index,
             fuzzy=fuzzy,
+            expected_value=args.expect,
         )
 
         print(message)

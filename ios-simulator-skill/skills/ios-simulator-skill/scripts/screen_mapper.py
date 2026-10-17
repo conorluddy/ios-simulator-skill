@@ -15,6 +15,8 @@ Key Features:
 - Counts interactive and focusable elements
 - Progressive detail with --verbose flag
 - Navigation hints with --hints flag
+- --deep reads through idb's axbridge backend (idb 1.7+) to reach web content and
+  in-app alerts the default backend can't see
 
 Usage Examples:
     # Quick summary (default)
@@ -29,6 +31,9 @@ Usage Examples:
     # Full JSON output for parsing
     python scripts/screen_mapper.py --udid <device-id> --json
 
+    # Include web views and in-app alerts (slower, noisier)
+    python scripts/screen_mapper.py --udid <device-id> --deep
+
 Output Format (default):
     Screen: LoginViewController (45 elements, 7 interactive)
     Buttons: "Login", "Cancel", "Forgot Password"
@@ -41,6 +46,9 @@ Technical Details:
 - Parses IDB's array format: [{ root element with children }]
 - Identifies element types: Button, TextField, NavigationBar, TabBar, etc.
 - Extracts labels from AXLabel, AXValue, and AXUniqueId fields
+- Reports how much of the screen labelled elements cover; a near-empty screen
+  usually means content the default backend can't see (Safari/WKWebView pages,
+  web alerts), and the summary suggests --deep
 """
 
 import argparse
@@ -54,6 +62,12 @@ from common.env_config import env_int
 
 BUTTONS_PREVIEW = env_int("IOS_SIM_SCREEN_BUTTONS_PREVIEW", 15)
 SECTION_ITEMS_PREVIEW = env_int("IOS_SIM_SCREEN_SECTION_ITEMS", 10)
+
+# Below this, the default backend is probably missing content (measured: a Safari
+# page 0.03, Settings 0.68, Maps 1.0), so the summary suggests --deep.
+LOW_COVERAGE_RATIO = 0.10
+COVERAGE_GRID_POINTS = 8
+DEEP_API = "axbridge"
 
 
 class ScreenMapper:
@@ -91,18 +105,20 @@ class ScreenMapper:
         "Toolbar",
     }
 
-    def __init__(self, udid: str | None = None):
+    def __init__(self, udid: str | None = None, deep: bool = False):
         """
         Initialize screen mapper.
 
         Args:
             udid: Optional device UDID. If None, uses booted simulator.
+            deep: Read through idb's axbridge backend (see get_accessibility_tree)
 
         Example:
             mapper = ScreenMapper(udid="656DC652-1C9F-4AB2-AD4F-F38E65976BDA")
             mapper = ScreenMapper()  # Uses booted device
         """
         self.udid = udid
+        self.deep = deep
 
     def get_accessibility_tree(self) -> dict:
         """
@@ -110,7 +126,7 @@ class ScreenMapper:
 
         Delegates to shared utility for consistent tree fetching across all scripts.
         """
-        return get_accessibility_tree(self.udid, nested=True)
+        return get_accessibility_tree(self.udid, nested=True, api=DEEP_API if self.deep else None)
 
     def analyze_tree(self, node: dict, depth: int = 0) -> dict:
         """Analyze accessibility tree for navigation info."""
@@ -129,6 +145,7 @@ class ScreenMapper:
 
         # Post-process for clean output
         analysis["elements_by_type"] = dict(analysis["elements_by_type"])
+        analysis["screen_coverage"] = round(labelled_leaf_coverage(node), 2)
 
         return analysis
 
@@ -165,8 +182,8 @@ class ScreenMapper:
                     tab_count = len(node.get("children", []))
                     analysis["navigation"]["tab_count"] = tab_count
 
-            # Track focusable elements
-            if node.get("enabled", False) and elem_type in self.INTERACTIVE_TYPES:
+            # Track focusable elements (axbridge reports enabled as null, not true)
+            if node.get("enabled") is not False and elem_type in self.INTERACTIVE_TYPES:
                 analysis["focusable"] += 1
 
         # Try to identify screen name from view controller
@@ -214,6 +231,14 @@ class ScreenMapper:
         # Focusable count (1 line)
         lines.append(f"Focusable: {analysis['focusable']} elements")
 
+        # Near-empty screen: the default backend can't see web content (1 line)
+        coverage = analysis.get("screen_coverage", 1.0)
+        if not self.deep and coverage < LOW_COVERAGE_RATIO:
+            lines.append(
+                f"Coverage: labelled elements cover {coverage:.0%} of the screen - "
+                "web content or an alert may be hidden; retry with --deep"
+            )
+
         # Verbose mode adds element type breakdown
         if verbose:
             lines.append("\nElements by type:")
@@ -249,12 +274,62 @@ class ScreenMapper:
         return hints
 
 
+def labelled_leaf_coverage(root: dict) -> float:
+    """
+    Fraction of the root's frame covered by labelled leaf elements.
+
+    Samples a grid of points and counts those inside a leaf that carries a label
+    or value. Unlabelled leaves are skipped: Safari's web view shows up as an
+    empty full-screen Sheet, which would otherwise count as full coverage.
+    """
+    screen = root.get("frame") or {}
+    width, height = screen.get("width", 0), screen.get("height", 0)
+    if width <= 0 or height <= 0:
+        return 0.0
+    leaves = [
+        node["frame"]
+        for node in _iter_descendants(root)
+        if not node.get("children")
+        and (node.get("AXLabel") or node.get("AXValue"))
+        and node.get("frame")
+    ]
+    step = COVERAGE_GRID_POINTS
+    points = [
+        (screen.get("x", 0) + x + step / 2, screen.get("y", 0) + y + step / 2)
+        for x in range(0, int(width), step)
+        for y in range(0, int(height), step)
+    ]
+    covered = sum(1 for point in points if any(_contains(frame, point) for frame in leaves))
+    return covered / len(points)
+
+
+def _iter_descendants(node: dict):
+    """Yield every node below node, depth-first."""
+    for child in node.get("children", []):
+        yield child
+        yield from _iter_descendants(child)
+
+
+def _contains(frame: dict, point: tuple[float, float]) -> bool:
+    """Whether point lies inside frame."""
+    x, y = point
+    return frame.get("x", 0) <= x < frame.get("x", 0) + frame.get("width", 0) and frame.get(
+        "y", 0
+    ) <= y < frame.get("y", 0) + frame.get("height", 0)
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Map current screen UI elements")
     parser.add_argument("--verbose", action="store_true", help="Show detailed element breakdown")
     parser.add_argument("--json", action="store_true", help="Output raw JSON analysis")
     parser.add_argument("--hints", action="store_true", help="Include navigation hints")
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="Read through idb's axbridge backend (idb 1.7+): sees web content and in-app "
+        "alerts, but is noisier and turns on the device's accessibility automation mode",
+    )
     parser.add_argument(
         "--udid",
         help="Device UDID (auto-detects booted simulator if not provided)",
@@ -270,7 +345,7 @@ def main():
         sys.exit(1)
 
     # Create mapper and analyze
-    mapper = ScreenMapper(udid=udid)
+    mapper = ScreenMapper(udid=udid, deep=args.deep)
     tree = mapper.get_accessibility_tree()
     analysis = mapper.analyze_tree(tree)
 

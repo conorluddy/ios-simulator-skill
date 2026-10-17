@@ -84,3 +84,37 @@ def test_volume_failure_hints_at_idb_upgrade(monkeypatch):
     controller = KeyboardController("U")
     assert not controller.press_hardware_button("volume-up")
     assert "idb 1.6.3+" in controller.last_error
+
+
+def test_modifier_flags_are_passed_to_idb_key(idb_calls):
+    assert KeyboardController("U").press_key("a", modifiers=("command", "shift"))
+    assert idb_calls == [["idb", "ui", "key", "4", "--shift", "--command", "--udid", "U"]]
+
+
+@pytest.mark.parametrize("modifier", ["shift", "control", "option", "command"])
+def test_each_modifier_maps_to_its_idb_flag(idb_calls, modifier):
+    assert KeyboardController("U").press_key("z", modifiers=(modifier,))
+    assert idb_calls == [["idb", "ui", "key", "29", f"--{modifier}", "--udid", "U"]]
+
+
+def test_unknown_modifier_is_rejected(idb_calls):
+    controller = KeyboardController("U")
+    assert not controller.press_key("a", modifiers=("hyper",))
+    assert "'hyper'" in controller.last_error
+    assert idb_calls == []
+
+
+def test_modifier_failure_on_old_idb_hints_at_upgrade(monkeypatch):
+    monkeypatch.setattr(
+        keyboard, "run_idb", lambda cmd: (False, "idb: error: unrecognized arguments: --shift")
+    )
+    controller = KeyboardController("U")
+    assert not controller.press_key("a", modifiers=("shift",))
+    assert "idb 1.7+" in controller.last_error
+
+
+def test_unrelated_key_failure_gets_no_upgrade_hint(monkeypatch):
+    monkeypatch.setattr(keyboard, "run_idb", lambda cmd: (False, "Connection refused"))
+    controller = KeyboardController("U")
+    assert not controller.press_key("a", modifiers=("shift",))
+    assert controller.last_error == "Connection refused"

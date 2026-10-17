@@ -22,6 +22,7 @@ import sys
 from .device_utils import get_device_screen_size
 
 HELP_PROBE_TIMEOUT_SECONDS = 10
+TREE_READ_ATTEMPTS = 2
 
 
 def idb_supports_set_value() -> bool:
@@ -61,7 +62,9 @@ def run_idb(cmd: list[str]) -> tuple[bool, str]:
         return (False, "idb not found on PATH - run scripts/sim_health_check.sh")
 
 
-def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict:
+def get_accessibility_tree(
+    udid: str | None = None, nested: bool = True, api: str | None = None
+) -> dict:
     """
     Fetch accessibility tree from IDB.
 
@@ -71,6 +74,11 @@ def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict
     Args:
         udid: Device UDID (uses booted simulator if None)
         nested: Include nested structure (default True). If False, returns flat array.
+        api: idb read backend (`--api`, idb 1.7+). None keeps idb's default, `ax`:
+            what VoiceOver sees. "axbridge" walks the app's view hierarchy from
+            inside the simulator, so it also sees web content and in-app alerts,
+            but returns many unlabelled container views and turns on the device's
+            accessibility automation mode, which idb does not restore.
 
     Returns:
         Root element of accessibility tree as dict.
@@ -91,23 +99,37 @@ def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict
     cmd = ["idb", "ui", "describe-all", "--json"]
     if nested:
         cmd.append("--nested")
+    if api:
+        cmd.extend(["--api", api])
     if udid:
         cmd.extend(["--udid", udid])
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        tree_data = json.loads(result.stdout)
+    # One retry: a read that races a backend starting up (axbridge's in-simulator
+    # guest, a fresh companion) can answer with something other than JSON.
+    for attempt in range(TREE_READ_ATTEMPTS):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error: Failed to get accessibility tree: {e.stderr}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            tree_data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            if attempt + 1 < TREE_READ_ATTEMPTS:
+                continue
+            output = (result.stdout or result.stderr).strip()[:200] or "(no output)"
+            print(
+                f"Error: idb returned non-JSON accessibility output: {output}\n"
+                "Retry, or run scripts/sim_health_check.sh",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
         # IDB returns array format, extract first element (root)
         if isinstance(tree_data, list) and len(tree_data) > 0:
             return tree_data[0]
         return tree_data
-    except subprocess.CalledProcessError as e:
-        print(f"Error: Failed to get accessibility tree: {e.stderr}", file=sys.stderr)
-        sys.exit(1)
-    except json.JSONDecodeError:
-        print("Error: Invalid JSON from idb", file=sys.stderr)
-        sys.exit(1)
+    raise AssertionError("unreachable: loop always returns or exits")
 
 
 def flatten_tree(node: dict, depth: int = 0, elements: list[dict] | None = None) -> list[dict]:

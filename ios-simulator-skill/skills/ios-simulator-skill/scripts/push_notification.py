@@ -3,9 +3,13 @@
 iOS Push Notification Simulator
 
 Send simulated push notifications to test notification handling.
-Supports custom payloads and test tracking.
+Supports custom payloads and test tracking. Sending uses simctl push; --list and
+--clear use idb (1.7+), since simctl cannot inspect or withdraw delivered notifications.
 
-Usage: python scripts/push_notification.py --bundle-id com.app --title "Alert" --body "Message"
+Usage:
+  python scripts/push_notification.py --bundle-id com.app --title "Alert" --body "Message"
+  python scripts/push_notification.py --bundle-id com.app --list
+  python scripts/push_notification.py --bundle-id com.app --clear
 """
 
 import argparse
@@ -15,7 +19,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from common import resolve_udid
+from common import build_idb_command, resolve_udid, run_idb
+
+IDB_UPGRADE_HINT = "needs idb 1.7+: brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
 
 
 class PushNotificationSender:
@@ -142,6 +148,54 @@ class PushNotificationSender:
 
         return self.send(bundle_id, full_payload)
 
+    def list_delivered(self, bundle_id: str) -> tuple[bool, list[dict] | str]:
+        """
+        List notifications delivered to an app (idb 1.7+).
+
+        Args:
+            bundle_id: Target app bundle ID
+
+        Returns:
+            (True, notifications) where each has title/subtitle/body/identifier/date,
+            or (False, error message)
+        """
+        cmd = build_idb_command("notification list", self.udid, bundle_id, "--json")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            return False, _with_upgrade_hint(
+                (e.stderr or "").strip() or f"idb exited with status {e.returncode}"
+            )
+        except FileNotFoundError:
+            return False, "idb not found on PATH - run scripts/sim_health_check.sh"
+
+        # idb prints one JSON object per notification, one per line
+        try:
+            notifications = [json.loads(line) for line in result.stdout.splitlines() if line]
+        except json.JSONDecodeError:
+            return False, f"Unparseable idb output: {result.stdout[:200]}"
+        return True, notifications
+
+    def clear_delivered(self, bundle_id: str) -> tuple[bool, str]:
+        """
+        Withdraw every notification delivered to an app (idb 1.7+).
+
+        Args:
+            bundle_id: Target app bundle ID
+
+        Returns:
+            (success, error message - "" on success)
+        """
+        ok, error = run_idb(build_idb_command("notification clear", self.udid, bundle_id))
+        return ok, _with_upgrade_hint(error)
+
+
+def _with_upgrade_hint(error: str) -> str:
+    """Append the idb upgrade hint when argparse rejected a 1.7+ subcommand."""
+    if "invalid choice" in error:
+        return f"{error}\n{IDB_UPGRADE_HINT}"
+    return error
+
 
 def main():
     """Main entry point."""
@@ -163,6 +217,15 @@ def main():
         "--payload",
         help="Custom JSON payload file or inline JSON string",
     )
+
+    # Inspect / withdraw delivered notifications (idb 1.7+)
+    parser.add_argument(
+        "--list", action="store_true", help="List notifications delivered to the app"
+    )
+    parser.add_argument(
+        "--clear", action="store_true", help="Withdraw all notifications delivered to the app"
+    )
+    parser.add_argument("--json", action="store_true", help="Output --list/--clear as JSON")
 
     # Test tracking
     parser.add_argument("--test-name", help="Test scenario name for tracking")
@@ -187,6 +250,12 @@ def main():
         sys.exit(1)
 
     sender = PushNotificationSender(udid=udid)
+
+    if args.list or args.clear:
+        if args.list and args.clear:
+            print("Error: --list and --clear are mutually exclusive")
+            sys.exit(1)
+        sys.exit(_run_inspection(sender, args))
 
     # Send notification
     if args.payload:
@@ -234,6 +303,32 @@ def main():
     else:
         print("Failed to send push notification")
         sys.exit(1)
+
+
+def _run_inspection(sender: PushNotificationSender, args: argparse.Namespace) -> int:
+    """Handle --list / --clear, print the result, and return the exit code."""
+    if args.list:
+        ok, result = sender.list_delivered(args.bundle_id)
+        if not ok:
+            print(f"Error: {result}")
+            return 1
+        if args.json:
+            print(json.dumps({"bundle_id": args.bundle_id, "notifications": result}))
+        else:
+            print(f"{len(result)} notification(s) delivered to {args.bundle_id}")
+            for item in result:
+                print(f"  {item.get('title', '')} | {item.get('body', '')}")
+        return 0
+
+    ok, error = sender.clear_delivered(args.bundle_id)
+    if not ok:
+        print(f"Error: {error}")
+        return 1
+    if args.json:
+        print(json.dumps({"bundle_id": args.bundle_id, "cleared": True}))
+    else:
+        print(f"Cleared notifications for {args.bundle_id}")
+    return 0
 
 
 if __name__ == "__main__":
