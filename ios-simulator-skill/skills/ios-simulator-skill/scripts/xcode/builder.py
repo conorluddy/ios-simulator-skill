@@ -198,14 +198,28 @@ class BuildRunner:
                 timeout=INTROSPECT_TIMEOUT,
             )
 
-            # Parse available simulators, prefer latest iPhone
-            # Looking for lines like: "iPhone 16 Pro (12345678-1234-1234-1234-123456789012) (Shutdown)"
+            # simctl lists runtimes oldest-first, so the last "-- iOS x --" section
+            # holds the newest runtime. Take the first iPhone in that section, and
+            # pin OS= too: the same device name usually exists on several runtimes.
+            # Device lines look like: "iPhone 17 Pro (1234ABCD-...) (Shutdown)"
+            newest_destination = None
+            section_version = None
+            first_in_section = True
             for line in result.stdout.split("\n"):
-                if "iPhone" in line and "(" in line:
-                    # Extract device name
+                if line.startswith("--"):
+                    version_match = re.search(r"iOS ([\d.]+)", line)
+                    section_version = version_match.group(1) if version_match else None
+                    first_in_section = True
+                    continue
+                if first_in_section and section_version and "iPhone" in line and "(" in line:
                     name = line.split("(")[0].strip()
                     if name:
-                        return f"platform=iOS Simulator,name={name}"
+                        newest_destination = (
+                            f"platform=iOS Simulator,name={name},OS={section_version}"
+                        )
+                        first_in_section = False
+            if newest_destination:
+                return newest_destination
 
             # Fallback to generic iOS Simulator if no iPhone found
             return "generic/platform=iOS Simulator"

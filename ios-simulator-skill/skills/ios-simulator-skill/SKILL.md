@@ -85,26 +85,28 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Options: `--verbose`, `--hints`, `--json`
 
 6. **navigator.py** - Find and interact with elements semantically
-   - Find by text (fuzzy matching)
+   - Find by text (fuzzy, or exact with `--find-exact`); interactive leaf elements rank above containers sharing the label
    - Find by element type
    - Find by accessibility ID
    - Enter text or tap elements
-   - Options: `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text`, `--json`
+   - Failures include idb's stderr (e.g. a dead companion)
+   - Options: `--find-text`, `--find-exact`, `--find-type`, `--find-id`, `--index`, `--tap`, `--tap-at`, `--enter-text`, `--list`
 
 7. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
-   - Directional swipes (up/down/left/right)
-   - Multi-swipe scrolling
-   - Pinch zoom
-   - Long press
+   - Directional swipes (up/down/left/right) - `--swipe` is the direction the finger moves
+   - Multi-swipe scrolling - `--scroll` is the direction the content moves (`down` reveals content below)
+   - Pinch zoom via `idb ui pinch` (`--pinch out` zooms in; `--scale` sets an explicit factor)
+   - Long press via `idb ui tap --duration`
    - Pull to refresh
-   - Options: `--swipe`, `--scroll`, `--pinch`, `--long-press`, `--refresh`, `--json`
+   - Options: `--swipe`, `--swipe-from/--swipe-to`, `--scroll`, `--scroll-amount`, `--pinch`, `--scale`, `--long-press`, `--duration`, `--refresh`
 
 8. **keyboard.py** - Text input and hardware button control
-   - Type text (fast or slow)
-   - Special keys (return, delete, tab, space, arrows)
-   - Hardware buttons (home, lock, volume, screenshot)
-   - Key combinations
-   - Options: `--type`, `--key`, `--button`, `--slow`, `--clear`, `--dismiss`, `--json`
+   - Type text (fast or slow; ASCII only)
+   - Special keys (return, delete, tab, space, escape, arrows), single letters, or raw HID codes
+   - Key sequences (`--key-sequence h,i,return`)
+   - Clear the focused field (Cmd+A, delete)
+   - Hardware buttons: home, lock/power, side, siri, apple-pay, volume-up/down (volume needs idb 1.6.3+)
+   - Options: `--type`, `--slow`, `--key`, `--count`, `--key-sequence`, `--button`, `--clear`, `--dismiss`
 
 9. **app_launcher.py** - App lifecycle management
    - Launch apps by bundle ID

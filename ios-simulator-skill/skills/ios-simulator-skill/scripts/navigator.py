@@ -55,22 +55,36 @@ Technical Details:
 """
 
 import argparse
-import json
-import subprocess
 import sys
+import time
 from dataclasses import dataclass
 
 from common import (
-    flatten_tree,
+    build_idb_command,
     get_accessibility_tree,
     get_device_screen_size,
     resolve_udid,
+    run_idb,
     transform_screenshot_coords,
 )
 from common.env_config import env_float, env_int
 
 MAX_ELEMENTS_LISTED = env_int("IOS_SIM_MAX_ELEMENTS", 25)
 TAP_SETTLE_SECONDS = env_float("IOS_SIM_TAP_SETTLE_MS", 500.0) / 1000.0
+
+# Leaf controls an agent means when it says "tap X"; ranked above containers
+# (Application, Window, Group) that often carry the same label.
+INTERACTIVE_TYPES = {
+    "Button",
+    "Link",
+    "Cell",
+    "TextField",
+    "SecureTextField",
+    "SearchField",
+    "Switch",
+    "Slider",
+    "Tab",
+}
 
 
 @dataclass
@@ -106,6 +120,7 @@ class Navigator:
         """Initialize navigator with optional device UDID."""
         self.udid = udid
         self._tree_cache = None
+        self.last_error = ""
 
     def get_accessibility_tree(self, force_refresh: bool = False) -> dict:
         """Get accessibility tree (cached for efficiency)."""
@@ -195,6 +210,10 @@ class Navigator:
 
             matches.append(elem)
 
+        # Only text searches have ambiguous matches worth ranking; type/id-only
+        # searches keep tree (screen) order so --index means "Nth on screen".
+        if text:
+            matches.sort(key=lambda elem: rank_match(elem, text))
         if matches and index < len(matches):
             return matches[index]
 
@@ -207,15 +226,8 @@ class Navigator:
 
     def tap_at(self, x: int, y: int) -> bool:
         """Tap at specific coordinates."""
-        cmd = ["idb", "ui", "tap", str(x), str(y)]
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        ok, self.last_error = run_idb(build_idb_command("ui tap", self.udid, x, y))
+        return ok
 
     def enter_text(self, text: str, element: Element | None = None) -> bool:
         """
@@ -232,21 +244,11 @@ class Navigator:
         if element:
             if not self.tap(element):
                 return False
-            # Small delay for focus
-            import time
-
+            # Let focus move to the field before typing
             time.sleep(TAP_SETTLE_SECONDS)
 
-        # Enter text
-        cmd = ["idb", "ui", "text", text]
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        ok, self.last_error = run_idb(build_idb_command("ui text", self.udid, text))
+        return ok
 
     def find_and_tap(
         self,
@@ -254,6 +256,7 @@ class Navigator:
         element_type: str | None = None,
         identifier: str | None = None,
         index: int = 0,
+        fuzzy: bool = True,
     ) -> tuple[bool, str]:
         """
         Find element and tap it.
@@ -261,7 +264,7 @@ class Navigator:
         Returns:
             (success, message) tuple
         """
-        element = self.find_element(text, element_type, identifier, index)
+        element = self.find_element(text, element_type, identifier, index, fuzzy)
 
         if not element:
             criteria = []
@@ -275,7 +278,7 @@ class Navigator:
 
         if self.tap(element):
             return (True, f"Tapped: {element.description} at {element.center}")
-        return (False, f"Failed to tap: {element.description}")
+        return (False, f"Failed to tap: {element.description}: {self.last_error}")
 
     def find_and_enter_text(
         self,
@@ -284,6 +287,7 @@ class Navigator:
         element_type: str | None = "TextField",
         identifier: str | None = None,
         index: int = 0,
+        fuzzy: bool = True,
     ) -> tuple[bool, str]:
         """
         Find element and enter text into it.
@@ -291,14 +295,28 @@ class Navigator:
         Returns:
             (success, message) tuple
         """
-        element = self.find_element(find_text, element_type, identifier, index)
+        element = self.find_element(find_text, element_type, identifier, index, fuzzy)
 
         if not element:
-            return (False, "TextField not found")
+            return (False, f"{element_type or 'Element'} not found")
 
         if self.enter_text(text_to_enter, element):
             return (True, f"Entered text in: {element.description}")
-        return (False, "Failed to enter text")
+        return (False, f"Failed to enter text in {element.description}: {self.last_error}")
+
+
+def rank_match(element: Element, text: str) -> tuple[int, int]:
+    """
+    Sort key putting the element an agent most likely means first.
+
+    Order: exact label/value match (case-insensitive), then interactive leaf
+    types - so a Button beats the Window or Group sharing its label. The sort
+    is stable, so ties keep screen order.
+    """
+    wanted = text.lower()
+    is_exact = wanted in ((element.label or "").lower(), (element.value or "").lower())
+    is_interactive = element.type in INTERACTIVE_TYPES
+    return (0 if is_exact else 1, 0 if is_interactive else 1)
 
 
 def main():
@@ -405,7 +423,7 @@ def main():
         if navigator.tap_at(x, y):
             print(f"Tapped at ({x}, {y})")
         else:
-            print(f"Failed to tap at ({x}, {y})")
+            print(f"Failed to tap at ({x}, {y}): {navigator.last_error}", file=sys.stderr)
             sys.exit(1)
 
     # Find and tap
@@ -414,7 +432,11 @@ def main():
         fuzzy = args.find_text is not None
 
         success, message = navigator.find_and_tap(
-            text=text, element_type=args.find_type, identifier=args.find_id, index=args.index
+            text=text,
+            element_type=args.find_type,
+            identifier=args.find_id,
+            index=args.index,
+            fuzzy=fuzzy,
         )
 
         print(message)
@@ -424,6 +446,7 @@ def main():
     # Find and enter text
     elif args.enter_text:
         text = args.find_text or args.find_exact
+        fuzzy = args.find_text is not None
 
         success, message = navigator.find_and_enter_text(
             text_to_enter=args.enter_text,
@@ -431,6 +454,7 @@ def main():
             element_type=args.find_type or "TextField",
             identifier=args.find_id,
             index=args.index,
+            fuzzy=fuzzy,
         )
 
         print(message)

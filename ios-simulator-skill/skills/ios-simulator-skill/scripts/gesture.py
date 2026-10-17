@@ -2,253 +2,251 @@
 """
 iOS Gesture Controller - Swipes and Complex Gestures
 
-Performs navigation gestures like swipes, scrolls, and pinches.
+Performs navigation gestures like swipes, scrolls, long presses and pinches.
 Token-efficient output for common navigation patterns.
 
-This script handles touch gestures for iOS simulator automation. It provides
-directional swipes, multi-swipe scrolling, pull-to-refresh, and pinch gestures.
-Automatically detects screen size from the device for accurate gesture positioning.
-
-Key Features:
-- Directional swipes (up, down, left, right)
-- Multi-swipe scrolling with customizable amount
-- Pull-to-refresh gesture
-- Pinch to zoom (in/out)
-- Custom swipe between any two points
-- Drag and drop simulation
-- Auto-detects screen dimensions from device
+Direction semantics:
+- --swipe DIR is the direction the finger moves ("swipe up" drags upward).
+- --scroll DIR is the direction the content travels, like a mouse wheel:
+  "scroll down" reveals content further down, so the finger moves up.
 
 Usage Examples:
-    # Simple directional swipe
-    python scripts/gesture.py --swipe up --udid <device-id>
+    # Simple directional swipe (finger moves left - e.g. reveal row actions)
+    python scripts/gesture.py --swipe left
 
-    # Scroll down multiple times
-    python scripts/gesture.py --scroll down --scroll-amount 3 --udid <device-id>
+    # Scroll down a list three times
+    python scripts/gesture.py --scroll down --scroll-amount 3
 
     # Pull to refresh
-    python scripts/gesture.py --refresh --udid <device-id>
+    python scripts/gesture.py --refresh
 
     # Custom swipe coordinates
-    python scripts/gesture.py --swipe-from 100,500 --swipe-to 100,100 --udid <device-id>
+    python scripts/gesture.py --swipe-from 100,500 --swipe-to 100,100
 
-    # Pinch to zoom
-    python scripts/gesture.py --pinch out --udid <device-id>
+    # Pinch to zoom in (scale 2.0) or out (scale 0.5)
+    python scripts/gesture.py --pinch out
+    python scripts/gesture.py --pinch in --scale 0.25
 
     # Long press at coordinates
-    python scripts/gesture.py --long-press 200,300 --duration 2.0 --udid <device-id>
+    python scripts/gesture.py --long-press 200,300 --duration 2.0
 
 Output Format:
     Swiped up
     Scrolled down (3x)
     Performed pull to refresh
 
-Gesture Details:
-- Swipes use 70% of screen by default (configurable)
-- Scrolls are multiple small 30% swipes with delays
-- Start points are offset from edges for reliability
-- Screen size auto-detected from accessibility tree root element
-- Falls back to iPhone 14 dimensions (390x844) if detection fails
-
 Technical Details:
-- Uses `idb ui swipe x1 y1 x2 y2` for gesture execution
-- Duration parameter converts to milliseconds for IDB
-- Automatically fetches screen size on initialization
-- Parses IDB accessibility tree to get root frame dimensions
-- All coordinates calculated as fractions of screen size for device independence
+- Swipes travel a fraction of the screen (70% by default), centred on screen
+- Scrolls are repeated 30% swipes with a short pause between them
+- Coordinates are in points; screen size comes from the accessibility tree
+  (falls back to 390x844 if detection fails)
+- Uses `idb ui swipe`, `idb ui tap --duration` and `idb ui pinch`.
+  idb durations are in seconds.
 """
 
 import argparse
-import subprocess
 import sys
 import time
 
 from common import (
+    build_idb_command,
     get_device_screen_size,
     get_screen_size,
     resolve_udid,
+    run_idb,
     transform_screenshot_coords,
 )
+
+SWIPE_DISTANCE_RATIO = 0.7
+SCROLL_DISTANCE_RATIO = 0.3
+SCROLL_PAUSE_SECONDS = 0.2
+EDGE_INSET_RATIO = 0.05
+DRAG_DURATION_SECONDS = 1.0
+# idb has no default swipe duration; an instantaneous swipe is ignored by iOS.
+SWIPE_DURATION_SECONDS = 0.5
+
+# Pinch "out" spreads the fingers (zoom in); "in" closes them (zoom out).
+PINCH_SCALE_BY_DIRECTION = {"out": 2.0, "in": 0.5}
+
+# Finger direction -> unit vector in screen coordinates (y grows downward).
+FINGER_VECTOR_BY_DIRECTION = {
+    "up": (0, -1),
+    "down": (0, 1),
+    "left": (-1, 0),
+    "right": (1, 0),
+}
+
+# Content scroll direction -> finger direction that produces it.
+FINGER_DIRECTION_FOR_SCROLL = {"down": "up", "up": "down"}
 
 
 class GestureController:
     """Performs gestures on iOS simulator."""
 
-    # Standard screen dimensions (will be detected if possible)
-    DEFAULT_WIDTH = 390  # iPhone 14
-    DEFAULT_HEIGHT = 844
-
     def __init__(self, udid: str | None = None):
-        """Initialize gesture controller."""
+        """Initialize gesture controller, detecting screen size once."""
         self.udid = udid
-        self.screen_size = self._get_screen_size()
+        self.screen_size = get_screen_size(udid)
+        self.last_error = ""
 
-    def _get_screen_size(self) -> tuple[int, int]:
-        """Try to detect screen size from device using shared utility."""
-        return get_screen_size(self.udid)
+    # === PUBLIC API ===
 
-    def swipe(self, direction: str, distance_ratio: float = 0.7) -> bool:
+    def swipe(self, direction: str, distance_ratio: float = SWIPE_DISTANCE_RATIO) -> bool:
         """
-        Perform directional swipe.
+        Swipe with the finger moving in `direction`.
 
         Args:
-            direction: up, down, left, right
-            distance_ratio: How far to swipe (0.0-1.0 of screen)
+            direction: up, down, left, right (finger movement)
+            distance_ratio: Fraction of the screen dimension to travel (0.0-1.0)
 
         Returns:
             Success status
         """
-        width, height = self.screen_size
-        center_x = width // 2
-        center_y = height // 2
-
-        # Calculate swipe coordinates based on direction
-        if direction == "up":
-            start = (center_x, int(height * 0.7))
-            end = (center_x, int(height * (1 - distance_ratio + 0.3)))
-        elif direction == "down":
-            start = (center_x, int(height * 0.3))
-            end = (center_x, int(height * (distance_ratio - 0.3 + 0.3)))
-        elif direction == "left":
-            start = (int(width * 0.8), center_y)
-            end = (int(width * (1 - distance_ratio + 0.2)), center_y)
-        elif direction == "right":
-            start = (int(width * 0.2), center_y)
-            end = (int(width * (distance_ratio - 0.2 + 0.2)), center_y)
-        else:
+        if direction not in FINGER_VECTOR_BY_DIRECTION:
+            self.last_error = f"Unknown direction '{direction}'"
             return False
-
+        start, end = compute_swipe_points(self.screen_size, direction, distance_ratio)
         return self.swipe_between(start, end)
 
     def swipe_between(
-        self, start: tuple[int, int], end: tuple[int, int], duration: float = 0.3
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        duration_seconds: float = SWIPE_DURATION_SECONDS,
     ) -> bool:
         """
         Swipe between two points.
 
         Args:
-            start: Starting coordinates (x, y)
-            end: Ending coordinates (x, y)
-            duration: Swipe duration in seconds
+            start: Starting coordinates (x, y) in points
+            end: Ending coordinates (x, y) in points
+            duration_seconds: Swipe duration
 
         Returns:
             Success status
         """
-        cmd = ["idb", "ui", "swipe"]
-        cmd.extend([str(start[0]), str(start[1]), str(end[0]), str(end[1])])
-
-        # IDB doesn't support duration directly, but we can add delay
-        if duration != 0.3:
-            cmd.extend(["--duration", str(int(duration * 1000))])
-
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        return self._run(
+            "ui swipe", start[0], start[1], end[0], end[1], "--duration", duration_seconds
+        )
 
     def scroll(self, direction: str, amount: int = 3) -> bool:
         """
-        Perform multiple small swipes to scroll.
+        Scroll content in `direction` with repeated short swipes.
 
         Args:
-            direction: up, down
-            amount: Number of small swipes
+            direction: up, down (content direction - "down" reveals content below)
+            amount: Number of swipes
 
         Returns:
             Success status
         """
-        for _ in range(amount):
-            if not self.swipe(direction, distance_ratio=0.3):
+        finger_direction = FINGER_DIRECTION_FOR_SCROLL.get(direction)
+        if not finger_direction:
+            self.last_error = f"Unknown scroll direction '{direction}'"
+            return False
+        for swipe_number in range(amount):
+            if not self.swipe(finger_direction, distance_ratio=SCROLL_DISTANCE_RATIO):
                 return False
-            time.sleep(0.2)  # Small delay between swipes
+            if swipe_number < amount - 1:
+                time.sleep(SCROLL_PAUSE_SECONDS)
         return True
 
-    def tap_and_hold(self, x: int, y: int, duration: float = 2.0) -> bool:
+    def tap_and_hold(self, x: int, y: int, duration_seconds: float = 2.0) -> bool:
+        """Long press at coordinates for `duration_seconds`."""
+        return self._run("ui tap", x, y, "--duration", duration_seconds)
+
+    def pinch(
+        self,
+        direction: str = "out",
+        center: tuple[int, int] | None = None,
+        scale: float | None = None,
+    ) -> bool:
         """
-        Long press at coordinates.
+        Pinch around a centre point.
 
         Args:
-            x, y: Coordinates
-            duration: Hold duration in seconds
+            direction: 'out' (fingers apart, zoom in) or 'in' (together, zoom out)
+            center: Pinch centre; screen centre when None
+            scale: Explicit scale factor (>1 zooms in); overrides direction
 
         Returns:
             Success status
         """
-        # IDB doesn't have native long press, simulate with tap
-        # In real implementation, might need to use different approach
-        cmd = ["idb", "ui", "tap", str(x), str(y)]
-
-        if self.udid:
-            cmd.extend(["--udid", self.udid])
-
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-            # Simulate hold with delay
-            time.sleep(duration)
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-    def pinch(self, direction: str = "out", center: tuple[int, int] | None = None) -> bool:
-        """
-        Perform pinch gesture (zoom in/out).
-
-        Args:
-            direction: 'in' (zoom out) or 'out' (zoom in)
-            center: Center point for pinch
-
-        Returns:
-            Success status
-        """
+        if scale is None:
+            scale = PINCH_SCALE_BY_DIRECTION.get(direction)
+            if scale is None:
+                self.last_error = f"Unknown pinch direction '{direction}'"
+                return False
         if not center:
             width, height = self.screen_size
             center = (width // 2, height // 2)
-
-        # Calculate pinch points
-        offset = 100 if direction == "out" else 50
-
-        if direction == "out":
-            # Zoom in - fingers move apart
-            start1 = (center[0] - 20, center[1] - 20)
-            end1 = (center[0] - offset, center[1] - offset)
-            start2 = (center[0] + 20, center[1] + 20)
-            end2 = (center[0] + offset, center[1] + offset)
-        else:
-            # Zoom out - fingers move together
-            start1 = (center[0] - offset, center[1] - offset)
-            end1 = (center[0] - 20, center[1] - 20)
-            start2 = (center[0] + offset, center[1] + offset)
-            end2 = (center[0] + 20, center[1] + 20)
-
-        # Perform two swipes simultaneously (simulated)
-        success1 = self.swipe_between(start1, end1)
-        success2 = self.swipe_between(start2, end2)
-
-        return success1 and success2
+        return self._run("ui pinch", center[0], center[1], scale)
 
     def drag_and_drop(self, start: tuple[int, int], end: tuple[int, int]) -> bool:
-        """
-        Drag element from one position to another.
-
-        Args:
-            start: Starting coordinates
-            end: Ending coordinates
-
-        Returns:
-            Success status
-        """
-        # Use slow swipe to simulate drag
-        return self.swipe_between(start, end, duration=1.0)
+        """Drag from one point to another with a slow swipe."""
+        return self.swipe_between(start, end, duration_seconds=DRAG_DURATION_SECONDS)
 
     def refresh(self) -> bool:
-        """Pull to refresh gesture."""
-        width, _ = self.screen_size
-        start = (width // 2, 100)
-        end = (width // 2, 400)
+        """Pull to refresh: drag down from near the top of the content."""
+        width, height = self.screen_size
+        start = (width // 2, int(height * 0.15))
+        end = (width // 2, int(height * 0.55))
         return self.swipe_between(start, end)
+
+    # === HELPERS ===
+
+    def _run(self, operation: str, *args: object) -> bool:
+        """Run an idb operation, keeping the failure reason in last_error."""
+        ok, self.last_error = run_idb(build_idb_command(operation, self.udid, *args))
+        return ok
+
+
+def compute_swipe_points(
+    screen_size: tuple[int, int], direction: str, distance_ratio: float
+) -> tuple[tuple[int, int], tuple[int, int]]:
+    """
+    Compute start/end points for a swipe centred on the screen.
+
+    The swipe travels `distance_ratio` of the screen along its axis, clamped so
+    neither end lands within EDGE_INSET_RATIO of an edge (system gesture zones).
+
+    Example:
+        compute_swipe_points((400, 800), "up", 0.7)  # ((200, 680), (200, 120))
+    """
+    width, height = screen_size
+    dx, dy = FINGER_VECTOR_BY_DIRECTION[direction]
+    center_x, center_y = width // 2, height // 2
+    max_ratio = 1 - 2 * EDGE_INSET_RATIO
+    ratio = max(0.0, min(distance_ratio, max_ratio))
+    half_x = int(width * ratio / 2) * dx
+    half_y = int(height * ratio / 2) * dy
+    start = (center_x - half_x, center_y - half_y)
+    end = (center_x + half_x, center_y + half_y)
+    return start, end
+
+
+def parse_point(raw: str, flag: str) -> tuple[int, int]:
+    """Parse 'x,y' into ints, exiting with an actionable message if malformed."""
+    parts = raw.split(",")
+    try:
+        if len(parts) != 2:
+            raise ValueError
+        return (int(parts[0]), int(parts[1]))
+    except ValueError:
+        print(f"Error: {flag} expects x,y integers (got '{raw}')", file=sys.stderr)
+        sys.exit(1)
+
+
+def report(
+    ok: bool, success_message: str, failure_message: str, controller: GestureController
+) -> None:
+    """Print the outcome, exiting non-zero with idb's reason on failure."""
+    if ok:
+        print(success_message)
+        return
+    reason = f": {controller.last_error}" if controller.last_error else ""
+    print(f"{failure_message}{reason}", file=sys.stderr)
+    sys.exit(1)
 
 
 def main():
@@ -257,22 +255,29 @@ def main():
 
     # Gesture options
     parser.add_argument(
-        "--swipe", choices=["up", "down", "left", "right"], help="Perform directional swipe"
+        "--swipe",
+        choices=["up", "down", "left", "right"],
+        help="Directional swipe (direction the finger moves)",
     )
     parser.add_argument("--swipe-from", help="Custom swipe start coordinates (x,y)")
     parser.add_argument("--swipe-to", help="Custom swipe end coordinates (x,y)")
     parser.add_argument(
-        "--scroll", choices=["up", "down"], help="Scroll in direction (multiple small swipes)"
+        "--scroll",
+        choices=["up", "down"],
+        help="Scroll content (down = reveal content below, like a mouse wheel)",
     )
     parser.add_argument(
         "--scroll-amount", type=int, default=3, help="Number of scroll swipes (default: 3)"
     )
     parser.add_argument("--long-press", help="Long press at coordinates (x,y)")
     parser.add_argument(
-        "--duration", type=float, default=2.0, help="Duration for long press in seconds"
+        "--duration", type=float, default=2.0, help="Long press duration in seconds (default: 2)"
     )
     parser.add_argument(
-        "--pinch", choices=["in", "out"], help="Pinch gesture (in=zoom out, out=zoom in)"
+        "--pinch", choices=["in", "out"], help="Pinch gesture (out = zoom in, in = zoom out)"
+    )
+    parser.add_argument(
+        "--scale", type=float, help="Pinch scale factor, overrides --pinch (>1 zooms in)"
     )
     parser.add_argument("--refresh", action="store_true", help="Pull to refresh gesture")
 
@@ -304,29 +309,24 @@ def main():
     try:
         udid = resolve_udid(args.udid)
     except RuntimeError as e:
-        print(f"Error: {e}")
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     controller = GestureController(udid=udid)
 
-    # Execute requested gesture
     if args.swipe:
-        if controller.swipe(args.swipe):
-            print(f"Swiped {args.swipe}")
-        else:
-            print(f"Failed to swipe {args.swipe}")
-            sys.exit(1)
+        ok = controller.swipe(args.swipe)
+        report(ok, f"Swiped {args.swipe}", f"Failed to swipe {args.swipe}", controller)
 
     elif args.swipe_from and args.swipe_to:
-        # Custom swipe
-        start = tuple(map(int, args.swipe_from.split(",")))
-        end = tuple(map(int, args.swipe_to.split(",")))
+        start = parse_point(args.swipe_from, "--swipe-from")
+        end = parse_point(args.swipe_to, "--swipe-to")
 
-        # Handle coordinate transformation if requested
         if args.screenshot_coords:
             if not args.screenshot_width or not args.screenshot_height:
                 print(
-                    "Error: --screenshot-coords requires --screenshot-width and --screenshot-height"
+                    "Error: --screenshot-coords requires --screenshot-width and --screenshot-height",
+                    file=sys.stderr,
                 )
                 sys.exit(1)
 
@@ -340,50 +340,43 @@ def main():
                 device_h,
             )
             end = transform_screenshot_coords(
-                end[0],
-                end[1],
-                args.screenshot_width,
-                args.screenshot_height,
-                device_w,
-                device_h,
+                end[0], end[1], args.screenshot_width, args.screenshot_height, device_w, device_h
             )
             print("Transformed screenshot coords to device coords")
 
-        if controller.swipe_between(start, end):
-            print(f"Swiped from {start} to {end}")
-        else:
-            print("Failed to swipe")
-            sys.exit(1)
+        ok = controller.swipe_between(start, end)
+        report(ok, f"Swiped from {start} to {end}", "Failed to swipe", controller)
 
     elif args.scroll:
-        if controller.scroll(args.scroll, args.scroll_amount):
-            print(f"Scrolled {args.scroll} ({args.scroll_amount}x)")
-        else:
-            print(f"Failed to scroll {args.scroll}")
-            sys.exit(1)
+        ok = controller.scroll(args.scroll, args.scroll_amount)
+        report(
+            ok,
+            f"Scrolled {args.scroll} ({args.scroll_amount}x)",
+            f"Failed to scroll {args.scroll}",
+            controller,
+        )
 
     elif args.long_press:
-        coords = tuple(map(int, args.long_press.split(",")))
-        if controller.tap_and_hold(coords[0], coords[1], args.duration):
-            print(f"Long pressed at {coords} for {args.duration}s")
-        else:
-            print("Failed to long press")
-            sys.exit(1)
+        x, y = parse_point(args.long_press, "--long-press")
+        ok = controller.tap_and_hold(x, y, args.duration)
+        report(
+            ok,
+            f"Long pressed at ({x}, {y}) for {args.duration}s",
+            "Failed to long press",
+            controller,
+        )
 
-    elif args.pinch:
-        if controller.pinch(args.pinch):
-            action = "Zoomed in" if args.pinch == "out" else "Zoomed out"
-            print(action)
-        else:
-            print(f"Failed to pinch {args.pinch}")
+    elif args.pinch or args.scale is not None:
+        if args.scale is not None and args.scale <= 0:
+            print(f"Error: --scale must be > 0 (got {args.scale})", file=sys.stderr)
             sys.exit(1)
+        ok = controller.pinch(args.pinch or "out", scale=args.scale)
+        zoomed_in = args.scale > 1 if args.scale else args.pinch == "out"
+        report(ok, "Zoomed in" if zoomed_in else "Zoomed out", "Failed to pinch", controller)
 
     elif args.refresh:
-        if controller.refresh():
-            print("Performed pull to refresh")
-        else:
-            print("Failed to refresh")
-            sys.exit(1)
+        ok = controller.refresh()
+        report(ok, "Performed pull to refresh", "Failed to refresh", controller)
 
     else:
         parser.print_help()

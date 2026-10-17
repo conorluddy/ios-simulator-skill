@@ -192,8 +192,8 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 |--------|-------------|-----------|
 | `screen_mapper.py` | Analyze current screen, list interactive elements | `--verbose`, `--hints` |
 | `navigator.py` | Find and interact with elements semantically | `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text` |
-| `gesture.py` | Swipes, scrolls, pinches, long press, pull to refresh | `--swipe`, `--scroll`, `--pinch`, `--long-press`, `--refresh` |
-| `keyboard.py` | Text input and hardware button control | `--type`, `--key`, `--button`, `--clear`, `--dismiss` |
+| `gesture.py` | Swipes (finger direction), scrolls (content direction), pinch, long press, pull to refresh | `--swipe`, `--scroll`, `--pinch`, `--scale`, `--long-press`, `--refresh` |
+| `keyboard.py` | Text input, keys, key sequences and hardware buttons | `--type`, `--key`, `--key-sequence`, `--button`, `--clear`, `--dismiss` |
 | `app_launcher.py` | Launch, terminate, install, deep link apps | `--launch`, `--terminate`, `--install`, `--open-url`, `--list` |
 
 #### Testing & Analysis

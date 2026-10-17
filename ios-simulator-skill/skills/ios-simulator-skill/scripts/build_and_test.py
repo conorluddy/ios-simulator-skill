@@ -83,7 +83,9 @@ Examples:
         default="Debug",
         help="Build configuration (default: Debug). Accepts any valid Xcode configuration.",
     )
-    build_group.add_argument("--simulator", help="Simulator name (default: iPhone 15)")
+    build_group.add_argument(
+        "--simulator", help="Simulator name (default: an iPhone on the newest installed runtime)"
+    )
     build_group.add_argument("--clean", action="store_true", help="Clean before building")
     build_group.add_argument("--test", action="store_true", help="Run tests")
     build_group.add_argument("--suite", help="Specific test suite to run")

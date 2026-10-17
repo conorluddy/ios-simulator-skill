@@ -18,6 +18,35 @@ import json
 import subprocess
 import sys
 
+from .device_utils import get_device_screen_size
+
+
+def run_idb(cmd: list[str]) -> tuple[bool, str]:
+    """
+    Run an idb command, returning its outcome instead of raising.
+
+    Callers surface the stderr so a failed tap or keystroke says *why* it
+    failed (dead companion, unknown button, old idb) rather than just "failed".
+
+    Args:
+        cmd: Complete idb command, e.g. from build_idb_command()
+
+    Returns:
+        (success, stderr) - stderr is "" on success, or a reason on failure
+
+    Example:
+        ok, error = run_idb(["idb", "ui", "tap", "200", "400"])
+        if not ok:
+            print(f"Failed to tap: {error}", file=sys.stderr)
+    """
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return (True, "")
+    except subprocess.CalledProcessError as e:
+        return (False, (e.stderr or "").strip() or f"idb exited with status {e.returncode}")
+    except FileNotFoundError:
+        return (False, "idb not found on PATH - run scripts/sim_health_check.sh")
+
 
 def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict:
     """
@@ -145,36 +174,20 @@ def count_elements(node: dict) -> int:
 
 def get_screen_size(udid: str | None = None) -> tuple[int, int]:
     """
-    Get screen dimensions from accessibility tree.
+    Get screen dimensions in points, for gesture positioning.
 
-    Extracts the screen size from the root element's frame. Useful for
-    gesture calculations and coordinate normalization.
-
-    Used by:
-    - gesture.py - Gesture positioning
-    - Potentially: screenshot positioning, screen-aware scaling
+    Delegates to get_device_screen_size(), which falls back to 390x844 when idb
+    fails. (get_accessibility_tree() exits the process on failure, so it cannot
+    be used where a fallback is wanted.)
 
     Args:
         udid: Device UDID (uses booted if None)
 
     Returns:
-        (width, height) tuple. Defaults to (390, 844) if detection fails
-        or tree cannot be accessed.
+        (width, height) tuple. Defaults to (390, 844) if detection fails.
 
     Example:
         width, height = get_screen_size()
         center_x = width // 2
-        center_y = height // 2
     """
-    DEFAULT_WIDTH = 390  # iPhone 14
-    DEFAULT_HEIGHT = 844
-
-    try:
-        tree = get_accessibility_tree(udid, nested=False)
-        frame = tree.get("frame", {})
-        width = int(frame.get("width", DEFAULT_WIDTH))
-        height = int(frame.get("height", DEFAULT_HEIGHT))
-        return (width, height)
-    except Exception:
-        # Silently fall back to defaults if tree access fails
-        return (DEFAULT_WIDTH, DEFAULT_HEIGHT)
+    return get_device_screen_size(udid)
