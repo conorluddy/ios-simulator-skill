@@ -13,7 +13,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "iOS Simulator",
-    "shortDescription": "Build, test and drive iOS sims",
+    "shortDescription": "Build, test and drive iOS simulators",
     "longDescription": "Build Xcode projects and parse results with progressive disclosure, then drive the iOS Simulator semantically: find and tap elements by accessibility label, type, swipe, and launch apps. Includes WCAG accessibility audits, visual diffs, log and hang monitoring, permissions, location, push notifications, and simulator lifecycle management. Requires macOS, Xcode, Python 3.12+ and idb.",
     "developerName": "Conor Luddy",
     "category": "Developer Tools",

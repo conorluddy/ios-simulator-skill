@@ -65,7 +65,12 @@ cp -R ~/src/ios-simulator-skill/ios-simulator-skill/skills/ios-simulator-skill \
 
 For a project-local install, use the project-level path from the table instead.
 Restart Claude Code afterwards (Codex picks up new skills automatically; restart it if the skill
-doesn't appear). Verify with `ls ~/.claude/skills/ios-simulator-skill/SKILL.md`.
+doesn't appear). Verify `SKILL.md` sits at the root of the destination:
+
+```bash
+ls ~/.claude/skills/ios-simulator-skill/SKILL.md   # Claude Code
+ls ~/.agents/skills/ios-simulator-skill/SKILL.md   # Codex
+```
 
 ### Prerequisites
 

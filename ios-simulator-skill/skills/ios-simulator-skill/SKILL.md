@@ -15,21 +15,21 @@ Build, test, and automate iOS applications using accessibility-driven navigation
 bash scripts/sim_health_check.sh
 
 # 2. Launch app
-python scripts/app_launcher.py --launch com.example.app
+python3 scripts/app_launcher.py --launch com.example.app
 
 # 3. Map screen to see elements
-python scripts/screen_mapper.py
+python3 scripts/screen_mapper.py
 
 # 4. Tap button
-python scripts/navigator.py --find-text "Login" --tap
+python3 scripts/navigator.py --find-text "Login" --tap
 
 # 5. Enter text
-python scripts/navigator.py --find-type TextField --enter-text "user@example.com"
+python3 scripts/navigator.py --find-type TextField --enter-text "user@example.com"
 ```
 
 **Paths:** `scripts/` is relative to the directory containing this SKILL.md, not the user's project.
-Run scripts by absolute path (e.g. `python3 <skill-dir>/scripts/navigator.py ...`), or `cd` into the
-skill directory first. Xcode project paths you pass in are still relative to wherever you run from.
+Examples write `scripts/...` for brevity; run them by absolute path from the user's project
+(e.g. `python3 <skill-dir>/scripts/navigator.py ...`) so relative Xcode project paths still resolve.
 
 All scripts support `--help` for detailed options; most support `--json` for machine-readable output.
 
@@ -182,18 +182,18 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
     **Quick start (summarised mode):**
     ```bash
-    SID=$(python scripts/hang_watcher.py --start --min-hang-ms 200)
+    SID=$(python3 scripts/hang_watcher.py --start --min-hang-ms 200)
     # ... interact with the simulator (open sheets, scroll, navigate) ...
-    python scripts/hang_watcher.py --stop $SID                  # token-tight L1 summary
-    python scripts/hang_watcher.py --get-details $SID --cluster 1  # drill into cluster 1
-    python scripts/hang_watcher.py --diff $SID_BASELINE $SID    # cross-session regression
+    python3 scripts/hang_watcher.py --stop $SID                  # token-tight L1 summary
+    python3 scripts/hang_watcher.py --get-details $SID --cluster 1  # drill into cluster 1
+    python3 scripts/hang_watcher.py --diff $SID_BASELINE $SID    # cross-session regression
     ```
 
     **Quick start (raw capture + `jq` exploration):**
     ```bash
-    SID=$(python scripts/hang_watcher.py --start --raw-capture --max-size-mb 5)
+    SID=$(python3 scripts/hang_watcher.py --start --raw-capture --max-size-mb 5)
     # ... interact with the simulator ...
-    python scripts/hang_watcher.py --stop $SID
+    python3 scripts/hang_watcher.py --stop $SID
     # → "Session ...: raw mode, 737 lines, 0.96 MB → 0.05 MB gzipped"
 
     # Top processes by event count:
@@ -308,11 +308,11 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 ## Typical Workflow
 
 1. Verify environment: `bash scripts/sim_health_check.sh`
-2. Launch app: `python scripts/app_launcher.py --launch com.example.app`
-3. Analyze screen: `python scripts/screen_mapper.py`
-4. Interact: `python scripts/navigator.py --find-text "Button" --tap`
-5. Verify: `python scripts/accessibility_audit.py`
-6. Debug if needed: `python scripts/app_state_capture.py --app-bundle-id com.example.app`
+2. Launch app: `python3 scripts/app_launcher.py --launch com.example.app`
+3. Analyze screen: `python3 scripts/screen_mapper.py`
+4. Interact: `python3 scripts/navigator.py --find-text "Button" --tap`
+5. Verify: `python3 scripts/accessibility_audit.py`
+6. Debug if needed: `python3 scripts/app_state_capture.py --app-bundle-id com.example.app`
 
 ## Configuration
 
@@ -358,7 +358,7 @@ Example:
 
 ```bash
 # Slow GitHub Actions runner: give boot 10 minutes
-IOS_SIM_BOOT_TIMEOUT=600 python scripts/simctl_boot.py --wait-ready
+IOS_SIM_BOOT_TIMEOUT=600 python3 scripts/simctl_boot.py --wait-ready
 ```
 
 ## Requirements
@@ -395,8 +395,8 @@ starting a fresh companion. Fix: `idb disconnect <udid>`.
 ## Documentation
 
 - **SKILL.md** (this file) - Script reference, requirements, troubleshooting
-- **README.md** - Installation, updating idb, Xcode 27 notes
-- **AGENTS.md** (repository root) - Architecture and implementation details
+- **[README.md](https://github.com/conorluddy/ios-simulator-skill/blob/main/README.md)** - Installation, updating idb, Xcode 27 notes
+- **[AGENTS.md](https://github.com/conorluddy/ios-simulator-skill/blob/main/AGENTS.md)** - Architecture and implementation details
 
 ## Key Design Principles
 
