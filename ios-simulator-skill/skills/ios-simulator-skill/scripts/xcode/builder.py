@@ -199,21 +199,27 @@ class BuildRunner:
             )
 
             # simctl lists runtimes oldest-first, so the last "-- iOS x --" section
-            # holds the newest runtime. Take the first iPhone in that section.
+            # holds the newest runtime. Take the first iPhone in that section, and
+            # pin OS= too: the same device name usually exists on several runtimes.
             # Device lines look like: "iPhone 17 Pro (1234ABCD-...) (Shutdown)"
-            newest_runtime_iphone = None
+            newest_destination = None
+            section_version = None
             first_in_section = True
             for line in result.stdout.split("\n"):
                 if line.startswith("--"):
+                    version_match = re.search(r"iOS ([\d.]+)", line)
+                    section_version = version_match.group(1) if version_match else None
                     first_in_section = True
                     continue
-                if first_in_section and "iPhone" in line and "(" in line:
+                if first_in_section and section_version and "iPhone" in line and "(" in line:
                     name = line.split("(")[0].strip()
                     if name:
-                        newest_runtime_iphone = name
+                        newest_destination = (
+                            f"platform=iOS Simulator,name={name},OS={section_version}"
+                        )
                         first_in_section = False
-            if newest_runtime_iphone:
-                return f"platform=iOS Simulator,name={newest_runtime_iphone}"
+            if newest_destination:
+                return newest_destination
 
             # Fallback to generic iOS Simulator if no iPhone found
             return "generic/platform=iOS Simulator"

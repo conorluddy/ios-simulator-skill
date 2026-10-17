@@ -223,10 +223,11 @@ class SimulatorSelector:
         if sim.ios_version == self._latest_ios_version():
             score += 50
 
-        # Mainline iPhone (20 points, +2 for Pro), newer model numbers break ties
+        # Mainline iPhone (20 points). Newer generations rank higher (+1 each);
+        # Pro only breaks ties within a generation, so iPhone 17 > iPhone 16 Pro.
         mainline = self.MAINLINE_IPHONE.match(sim.name)
         if mainline:
-            score += 20 + (2 if mainline.group(2) else 0) + int(mainline.group(1)) * 0.1
+            score += 20 + int(mainline.group(1)) + (0.5 if mainline.group(2) else 0)
 
         # Currently booted (10 points)
         if sim.status == "Booted":

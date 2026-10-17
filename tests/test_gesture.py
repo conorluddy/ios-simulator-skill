@@ -85,6 +85,16 @@ def test_drag_passes_swipe_duration_in_seconds(idb_calls):
     assert cmd[cmd.index("--duration") + 1] == "1.0"
 
 
+def test_every_swipe_passes_a_duration(idb_calls):
+    # idb has no default duration and iOS ignores an instantaneous swipe.
+    controller = GestureController("U")
+    assert controller.swipe("up")
+    assert controller.scroll("down", amount=1)
+    assert controller.refresh()
+    for cmd in idb_calls:
+        assert cmd[cmd.index("--duration") + 1] == "0.5"
+
+
 def test_failed_gesture_keeps_idb_reason(monkeypatch):
     monkeypatch.setattr(gesture, "get_screen_size", lambda udid: SCREEN)
     monkeypatch.setattr(gesture, "run_idb", mock.Mock(return_value=(False, "Connection refused")))

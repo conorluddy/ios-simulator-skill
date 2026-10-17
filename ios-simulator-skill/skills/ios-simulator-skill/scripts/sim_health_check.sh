@@ -158,8 +158,23 @@ echo ""
 IDB_INSTALL_CMD="brew tap facebook/fb && brew install facebook/fb/idb-companion facebook/fb/idb-cli"
 echo -e "${BLUE}[4/10]${NC} Checking idb CLI..."
 if command -v idb &> /dev/null; then
-    check_passed "idb CLI is installed"
-    echo "       Path: $(which idb)"
+    # Probe the idb the scripts will actually run: a pyenv python3 shim puts its own
+    # bin/ first on PATH, where an old pip `fb-idb` can shadow the brew idb-cli.
+    SHELL_IDB=$(command -v idb)
+    SCRIPT_IDB=$(python3 -c 'import shutil; print(shutil.which("idb") or "")' 2>/dev/null)
+    SCRIPT_IDB=${SCRIPT_IDB:-$SHELL_IDB}
+    # `ui pinch` arrived with `ui key --command` in idb-cli 1.5.1; gesture.py and
+    # keyboard.py --clear need both.
+    if "$SCRIPT_IDB" ui pinch --help &> /dev/null; then
+        check_passed "idb CLI is installed and current"
+        echo "       Path: $SCRIPT_IDB"
+    elif [ "$SCRIPT_IDB" != "$SHELL_IDB" ]; then
+        check_failed "Python scripts see an old idb CLI at $SCRIPT_IDB (shadows $SHELL_IDB)" "pip uninstall fb-idb"
+        echo "       Likely a pip-installed fb-idb under pyenv. Fix: pip uninstall fb-idb"
+    else
+        check_failed "idb CLI at $SCRIPT_IDB is too old (no 'ui pinch'; need idb-cli >= 1.5.1)" "$IDB_INSTALL_CMD"
+        echo "       Upgrade: $IDB_INSTALL_CMD"
+    fi
 else
     check_failed "idb CLI not found in PATH" "$IDB_INSTALL_CMD"
     echo "       Required for all interactive scripts (navigator.py, gesture.py, keyboard.py)"

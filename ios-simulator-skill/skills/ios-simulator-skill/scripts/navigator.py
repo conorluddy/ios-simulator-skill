@@ -100,11 +100,6 @@ class Element:
     enabled: bool = True
 
     @property
-    def area(self) -> float:
-        """Frame area in square points (0 if the frame is missing)."""
-        return float(self.frame.get("width", 0)) * float(self.frame.get("height", 0))
-
-    @property
     def center(self) -> tuple[int, int]:
         """Calculate center point for tapping."""
         x = int(self.frame["x"] + self.frame["width"] / 2)
@@ -215,7 +210,10 @@ class Navigator:
 
             matches.append(elem)
 
-        matches.sort(key=lambda elem: rank_match(elem, text))
+        # Only text searches have ambiguous matches worth ranking; type/id-only
+        # searches keep tree (screen) order so --index means "Nth on screen".
+        if text:
+            matches.sort(key=lambda elem: rank_match(elem, text))
         if matches and index < len(matches):
             return matches[index]
 
@@ -307,16 +305,18 @@ class Navigator:
         return (False, f"Failed to enter text in {element.description}: {self.last_error}")
 
 
-def rank_match(element: Element, text: str | None) -> tuple[int, int, float]:
+def rank_match(element: Element, text: str) -> tuple[int, int]:
     """
     Sort key putting the element an agent most likely means first.
 
-    Order: exact label/value match, then interactive leaf types, then the
-    smallest frame - so a Button beats the Window or Group sharing its label.
+    Order: exact label/value match (case-insensitive), then interactive leaf
+    types - so a Button beats the Window or Group sharing its label. The sort
+    is stable, so ties keep screen order.
     """
-    is_exact = bool(text) and text in (element.label, element.value)
+    wanted = text.lower()
+    is_exact = wanted in ((element.label or "").lower(), (element.value or "").lower())
     is_interactive = element.type in INTERACTIVE_TYPES
-    return (0 if is_exact else 1, 0 if is_interactive else 1, element.area)
+    return (0 if is_exact else 1, 0 if is_interactive else 1)
 
 
 def main():

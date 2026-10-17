@@ -62,6 +62,8 @@ SCROLL_DISTANCE_RATIO = 0.3
 SCROLL_PAUSE_SECONDS = 0.2
 EDGE_INSET_RATIO = 0.05
 DRAG_DURATION_SECONDS = 1.0
+# idb has no default swipe duration; an instantaneous swipe is ignored by iOS.
+SWIPE_DURATION_SECONDS = 0.5
 
 # Pinch "out" spreads the fingers (zoom in); "in" closes them (zoom out).
 PINCH_SCALE_BY_DIRECTION = {"out": 2.0, "in": 0.5}
@@ -110,7 +112,7 @@ class GestureController:
         self,
         start: tuple[int, int],
         end: tuple[int, int],
-        duration_seconds: float | None = None,
+        duration_seconds: float = SWIPE_DURATION_SECONDS,
     ) -> bool:
         """
         Swipe between two points.
@@ -118,15 +120,14 @@ class GestureController:
         Args:
             start: Starting coordinates (x, y) in points
             end: Ending coordinates (x, y) in points
-            duration_seconds: Swipe duration; idb's default when None
+            duration_seconds: Swipe duration
 
         Returns:
             Success status
         """
-        args = [start[0], start[1], end[0], end[1]]
-        if duration_seconds is not None:
-            args.extend(["--duration", duration_seconds])
-        return self._run("ui swipe", *args)
+        return self._run(
+            "ui swipe", start[0], start[1], end[0], end[1], "--duration", duration_seconds
+        )
 
     def scroll(self, direction: str, amount: int = 3) -> bool:
         """
@@ -236,7 +237,9 @@ def parse_point(raw: str, flag: str) -> tuple[int, int]:
         sys.exit(1)
 
 
-def report(ok: bool, success_message: str, failure_message: str, controller) -> None:
+def report(
+    ok: bool, success_message: str, failure_message: str, controller: GestureController
+) -> None:
     """Print the outcome, exiting non-zero with idb's reason on failure."""
     if ok:
         print(success_message)
@@ -363,7 +366,10 @@ def main():
             controller,
         )
 
-    elif args.pinch or args.scale:
+    elif args.pinch or args.scale is not None:
+        if args.scale is not None and args.scale <= 0:
+            print(f"Error: --scale must be > 0 (got {args.scale})", file=sys.stderr)
+            sys.exit(1)
         ok = controller.pinch(args.pinch or "out", scale=args.scale)
         zoomed_in = args.scale > 1 if args.scale else args.pinch == "out"
         report(ok, "Zoomed in" if zoomed_in else "Zoomed out", "Failed to pinch", controller)

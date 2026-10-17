@@ -70,3 +70,28 @@ def test_failed_tap_reports_idb_reason(nav, monkeypatch):
     ok, message = nav.find_and_tap(text="Settings")
     assert not ok
     assert "Connection refused" in message
+
+
+def test_exact_match_ranks_first_regardless_of_case():
+    partial = navigator.Element("Button", "General Settings", None, None, {}, [])
+    exact = navigator.Element("Button", "Settings", None, None, {}, [])
+    assert navigator.rank_match(exact, "settings") < navigator.rank_match(partial, "settings")
+
+
+def test_type_only_search_keeps_screen_order(monkeypatch):
+    form = _node(
+        "Application",
+        "Login",
+        0,
+        0,
+        400,
+        800,
+        [
+            _node("TextField", "Email", 20, 100, 360, 44),
+            _node("TextField", "Password", 20, 160, 300, 44),
+        ],
+    )
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: form)
+    nav = Navigator("U")
+    assert nav.find_element(element_type="TextField").label == "Email"
+    assert nav.find_element(element_type="TextField", index=1).label == "Password"

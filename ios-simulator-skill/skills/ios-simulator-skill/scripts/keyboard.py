@@ -95,6 +95,8 @@ def resolve_key_code(key: str) -> int | None:
     """
     Map a key name, single letter, or numeric HID code to a HID usage code.
 
+    Digits are raw HID codes, not the digit keys: "1" is code 1, not the "1" key.
+
     Example:
         resolve_key_code("return")  # 40
         resolve_key_code("h")       # 11
@@ -223,7 +225,9 @@ class KeyboardController:
         return ok
 
 
-def report(ok: bool, success_message: str, failure_message: str, controller) -> None:
+def report(
+    ok: bool, success_message: str, failure_message: str, controller: KeyboardController
+) -> None:
     """Print the outcome, exiting non-zero with idb's reason on failure."""
     if ok:
         print(success_message)
@@ -243,7 +247,9 @@ def main():
 
     # Special keys
     parser.add_argument(
-        "--key", help="Press a key: return, delete, tab, space, arrows, a letter, or HID code"
+        "--key",
+        help="Press a key: return, delete, tab, space, arrows, a letter, or a numeric HID "
+        "usage code (digits are codes, not characters: 40 = return)",
     )
     parser.add_argument(
         "--key-sequence", help="Press keys in order (comma-separated, e.g. h,i,return)"
