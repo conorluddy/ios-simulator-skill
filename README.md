@@ -76,17 +76,20 @@ ls ~/.agents/skills/ios-simulator-skill/SKILL.md   # Codex
 | Requirement | Version | Needed for |
 |---|---|---|
 | macOS | 15 (Sequoia)+ | everything |
-| Xcode + Command Line Tools | 26+ (`xcode-select --install`) | building, `simctl` |
+| Xcode (full app, not just Command Line Tools) | 26+ | building, `simctl`, idb |
 | Python | **3.12+** | every script |
-| `idb` (CLI + companion) | **1.5.1+** | tapping, swiping, typing |
+| `idb` (CLI + companion) | **1.5.1+** (1.6.3+ recommended) | tapping, swiping, typing |
 | Pillow | any | visual diffs only (`pip3 install pillow`) |
 
 **Install idb** — required for every interactive script (`navigator.py`, `gesture.py`, `keyboard.py`):
 
 ```bash
-brew tap facebook/fb
-brew install facebook/fb/idb-companion facebook/fb/idb-cli
+brew install facebook/fb/idb      # installs idb-cli and idb-companion
 ```
+
+The Homebrew build is prebuilt: it needs an Apple silicon Mac, macOS 15+, and a full Xcode 26+
+selected with `xcode-select` (Command Line Tools alone are not enough). Intel Macs are not
+supported ([facebook/idb#954](https://github.com/facebook/idb/issues/954)).
 
 > `brew install idb-companion` no longer works: idb-companion was removed from Homebrew
 > core and now lives in Meta's own `facebook/fb` tap. If you followed older instructions,
@@ -106,13 +109,17 @@ the accessibility tree still reads correctly, but every tap, swipe and keystroke
 dropped — `idb` reports success and nothing happens on screen.
 
 ```bash
-brew upgrade facebook/fb/idb-companion facebook/fb/idb-cli
-brew list --versions idb-companion        # expect >= 1.5.1
+brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion
+brew list --versions idb-cli idb-companion   # expect matching versions, >= 1.5.1
 ```
 
-Coming from the old pip package? `pip install fb-idb` still provides a working `idb` CLI, but
-the Homebrew `idb-cli` above is the maintained path. If both are installed, whichever comes
-first on your `PATH` wins — check with `which -a idb`.
+Upgrade the CLI and companion together. Newer client features are served by the companion, so
+a 1.7 CLI talking to a 1.5 companion fails or falls back to older output. Companions that are
+already running keep the old binary until restarted, so run `idb kill` after upgrading.
+
+Coming from the old pip package? An old `fb-idb` (1.1.x) left in a pyenv or virtualenv shadows
+the Homebrew CLI if it comes first on your `PATH`, so check with `which -a idb`. Remove it with
+`pip uninstall fb-idb` (then `pyenv rehash` under pyenv). `sim_health_check.sh` detects this.
 
 ### Xcode 27 notes
 

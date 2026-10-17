@@ -366,10 +366,11 @@ IOS_SIM_BOOT_TIMEOUT=600 python3 scripts/simctl_boot.py --wait-ready
 ## Requirements
 
 - macOS 15 (Sequoia)+
-- Xcode 26+ and Command Line Tools
+- Xcode 26+ (the full app; Command Line Tools alone are not enough for idb)
+- Apple silicon Mac (the Homebrew idb build is arm64-only)
 - Python 3.12+
-- `idb` **1.5.1+** - required for every interactive script (tap, swipe, type):
-  `brew tap facebook/fb && brew install facebook/fb/idb-companion facebook/fb/idb-cli`
+- `idb` **1.5.1+** (1.6.3+ recommended) - required for every interactive script (tap, swipe, type):
+  `brew install facebook/fb/idb` (installs both idb-cli and idb-companion)
 - Pillow, for visual diffs only: `pip3 install pillow`
 
 Verify with `bash scripts/sim_health_check.sh` (add `--json` for structured output).
@@ -378,8 +379,8 @@ Verify with `bash scripts/sim_health_check.sh` (add `--json` for structured outp
 
 **Taps, swipes and typing do nothing, but reads work.** `idb` reports success and the screen
 never changes. On Xcode 27 this means `idb-companion` is older than 1.5.1: it looks for
-`SimulatorKit.framework` at the path Xcode 26 used. Upgrade:
-`brew upgrade facebook/fb/idb-companion`.
+`SimulatorKit.framework` at the path Xcode 26 used. Upgrade both together, then restart running
+companions: `brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion && idb kill`.
 
 **`SimulatorKit is required for HID interactions`.** Same cause, same fix.
 
@@ -391,8 +392,19 @@ starting a fresh companion. Fix: `idb disconnect <udid>`.
 `DeviceHub.app` in `Xcode.app/Contents/Applications/`. Boot headlessly instead:
 `xcrun simctl boot <udid>`. Note that quitting DeviceHub shuts down the simulator it hosts.
 
-**`idb: command not found`.** The companion and the CLI are separate packages; install both
-(see Requirements). If `which -a idb` shows more than one, the first on `PATH` wins.
+**`idb: command not found`.** The companion and the CLI are separate packages;
+`brew install facebook/fb/idb` installs both. If `which -a idb` shows more than one, the first on
+`PATH` wins. An old pip `fb-idb` there needs `pip uninstall fb-idb`.
+
+**Known upstream idb issues** (open as of idb 1.7.6):
+- [facebook/idb#964](https://github.com/facebook/idb/issues/964): on some iOS 26+ screens
+  `describe-all` returns only the application node, and SpringBoard alerts can't be tapped. The
+  default `ax` backend can't see across process boundaries; try
+  `idb ui describe-all --json --api axbridge`. Tap coordinates are points, not screenshot pixels.
+- [facebook/idb#978](https://github.com/facebook/idb/issues/978): accessibility custom actions
+  are listed by `describe-all` but can't be performed.
+- [facebook/idb#954](https://github.com/facebook/idb/issues/954): the Homebrew build is
+  arm64-only, so Intel Macs are unsupported.
 
 ## Documentation
 

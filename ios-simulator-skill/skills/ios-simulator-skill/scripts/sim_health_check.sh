@@ -19,6 +19,13 @@ NC='\033[0m' # No Color
 # idb-companion below this cannot find SimulatorKit under the Xcode 27 layout:
 # every `idb ui` write (tap/swipe/type) then fails. Fixed upstream in 1.5.1.
 MIN_COMPANION_VERSION="1.5.1"
+# Below this idb still works, but keyboard.py's volume buttons need it.
+RECOMMENDED_IDB_VERSION="1.6.3"
+
+# version_lt A B: true when version A is older than version B.
+version_lt() {
+    [ "$1" != "$2" ] && [ "$(printf '%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]
+}
 
 # Check flags
 SHOW_HELP=false
@@ -54,7 +61,8 @@ This script checks for:
   - Xcode Command Line Tools installation
   - iOS Simulator availability
   - idb CLI installation (required for tap/swipe/type)
-  - idb-companion version (>= $MIN_COMPANION_VERSION, required on Xcode 27)
+  - idb-companion version (>= $MIN_COMPANION_VERSION required on Xcode 27, >= $RECOMMENDED_IDB_VERSION recommended)
+  - idb CLI and companion on the same minor version
   - Python 3.12+ installation (for scripts)
   - Available simulator devices
   - Xcode 27 SimulatorKit layout compatibility
@@ -155,7 +163,10 @@ echo ""
 
 # Check 4: idb CLI
 # Required, not optional: every tap, swipe and keystroke goes through `idb ui`.
-IDB_INSTALL_CMD="brew tap facebook/fb && brew install facebook/fb/idb-companion facebook/fb/idb-cli"
+IDB_INSTALL_CMD="brew install facebook/fb/idb"
+IDB_UPGRADE_CMD="brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
+# Only known for a Homebrew client, whose path carries the version; check 5 uses it.
+IDB_CLIENT_VERSION=""
 echo -e "${BLUE}[4/10]${NC} Checking idb CLI..."
 if command -v idb &> /dev/null; then
     # Probe the idb the scripts will actually run: a pyenv python3 shim puts its own
@@ -165,15 +176,16 @@ if command -v idb &> /dev/null; then
     SCRIPT_IDB=${SCRIPT_IDB:-$SHELL_IDB}
     # `ui pinch` arrived with `ui key --command` in idb-cli 1.5.1; gesture.py and
     # keyboard.py --clear need both.
+    IDB_CLIENT_VERSION=$(realpath "$SCRIPT_IDB" 2>/dev/null | sed -n 's#.*/Cellar/idb-cli/\([^/]*\)/.*#\1#p')
     if "$SCRIPT_IDB" ui pinch --help &> /dev/null; then
-        check_passed "idb CLI is installed and current"
+        check_passed "idb CLI ${IDB_CLIENT_VERSION:+$IDB_CLIENT_VERSION }is installed and current"
         echo "       Path: $SCRIPT_IDB"
     elif [ "$SCRIPT_IDB" != "$SHELL_IDB" ]; then
         check_failed "Python scripts see an old idb CLI at $SCRIPT_IDB (shadows $SHELL_IDB)" "pip uninstall fb-idb"
-        echo "       Likely a pip-installed fb-idb under pyenv. Fix: pip uninstall fb-idb"
+        echo "       Likely a pip-installed fb-idb under pyenv. Fix: pip uninstall fb-idb && pyenv rehash"
     else
-        check_failed "idb CLI at $SCRIPT_IDB is too old (no 'ui pinch'; need idb-cli >= 1.5.1)" "$IDB_INSTALL_CMD"
-        echo "       Upgrade: $IDB_INSTALL_CMD"
+        check_failed "idb CLI at $SCRIPT_IDB is too old (no 'ui pinch'; need idb-cli >= 1.5.1)" "$IDB_UPGRADE_CMD"
+        echo "       Upgrade: $IDB_UPGRADE_CMD"
     fi
 else
     check_failed "idb CLI not found in PATH" "$IDB_INSTALL_CMD"
@@ -191,12 +203,22 @@ if command -v idb_companion &> /dev/null; then
     if [ -z "$COMPANION_VERSION" ]; then
         check_warning "idb-companion found but its version could not be determined" "$IDB_INSTALL_CMD"
         echo "       Not installed via Homebrew; ensure it is >= ${MIN_COMPANION_VERSION} on Xcode 27"
-    elif [ "$(printf '%s\n' "$MIN_COMPANION_VERSION" "$COMPANION_VERSION" | sort -V | head -1)" != "$MIN_COMPANION_VERSION" ]; then
-        check_failed "idb-companion $COMPANION_VERSION is too old (need >= ${MIN_COMPANION_VERSION})" "$IDB_INSTALL_CMD"
+    elif version_lt "$COMPANION_VERSION" "$MIN_COMPANION_VERSION"; then
+        check_failed "idb-companion $COMPANION_VERSION is too old (need >= ${MIN_COMPANION_VERSION})" "$IDB_UPGRADE_CMD"
         echo "       On Xcode 27 this makes taps/swipes silently do nothing"
-        echo "       Upgrade: $IDB_INSTALL_CMD"
+        echo "       Upgrade: $IDB_UPGRADE_CMD"
+    elif version_lt "$COMPANION_VERSION" "$RECOMMENDED_IDB_VERSION"; then
+        check_warning "idb-companion $COMPANION_VERSION works, but ${RECOMMENDED_IDB_VERSION}+ is recommended (volume buttons need it)" "$IDB_UPGRADE_CMD"
+        echo "       Upgrade: $IDB_UPGRADE_CMD"
     else
         check_passed "idb-companion $COMPANION_VERSION (>= ${MIN_COMPANION_VERSION} required)"
+    fi
+    # Newer client features (--format complete, marker taps) are served by the companion,
+    # so a 1.7 client against a 1.5 companion fails or falls back to legacy output.
+    if [ -n "$IDB_CLIENT_VERSION" ] && [ -n "$COMPANION_VERSION" ] \
+        && [ "${IDB_CLIENT_VERSION%.*}" != "${COMPANION_VERSION%.*}" ]; then
+        check_warning "idb CLI $IDB_CLIENT_VERSION and idb-companion $COMPANION_VERSION are on different minor versions" "$IDB_UPGRADE_CMD"
+        echo "       Upgrade both together: $IDB_UPGRADE_CMD"
     fi
 else
     check_failed "idb-companion not found in PATH" "$IDB_INSTALL_CMD"
