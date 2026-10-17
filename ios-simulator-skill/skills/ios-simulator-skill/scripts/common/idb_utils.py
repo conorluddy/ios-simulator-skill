@@ -18,6 +18,8 @@ import json
 import subprocess
 import sys
 
+from .env_config import QUICK_TIMEOUT
+
 
 def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict:
     """
@@ -53,7 +55,9 @@ def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict
         cmd.extend(["--udid", udid])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+        )
         tree_data = json.loads(result.stdout)
 
         # IDB returns array format, extract first element (root)
@@ -62,6 +66,9 @@ def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict
         return tree_data
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to get accessibility tree: {e.stderr}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"Error: idb timed out after {QUICK_TIMEOUT}s", file=sys.stderr)
         sys.exit(1)
     except json.JSONDecodeError:
         print("Error: Invalid JSON from idb", file=sys.stderr)

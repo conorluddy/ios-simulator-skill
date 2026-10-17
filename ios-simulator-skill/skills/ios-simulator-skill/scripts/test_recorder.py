@@ -24,6 +24,7 @@ from common import (
     get_accessibility_tree,
     resolve_udid,
 )
+from common.env_config import QUICK_TIMEOUT
 
 
 class TestRecorder:
@@ -170,9 +171,9 @@ class TestRecorder:
         cmd.extend(["screenshot", str(output_path)])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def _capture_accessibility(self, output_path: Path) -> int:

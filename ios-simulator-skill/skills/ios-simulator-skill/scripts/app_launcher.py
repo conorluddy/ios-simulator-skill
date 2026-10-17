@@ -24,7 +24,7 @@ import sys
 import time
 
 from common import build_simctl_command, resolve_udid
-from common.env_config import env_float, env_int
+from common.env_config import QUICK_TIMEOUT, SLOW_TIMEOUT, env_float, env_int
 
 RELAUNCH_DELAY_SECONDS = env_float("IOS_SIM_RELAUNCH_DELAY_MS", 1000.0) / 1000.0
 APPS_PREVIEW = env_int("IOS_SIM_APPS_PREVIEW", 30)
@@ -67,7 +67,9 @@ class AppLauncher:
             run_env = {**os.environ, **{f"SIMCTL_CHILD_{k}": v for k, v in env_vars.items()}}
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=run_env)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, env=run_env, timeout=SLOW_TIMEOUT
+            )
             # Parse PID from output if available
             pid = None
             if result.stdout:
@@ -77,7 +79,7 @@ class AppLauncher:
                     with contextlib.suppress(ValueError):
                         pid = int(parts[1].strip())
             return (True, pid)
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return (False, None)
 
     def terminate(self, bundle_id: str) -> bool:
@@ -93,9 +95,9 @@ class AppLauncher:
         cmd = build_simctl_command("terminate", self.udid, bundle_id)
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def install(self, app_path: str) -> bool:
@@ -111,9 +113,9 @@ class AppLauncher:
         cmd = build_simctl_command("install", self.udid, app_path)
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=SLOW_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def uninstall(self, bundle_id: str) -> bool:
@@ -129,9 +131,9 @@ class AppLauncher:
         cmd = build_simctl_command("uninstall", self.udid, bundle_id)
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=SLOW_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def open_url(self, url: str) -> bool:
@@ -147,9 +149,9 @@ class AppLauncher:
         cmd = build_simctl_command("openurl", self.udid, url)
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def list_apps(self) -> list[dict[str, str]]:
@@ -162,7 +164,9 @@ class AppLauncher:
         cmd = build_simctl_command("listapps", self.udid)
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+            )
 
             # Parse plist output using plutil to convert to JSON
             plist_data = result.stdout
@@ -170,7 +174,12 @@ class AppLauncher:
             # Use plutil to convert plist to JSON
             convert_cmd = ["plutil", "-convert", "json", "-o", "-", "-"]
             convert_result = subprocess.run(
-                convert_cmd, check=False, input=plist_data, capture_output=True, text=True
+                convert_cmd,
+                check=False,
+                input=plist_data,
+                capture_output=True,
+                text=True,
+                timeout=QUICK_TIMEOUT,
             )
 
             apps = []
@@ -199,7 +208,7 @@ class AppLauncher:
                     pass
 
             return apps
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return []
 
     def get_app_state(self, bundle_id: str) -> str:
@@ -216,11 +225,13 @@ class AppLauncher:
         cmd = build_simctl_command("spawn", self.udid, "launchctl", "list")
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+            )
             if bundle_id in result.stdout:
                 return "running"
             return "not running"
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return "unknown"
 
     def restart_app(

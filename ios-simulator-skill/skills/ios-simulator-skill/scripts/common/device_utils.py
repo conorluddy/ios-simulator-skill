@@ -19,6 +19,8 @@ import re
 import subprocess
 import sys
 
+from .env_config import QUICK_TIMEOUT
+
 
 def build_simctl_command(
     operation: str,
@@ -143,8 +145,9 @@ def get_booted_device_udids() -> list[str]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=QUICK_TIMEOUT,
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return []
 
     # Format: "  iPhone 16 Pro (ABC123-DEF456) (Booted)"
@@ -247,7 +250,9 @@ def get_device_screen_size(udid: str) -> tuple[int, int]:
     """
     try:
         cmd = build_idb_command("ui describe-all", udid, "--json")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+        )
 
         # Parse JSON response
         data = json.loads(result.stdout)
@@ -361,7 +366,9 @@ def list_simulators(state: str | None = None) -> list[dict]:
     try:
         # Query simctl for device list
         cmd = ["xcrun", "simctl", "list", "devices", "-j"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT
+        )
 
         data = json.loads(result.stdout)
         simulators = []
@@ -388,7 +395,12 @@ def list_simulators(state: str | None = None) -> list[dict]:
             return simulators
         return [s for s in simulators if s["state"].lower() == state.lower()]
 
-    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+        KeyError,
+    ) as e:
         raise RuntimeError(f"Failed to list simulators: {e}") from e
 
 

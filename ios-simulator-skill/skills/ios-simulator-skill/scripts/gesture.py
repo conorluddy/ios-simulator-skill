@@ -68,6 +68,7 @@ from common import (
     resolve_udid,
     transform_screenshot_coords,
 )
+from common.env_config import QUICK_TIMEOUT
 
 
 class GestureController:
@@ -144,9 +145,9 @@ class GestureController:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def scroll(self, direction: str, amount: int = 3) -> bool:
@@ -185,11 +186,11 @@ class GestureController:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             # Simulate hold with delay
             time.sleep(duration)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def pinch(self, direction: str = "out", center: tuple[int, int] | None = None) -> bool:

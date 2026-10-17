@@ -67,7 +67,7 @@ from common import (
     resolve_udid,
     transform_screenshot_coords,
 )
-from common.env_config import env_float, env_int
+from common.env_config import QUICK_TIMEOUT, env_float, env_int
 
 MAX_ELEMENTS_LISTED = env_int("IOS_SIM_MAX_ELEMENTS", 25)
 TAP_SETTLE_SECONDS = env_float("IOS_SIM_TAP_SETTLE_MS", 500.0) / 1000.0
@@ -212,9 +212,9 @@ class Navigator:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def enter_text(self, text: str, element: Element | None = None) -> bool:
@@ -243,9 +243,9 @@ class Navigator:
             cmd.extend(["--udid", self.udid])
 
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            subprocess.run(cmd, capture_output=True, check=True, timeout=QUICK_TIMEOUT)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
 
     def find_and_tap(

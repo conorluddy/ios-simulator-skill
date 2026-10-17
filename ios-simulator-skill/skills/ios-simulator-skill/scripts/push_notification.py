@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 from common import resolve_udid
+from common.env_config import QUICK_TIMEOUT
 
 
 class PushNotificationSender:
@@ -86,7 +87,7 @@ class PushNotificationSender:
             cmd.extend([bundle_id, temp_payload_path])
 
             # Send notification
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=QUICK_TIMEOUT)
 
             # Clean up temp file
             Path(temp_payload_path).unlink()
