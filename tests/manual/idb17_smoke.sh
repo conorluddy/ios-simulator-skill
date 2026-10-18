@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
 # idb 1.7 end-to-end smoke. Drives Settings through the real scripts and checks
 # each idb 1.7 feature by its effect where one is observable. Run by hand from the
-# repo root against a booted simulator; not wired into CI (CI has no simulator).
+# repo root; not wired into CI (CI has no simulator).
 #
 # Usage:
-#   tests/manual/idb17_smoke.sh                       # booted simulator
-#   tests/manual/idb17_smoke.sh --udid <UDID>
-#   tests/manual/idb17_smoke.sh --app <bundle-id>     # also map an app's first screen
+#   tests/manual/idb17_smoke.sh                                  # throwaway sim (default)
+#   tests/manual/idb17_smoke.sh --udid <UDID> --yes              # an existing sim
+#   tests/manual/idb17_smoke.sh --udid <UDID> --yes --app <id>   # also map an app's screen
 #
-# Side effects, all restored at the end: Settings navigation, the "Character
-# Preview" keyboard toggle, Increase Contrast, orientation, test notifications on
-# Settings, and the photo library (emptied - don't run against a sim whose photos
-# you need).
+# By default it creates, boots and deletes its own simulator, so nothing of yours is
+# touched. Against an existing sim it empties the photo library (unrecoverable) and
+# flips settings it then restores (a keyboard toggle, Increase Contrast, orientation),
+# so it refuses without --yes (AGENTS.md Principle 10).
 
 set -uo pipefail
 
 SCRIPTS="ios-simulator-skill/skills/ios-simulator-skill/scripts"
+DEVICE_TYPE="${IOS_SIM_SMOKE_DEVICE_TYPE:-com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro}"
+READY_TIMEOUT_SECONDS=30
 UDID=""
 APP=""
+CONFIRMED=false
+THROWAWAY=false
 PASS=0
 FAIL=0
 
@@ -25,7 +29,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --udid) UDID="$2"; shift 2 ;;
     --app) APP="$2"; shift 2 ;;
-    *) echo "usage: $0 [--udid UDID] [--app BUNDLE_ID]" >&2; exit 2 ;;
+    --yes) CONFIRMED=true; shift ;;
+    *) echo "usage: $0 [--udid UDID --yes] [--app BUNDLE_ID]" >&2; exit 2 ;;
   esac
 done
 
@@ -33,12 +38,35 @@ if [[ ! -d "$SCRIPTS" ]]; then
   echo "error: run this from the repo root (couldn't find $SCRIPTS)" >&2
   exit 1
 fi
-if [[ -z "$UDID" ]]; then
-  UDID=$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -1)
-fi
-if [[ -z "$UDID" ]]; then
-  echo "error: no booted simulator; boot one or pass --udid" >&2
+if [[ -n "$UDID" && "$CONFIRMED" != true ]]; then
+  echo "Refusing to empty the photo library on $UDID without --yes: confirm with the user, then re-run with --yes" >&2
   exit 1
+fi
+if [[ -n "$APP" && -z "$UDID" ]]; then
+  echo "error: --app needs --udid (the throwaway sim has only built-in apps)" >&2
+  exit 2
+fi
+
+if [[ -z "$UDID" ]]; then
+  # Newest available iOS runtime that supports DEVICE_TYPE.
+  runtime=$(xcrun simctl list runtimes -j | python3 -c '
+import json, sys
+device_type = sys.argv[1]
+ios = [
+    r for r in json.load(sys.stdin)["runtimes"]
+    if r["platform"] == "iOS" and r["isAvailable"]
+    and any(t["identifier"] == device_type for t in r.get("supportedDeviceTypes", []))
+]
+print(max(ios, key=lambda r: [int(p) for p in r["version"].split(".")])["identifier"] if ios else "")
+' "$DEVICE_TYPE")
+  if [[ -z "$runtime" ]]; then
+    echo "error: no iOS runtime supports $DEVICE_TYPE (set IOS_SIM_SMOKE_DEVICE_TYPE)" >&2
+    exit 1
+  fi
+  UDID=$(xcrun simctl create "idb17-smoke-$$" "$DEVICE_TYPE" "$runtime") || exit 1
+  THROWAWAY=true
+  trap 'xcrun simctl delete "$UDID" >/dev/null 2>&1' EXIT
+  xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" -b >/dev/null || exit 1
 fi
 
 # === HELPERS ===
@@ -73,10 +101,40 @@ print(next((str(e.get("AXValue")) for e in json.load(sys.stdin) if e.get(key) ==
 ' "$1" "$2"
 }
 
+# element_count [type]: elements in the default read (of that type, if given); 0 on failure.
+element_count() {
+  idb ui describe-all --udid "$UDID" --json 2>/dev/null | python3 -c '
+import json, sys
+wanted = sys.argv[1] if len(sys.argv) > 1 else None
+print(sum(1 for e in json.load(sys.stdin) if wanted is None or e.get("type") == wanted))
+' "$@" 2>/dev/null || echo 0
+}
+
+# wait_for_tree [type]: poll until the default read sees a real screen (one with an element
+# of that type, if given). A read stuck on a lone zero-size app node after a relaunch
+# (facebook/idb#964) is woken by one axbridge read.
+wait_for_tree() {
+  local deadline=$((SECONDS + READY_TIMEOUT_SECONDS))
+  local woke=false
+  while (( SECONDS < deadline )); do
+    if [[ -n "${1:-}" ]] && (( $(element_count "$1") > 0 )); then return 0; fi
+    if [[ -z "${1:-}" ]] && (( $(element_count) > 1 )); then return 0; fi
+    if [[ "$woke" == false ]] && (( SECONDS > deadline - READY_TIMEOUT_SECONDS / 2 )); then
+      run screen_mapper.py --deep --json >/dev/null 2>&1
+      woke=true
+    fi
+    sleep 1
+  done
+  echo "  (accessibility tree still empty after ${READY_TIMEOUT_SECONDS}s)" >&2
+  return 1
+}
+
 open_settings() {
   xcrun simctl terminate "$UDID" com.apple.Preferences 2>/dev/null
   xcrun simctl launch "$UDID" com.apple.Preferences >/dev/null
-  sleep 4
+  sleep 1
+  # The root screen's search field is the last thing to appear on a fresh sim.
+  wait_for_tree TextField
 }
 
 photo_count() {
@@ -84,21 +142,20 @@ photo_count() {
     \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.heic' \) 2>/dev/null | wc -l | tr -d ' '
 }
 
-echo "idb17 smoke on $UDID ($(brew list --versions idb-cli idb-companion 2>/dev/null | tr '\n' ' '))"
+sim_kind=$([[ "$THROWAWAY" == true ]] && echo "throwaway sim" || echo "existing sim")
+echo "idb17 smoke on $UDID, $sim_kind ($(brew list --versions idb-cli idb-companion 2>/dev/null | tr '\n' ' '))"
 
 # === SCREEN READS ===
 
 step "screen_mapper: default read and --deep (axbridge)"
 open_settings
-# Wakes the default read, which can stay empty after a relaunch (facebook/idb#964).
-run screen_mapper.py --deep --json >/dev/null 2>&1
 shallow=$(run screen_mapper.py --json 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["total_elements"])' 2>/dev/null || echo 0)
 deep=$(run screen_mapper.py --deep --json 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["total_elements"])' 2>/dev/null || echo 0)
 if (( shallow > 1 )); then pass "default read sees $shallow elements"; else fail "default read" "only $shallow elements"; fi
 if (( deep > shallow )); then pass "--deep sees more ($deep > $shallow)"; else fail "--deep" "$deep vs $shallow"; fi
 
 if [[ -n "$APP" ]]; then
-  xcrun simctl launch "$UDID" "$APP" >/dev/null && sleep 4
+  xcrun simctl launch "$UDID" "$APP" >/dev/null && sleep 1 && wait_for_tree
   expect "screen_mapper maps $APP" "Screen:" run screen_mapper.py
   open_settings
 fi
@@ -122,10 +179,9 @@ restored=$(ax_value AXUniqueId KeyboardAllowPaddle)
 if [[ "$restored" == "$before" ]]; then pass "toggle restored to $before"; else fail "toggle restore" "now $restored, was $before"; fi
 
 open_settings
-run navigator.py --find-type TextField --set-value "Zürich ☕" >/dev/null
-sleep 1.5
+expect "--set-value reports the value read back" "Set value of" run navigator.py --find-type TextField --set-value "Zürich ☕"
 value=$(ax_value type TextField)
-if [[ "$value" == "Zürich ☕" ]]; then pass "--set-value wrote non-ASCII text"; else fail "--set-value" "field holds '$value'"; fi
+if [[ "$value" == "Zürich ☕" ]]; then pass "field holds the non-ASCII text"; else fail "--set-value" "field holds '$value'"; fi
 open_settings
 
 # === GESTURES AND KEYS ===
@@ -155,7 +211,11 @@ step "push_notification --list / --clear"
 xcrun simctl launch "$UDID" com.apple.mobilecal >/dev/null
 sleep 2
 run push_notification.py --bundle-id com.apple.Preferences --title Smoke --body One >/dev/null 2>&1
-sleep 1
+# Delivery takes a few seconds on a fresh sim.
+for _ in {1..10}; do
+  [[ "$(run push_notification.py --bundle-id com.apple.Preferences --list 2>&1)" == *Smoke* ]] && break
+  sleep 1
+done
 expect "--list shows the notification" "Smoke" run push_notification.py --bundle-id com.apple.Preferences --list
 run push_notification.py --bundle-id com.apple.Preferences --clear >/dev/null 2>&1
 expect "--clear empties the list" "0 notification" run push_notification.py --bundle-id com.apple.Preferences --list
