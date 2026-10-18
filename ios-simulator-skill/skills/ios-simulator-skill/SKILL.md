@@ -140,12 +140,12 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 10. **app_launcher.py** - App lifecycle management
    - Launch apps by bundle ID
    - Terminate apps
-   - Install/uninstall from .app bundles
+   - Install/uninstall from .app bundles (`--uninstall` needs `--yes`: the app's data is deleted)
    - Deep link navigation
    - List installed apps
    - Check app state
    - Pass launch arguments (`--args`) and environment variables (`--env KEY=VALUE`, injected as `SIMCTL_CHILD_*`) to the app on launch/restart
-   - Options: `--launch`, `--terminate`, `--restart`, `--install`, `--uninstall`, `--open-url`, `--list`, `--state`, `--args`, `--env`, `--wait-for-debugger`
+   - Options: `--launch`, `--terminate`, `--restart`, `--install`, `--uninstall`, `--yes`, `--open-url`, `--list`, `--state`, `--args`, `--env`, `--wait-for-debugger`
 
 ### Testing & Analysis (9 scripts)
 
