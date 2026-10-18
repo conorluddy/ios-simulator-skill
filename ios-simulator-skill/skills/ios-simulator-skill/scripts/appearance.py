@@ -2,11 +2,12 @@
 """
 iOS Simulator Appearance Manager
 
-Control dark mode, dynamic type size, locale, and region.
+Control dark mode, dynamic type size, increase contrast, locale, and region.
 Wraps xcrun simctl ui and defaults write for appearance testing.
 
 Usage:
   python scripts/appearance.py --theme dark
+  python scripts/appearance.py --contrast high
   python scripts/appearance.py --text-size AX3
   python scripts/appearance.py --locale ar --region SA --bundle-id com.myapp
   python scripts/appearance.py --reset
@@ -42,8 +43,12 @@ TEXT_SIZE_MAP: dict[str, str] = {
 # Locales that require RTL layout direction
 RTL_LOCALES: frozenset[str] = frozenset({"ar", "he", "fa", "ur", "yi"})
 
+# Map --contrast values to xcrun simctl increase_contrast tokens
+CONTRAST_MAP: dict[str, str] = {"high": "enabled", "normal": "disabled"}
+
 # Default appearance values used by --reset
 DEFAULT_THEME = "light"
+DEFAULT_CONTRAST = "normal"
 DEFAULT_TEXT_SIZE = "M"
 DEFAULT_LOCALE = "en"
 DEFAULT_REGION = "US"
@@ -53,7 +58,7 @@ DEFAULT_REGION = "US"
 
 
 class AppearanceManager:
-    """Manages iOS simulator appearance: theme, dynamic type, and locale."""
+    """Manages iOS simulator appearance: theme, dynamic type, contrast, and locale."""
 
     def __init__(self, udid: str | None = None):
         """Initialize appearance manager.
@@ -93,6 +98,36 @@ class AppearanceManager:
 
         cmd = ["xcrun", "simctl", "ui", self.udid, "content_size", token]
         return self._run(cmd, f"Text size set: {alias} ({token})")
+
+    def set_contrast(self, mode: str) -> tuple[bool, str]:
+        """Enable or disable Increase Contrast, then read it back to confirm.
+
+        Uses simctl (not idb): Apple-maintained and no companion dependency.
+
+        Args:
+            mode: 'high' (Increase Contrast on) or 'normal'
+
+        Returns:
+            (success, message)
+        """
+        token = CONTRAST_MAP.get(mode)
+        if not token:
+            return False, f"Unknown contrast '{mode}'. Valid: {', '.join(CONTRAST_MAP)}"
+
+        ok, msg = self._run(["xcrun", "simctl", "ui", self.udid, "increase_contrast", token], "")
+        if not ok:
+            return False, msg
+
+        read_cmd = ["xcrun", "simctl", "ui", self.udid, "increase_contrast"]
+        try:
+            result = subprocess.run(read_cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as error:
+            return False, error.stderr.strip() if error.stderr else "contrast read-back failed"
+
+        actual = result.stdout.strip()
+        if actual != token:
+            return False, f"Contrast not applied: expected {token}, device reports {actual}"
+        return True, f"Contrast set: {mode}"
 
     def set_locale(
         self,
@@ -166,7 +201,7 @@ class AppearanceManager:
         return True, summary
 
     def reset(self) -> tuple[bool, str]:
-        """Reset theme, text size, and locale to system defaults.
+        """Reset theme, text size, contrast, and locale to system defaults.
 
         Returns:
             (success, message)
@@ -180,13 +215,16 @@ class AppearanceManager:
         ok, msg = self.set_text_size(DEFAULT_TEXT_SIZE)
         (results if ok else errors).append(msg)
 
+        ok, msg = self.set_contrast(DEFAULT_CONTRAST)
+        (results if ok else errors).append(msg)
+
         ok, msg = self.set_locale(DEFAULT_LOCALE, DEFAULT_REGION)
         (results if ok else errors).append(msg)
 
         if errors:
             return False, f"Reset partial — errors: {'; '.join(errors)}"
 
-        return True, "Appearance reset to defaults (light / M / en_US)"
+        return True, "Appearance reset to defaults (light / M / normal contrast / en_US)"
 
     # === PRIVATE HELPERS ===
 
@@ -242,13 +280,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "iOS Simulator Appearance Manager — control dark mode, "
-            "dynamic type, locale, and region."
+            "dynamic type, increase contrast, locale, and region."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python scripts/appearance.py --theme dark
   python scripts/appearance.py --text-size AX3
+  python scripts/appearance.py --contrast high
   python scripts/appearance.py --locale ar --region SA
   python scripts/appearance.py --locale de --region DE --bundle-id com.myapp
   python scripts/appearance.py --reset
@@ -270,6 +309,11 @@ Text sizes: XS S M L XL XXL XXXL AX1 AX2 AX3 AX4 AX5
         help="Set dynamic type size (XS smallest, AX5 largest)",
     )
     parser.add_argument(
+        "--contrast",
+        choices=list(CONTRAST_MAP),
+        help="Set Increase Contrast: high (on) or normal (off)",
+    )
+    parser.add_argument(
         "--locale",
         metavar="CODE",
         help="Set locale language code (e.g. en, de, ar, ja)",
@@ -287,7 +331,7 @@ Text sizes: XS S M L XL XXL XXXL AX1 AX2 AX3 AX4 AX5
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Reset theme, text size, and locale to system defaults",
+        help="Reset theme, text size, contrast, and locale to system defaults",
     )
     parser.add_argument(
         "--udid",
@@ -307,14 +351,14 @@ Text sizes: XS S M L XL XXL XXXL AX1 AX2 AX3 AX4 AX5
     args = parser.parse_args()
 
     # Guard: require at least one action
-    if not any([args.theme, args.text_size, args.locale, args.reset]):
+    if not any([args.theme, args.text_size, args.contrast, args.locale, args.reset]):
         parser.print_help()
         sys.exit(1)
 
     # Guard: --reset is incompatible with explicit appearance flags
-    if args.reset and any([args.theme, args.text_size, args.locale]):
+    if args.reset and any([args.theme, args.text_size, args.contrast, args.locale]):
         print(
-            "Error: --reset cannot be combined with --theme, --text-size, or --locale",
+            "Error: --reset cannot be combined with --theme, --text-size, --contrast, or --locale",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -349,6 +393,9 @@ Text sizes: XS S M L XL XXL XXXL AX1 AX2 AX3 AX4 AX5
 
         if args.text_size:
             operations.append(("text_size", manager.set_text_size(args.text_size)))
+
+        if args.contrast:
+            operations.append(("contrast", manager.set_contrast(args.contrast)))
 
         if args.locale:
             operations.append(

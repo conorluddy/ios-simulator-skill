@@ -30,10 +30,26 @@ Usage Examples:
     # Long press at coordinates
     python scripts/gesture.py --long-press 200,300 --duration 2.0
 
+    # Double tap (or N taps) at coordinates
+    python scripts/gesture.py --double-tap 200,300
+    python scripts/gesture.py --double-tap 200,300 --tap-count 3
+
+    # Press-hold-drag-release between coordinates and/or accessibility labels
+    python scripts/gesture.py --drag 200,300 200,600
+    python scripts/gesture.py --drag "Row 1" "Row 4"
+
+    # Rotate the device, or shake it (debug menus, undo)
+    python scripts/gesture.py --rotate landscape-left
+    python scripts/gesture.py --shake
+
 Output Format:
     Swiped up
     Scrolled down (3x)
     Performed pull to refresh
+    Tapped 2x at (200, 300)
+    Dragged (200, 300) to (200, 600)
+    Rotated to landscape-left
+    Shook device
 
 Technical Details:
 - Swipes travel a fraction of the screen (70% by default), centred on screen
@@ -42,9 +58,14 @@ Technical Details:
   (falls back to 390x844 if detection fails)
 - Uses `idb ui swipe`, `idb ui tap --duration` and `idb ui pinch`.
   idb durations are in seconds.
+- idb 1.7+: `idb ui multi-tap`, `idb ui drag-and-drop`, `idb ui rotate`, `idb ui shake`.
+  Drag endpoints are "x,y" or an accessibility label (matched as AXLabel substring).
+  Orientation names are physical device rotation: landscape-left leaves the UI
+  in landscape with the home indicator on the right.
 """
 
 import argparse
+import re
 import sys
 import time
 
@@ -55,15 +76,31 @@ from common import (
     resolve_udid,
     run_idb,
     transform_screenshot_coords,
+    with_idb_upgrade_hint,
 )
 
 SWIPE_DISTANCE_RATIO = 0.7
 SCROLL_DISTANCE_RATIO = 0.3
 SCROLL_PAUSE_SECONDS = 0.2
 EDGE_INSET_RATIO = 0.05
-DRAG_DURATION_SECONDS = 1.0
 # idb has no default swipe duration; an instantaneous swipe is ignored by iOS.
 SWIPE_DURATION_SECONDS = 0.5
+
+# idb 1.7 orientation arguments, keyed by the script-facing name.
+ORIENTATIONS: dict[str, str] = {
+    "portrait": "PORTRAIT",
+    "portrait-upside-down": "PORTRAIT_UPSIDE_DOWN",
+    "landscape-left": "LANDSCAPE_LEFT",
+    "landscape-right": "LANDSCAPE_RIGHT",
+}
+
+MIN_MULTI_TAP_COUNT = 2
+
+# Operations missing from idb < 1.7; argparse rejects them as an invalid choice.
+IDB_1_7_OPERATIONS = {"ui multi-tap", "ui drag-and-drop", "ui rotate", "ui shake"}
+
+# "x,y" drag endpoint, as opposed to an accessibility label.
+POINT_PATTERN = re.compile(r"^\d+,\d+$")
 
 # Pinch "out" spreads the fingers (zoom in); "in" closes them (zoom out).
 PINCH_SCALE_BY_DIRECTION = {"out": 2.0, "in": 0.5}
@@ -182,9 +219,43 @@ class GestureController:
             center = (width // 2, height // 2)
         return self._run("ui pinch", center[0], center[1], scale)
 
-    def drag_and_drop(self, start: tuple[int, int], end: tuple[int, int]) -> bool:
-        """Drag from one point to another with a slow swipe."""
-        return self.swipe_between(start, end, duration_seconds=DRAG_DURATION_SECONDS)
+    def multi_tap(self, x: int, y: int, count: int = MIN_MULTI_TAP_COUNT) -> bool:
+        """Tap `count` times in quick succession at coordinates (idb 1.7+)."""
+        if count < MIN_MULTI_TAP_COUNT:
+            self.last_error = f"--tap-count must be >= {MIN_MULTI_TAP_COUNT} (got {count})"
+            return False
+        return self._run("ui multi-tap", x, y, "--count", count)
+
+    def drag_and_drop(
+        self, source: tuple[int, int] | str, destination: tuple[int, int] | str
+    ) -> bool:
+        """
+        Press the source, drag to the destination and release (idb 1.7+).
+
+        Unlike a swipe, the source is held first, so it picks up list rows and icons.
+
+        Args:
+            source: (x, y) in points, or an accessibility label
+            destination: (x, y) in points, or an accessibility label
+
+        Returns:
+            Success status
+        """
+        return self._run("ui drag-and-drop", *_drag_endpoint(source), *_drag_endpoint(destination))
+
+    def rotate(self, orientation: str) -> bool:
+        """Rotate the device to a named orientation (idb 1.7+)."""
+        idb_orientation = ORIENTATIONS.get(orientation)
+        if not idb_orientation:
+            self.last_error = (
+                f"Unknown orientation '{orientation}' (choose from: {', '.join(ORIENTATIONS)})"
+            )
+            return False
+        return self._run("ui rotate", idb_orientation)
+
+    def shake(self) -> bool:
+        """Shake the device (idb 1.7+)."""
+        return self._run("ui shake")
 
     def refresh(self) -> bool:
         """Pull to refresh: drag down from near the top of the content."""
@@ -198,6 +269,8 @@ class GestureController:
     def _run(self, operation: str, *args: object) -> bool:
         """Run an idb operation, keeping the failure reason in last_error."""
         ok, self.last_error = run_idb(build_idb_command(operation, self.udid, *args))
+        if not ok and operation in IDB_1_7_OPERATIONS:
+            self.last_error = with_idb_upgrade_hint(self.last_error)
         return ok
 
 
@@ -223,6 +296,18 @@ def compute_swipe_points(
     start = (center_x - half_x, center_y - half_y)
     end = (center_x + half_x, center_y + half_y)
     return start, end
+
+
+def _drag_endpoint(target: tuple[int, int] | str) -> list[object]:
+    """Expand a drag endpoint into idb arguments: 'X Y' for a point, one label otherwise."""
+    return list(target) if isinstance(target, tuple) else [target]
+
+
+def parse_drag_endpoint(raw: str, flag: str) -> tuple[int, int] | str:
+    """Parse a drag endpoint: 'x,y' becomes a point, anything else is an accessibility label."""
+    if POINT_PATTERN.match(raw):
+        return parse_point(raw, flag)
+    return raw
 
 
 def parse_point(raw: str, flag: str) -> tuple[int, int]:
@@ -280,6 +365,21 @@ def main():
         "--scale", type=float, help="Pinch scale factor, overrides --pinch (>1 zooms in)"
     )
     parser.add_argument("--refresh", action="store_true", help="Pull to refresh gesture")
+    parser.add_argument("--double-tap", help="Double tap at coordinates (x,y) (idb 1.7+)")
+    parser.add_argument(
+        "--tap-count",
+        type=int,
+        default=MIN_MULTI_TAP_COUNT,
+        help="Taps for --double-tap (default: 2)",
+    )
+    parser.add_argument(
+        "--drag",
+        nargs=2,
+        metavar=("SOURCE", "DESTINATION"),
+        help="Press, drag and release; each end is x,y or an accessibility label (idb 1.7+)",
+    )
+    parser.add_argument("--rotate", choices=list(ORIENTATIONS), help="Rotate the device (idb 1.7+)")
+    parser.add_argument("--shake", action="store_true", help="Shake the device (idb 1.7+)")
 
     # Coordinate transformation
     parser.add_argument(
@@ -377,6 +477,25 @@ def main():
     elif args.refresh:
         ok = controller.refresh()
         report(ok, "Performed pull to refresh", "Failed to refresh", controller)
+
+    elif args.double_tap:
+        x, y = parse_point(args.double_tap, "--double-tap")
+        ok = controller.multi_tap(x, y, args.tap_count)
+        report(ok, f"Tapped {args.tap_count}x at ({x}, {y})", "Failed to tap", controller)
+
+    elif args.drag:
+        source = parse_drag_endpoint(args.drag[0], "--drag")
+        destination = parse_drag_endpoint(args.drag[1], "--drag")
+        ok = controller.drag_and_drop(source, destination)
+        report(ok, f"Dragged {source} to {destination}", "Failed to drag", controller)
+
+    elif args.rotate:
+        ok = controller.rotate(args.rotate)
+        report(ok, f"Rotated to {args.rotate}", f"Failed to rotate to {args.rotate}", controller)
+
+    elif args.shake:
+        ok = controller.shake()
+        report(ok, "Shook device", "Failed to shake device", controller)
 
     else:
         parser.print_help()

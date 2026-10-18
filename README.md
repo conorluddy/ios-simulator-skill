@@ -1,7 +1,7 @@
 
 # iOS Simulator Skill for Agents
 
-Production-ready skill for building, testing, and automating iOS apps. 29 scripts optimized for both human developers and AI agents.
+Production-ready skill for building, testing, and automating iOS apps. 30 scripts optimized for both human developers and AI agents.
 
 (If you'd prefer an MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) -> [NPM](https://www.npmjs.com/package/xc-mcp) )
 
@@ -76,17 +76,20 @@ ls ~/.agents/skills/ios-simulator-skill/SKILL.md   # Codex
 | Requirement | Version | Needed for |
 |---|---|---|
 | macOS | 15 (Sequoia)+ | everything |
-| Xcode + Command Line Tools | 26+ (`xcode-select --install`) | building, `simctl` |
+| Xcode (full app, not just Command Line Tools) | 26+ | building, `simctl`, idb |
 | Python | **3.12+** | every script |
-| `idb` (CLI + companion) | **1.5.1+** | tapping, swiping, typing |
+| `idb` (CLI + companion) | **1.5.1+** (1.6.3+ recommended) | tapping, swiping, typing |
 | Pillow | any | visual diffs only (`pip3 install pillow`) |
 
 **Install idb** — required for every interactive script (`navigator.py`, `gesture.py`, `keyboard.py`):
 
 ```bash
-brew tap facebook/fb
-brew install facebook/fb/idb-companion facebook/fb/idb-cli
+brew install facebook/fb/idb      # installs idb-cli and idb-companion
 ```
+
+The Homebrew build is prebuilt: it needs an Apple silicon Mac, macOS 15+, and a full Xcode 26+
+selected with `xcode-select` (Command Line Tools alone are not enough). Intel Macs are not
+supported ([facebook/idb#954](https://github.com/facebook/idb/issues/954)).
 
 > `brew install idb-companion` no longer works: idb-companion was removed from Homebrew
 > core and now lives in Meta's own `facebook/fb` tap. If you followed older instructions,
@@ -106,13 +109,30 @@ the accessibility tree still reads correctly, but every tap, swipe and keystroke
 dropped — `idb` reports success and nothing happens on screen.
 
 ```bash
-brew upgrade facebook/fb/idb-companion facebook/fb/idb-cli
-brew list --versions idb-companion        # expect >= 1.5.1
+brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion
+brew list --versions idb-cli idb-companion   # expect matching versions, >= 1.5.1
 ```
 
-Coming from the old pip package? `pip install fb-idb` still provides a working `idb` CLI, but
-the Homebrew `idb-cli` above is the maintained path. If both are installed, whichever comes
-first on your `PATH` wins — check with `which -a idb`.
+Upgrade the CLI and companion together. Newer client features are served by the companion, so
+a 1.7 CLI talking to a 1.5 companion fails or falls back to older output. Companions that are
+already running keep the old binary until restarted, so run `idb kill` after upgrading.
+
+**Pinning or bisecting idb.** The `facebook/fb` tap carries only the newest release, so Homebrew
+can't install an older one. Upstream's `homebrew.py` (in the root of
+[facebook/idb](https://github.com/facebook/idb)) installs CI builds instead, into a separate local
+tap. It needs a GitHub token (`GITHUB_TOKEN`, `GH_TOKEN` or a logged-in `gh`):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/facebook/idb/main/homebrew.py
+python3 homebrew.py builds                # releases and recent CI builds of main
+python3 homebrew.py install <commit-sha>  # or pr:<n>, run:<id>; a tag works only if it's the newest
+python3 homebrew.py status                # what is installed, from which build
+python3 homebrew.py uninstall --restore   # back to facebook/fb/idb
+```
+
+Coming from the old pip package? An old `fb-idb` (1.1.x) left in a pyenv or virtualenv shadows
+the Homebrew CLI if it comes first on your `PATH`, so check with `which -a idb`. Remove it with
+`pip uninstall fb-idb` (then `pyenv rehash` under pyenv). `sim_health_check.sh` detects this.
 
 ### Xcode 27 notes
 
@@ -160,7 +180,7 @@ The accessibility tree gives structured data (element types, labels, frames, tap
 
 ### Screenshot Token Optimization
 
-When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 29 scripts is 3-5 lines — 96% reduction vs raw tool output.
+When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 30 scripts is 3-5 lines — 96% reduction vs raw tool output.
 
 | Task | Raw Tools | This Skill | Savings |
 |------|-----------|-----------|---------|
@@ -168,7 +188,7 @@ When screenshots are needed (visual verification, bug reports, diffs), the skill
 | Find & tap button | 100+ lines | 1 line | 99% |
 | Login flow | 400+ lines | 15 lines | 96% |
 
-### All 29 Scripts
+### All 30 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
 
@@ -183,17 +203,18 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
-| `appearance.py` | Switch dark mode, dynamic type, locale, region | `--theme`, `--text-size`, `--locale`, `--region`, `--reset` |
+| `appearance.py` | Switch dark mode, dynamic type, increase contrast, locale, region | `--theme`, `--text-size`, `--contrast`, `--locale`, `--region`, `--reset` |
 | `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat`, `--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
+| `media.py` | Seed or empty the photo library (`--clear` needs idb 1.7+ and `--yes`) | `--add`, `--clear`, `--yes` |
 
 #### Navigation & Interaction
 
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
-| `screen_mapper.py` | Analyze current screen, list interactive elements | `--verbose`, `--hints` |
-| `navigator.py` | Find and interact with elements semantically | `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text` |
-| `gesture.py` | Swipes (finger direction), scrolls (content direction), pinch, long press, pull to refresh | `--swipe`, `--scroll`, `--pinch`, `--scale`, `--long-press`, `--refresh` |
-| `keyboard.py` | Text input, keys, key sequences and hardware buttons | `--type`, `--key`, `--key-sequence`, `--button`, `--clear`, `--dismiss` |
+| `screen_mapper.py` | Analyze current screen, list interactive elements | `--verbose`, `--hints`, `--deep` |
+| `navigator.py` | Find and interact with elements semantically | `--find-text`, `--find-type`, `--find-id`, `--tap`, `--expect`, `--enter-text`, `--set-value` |
+| `gesture.py` | Swipes (finger direction), scrolls (content direction), pinch, long press, pull to refresh, double-tap, drag, rotate, shake | `--swipe`, `--scroll`, `--pinch`, `--scale`, `--long-press`, `--refresh`, `--double-tap`, `--drag`, `--rotate`, `--shake` |
+| `keyboard.py` | Text input, keys, key chords, key sequences and hardware buttons | `--type`, `--key` (+ `--shift/--control/--option/--command`), `--key-sequence`, `--button`, `--clear`, `--dismiss` |
 | `app_launcher.py` | Launch, terminate, install, deep link apps | `--launch`, `--terminate`, `--install`, `--open-url`, `--list` |
 
 #### Testing & Analysis
@@ -216,7 +237,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 |--------|-------------|-----------|
 | `clipboard.py` | Copy text to simulator clipboard for paste testing | `--copy`, `--test-name` |
 | `status_bar.py` | Override status bar (time, battery, network) | `--preset`, `--time`, `--battery-level`, `--clear` |
-| `push_notification.py` | Send simulated push notifications | `--bundle-id`, `--title`, `--body`, `--payload` |
+| `push_notification.py` | Send, list and clear simulated push notifications | `--bundle-id`, `--title`, `--body`, `--payload`, `--list`, `--clear` |
 | `privacy_manager.py` | Grant, revoke, reset app permissions (15 services) | `--bundle-id`, `--grant`, `--revoke`, `--reset` |
 
 #### Device Lifecycle
@@ -226,8 +247,8 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `simctl_boot.py` | Boot simulators with readiness verification | `--name`, `--wait-ready`, `--timeout`, `--all`, `--type` |
 | `simctl_shutdown.py` | Gracefully shutdown simulators | `--name`, `--verify`, `--all`, `--type` |
 | `simctl_create.py` | Create simulators by device type and OS version | `--device`, `--runtime`, `--list-devices` |
-| `simctl_delete.py` | Delete simulators with safety confirmation | `--name`, `--yes`, `--all`, `--old` |
-| `simctl_erase.py` | Factory reset without deletion | `--name`, `--verify`, `--all`, `--booted` |
+| `simctl_delete.py` | Delete simulators (needs `--yes`) | `--name`, `--yes`, `--all`, `--old` |
+| `simctl_erase.py` | Factory reset without deletion (needs `--yes`) | `--name`, `--yes`, `--verify`, `--all`, `--booted` |
 
 ## Configuration
 
@@ -288,7 +309,7 @@ These shape what AI agents see when exploring a screen. They're the biggest dire
 
 | Variable | Default | Tradeoff |
 |---|---|---|
-| `IOS_SIM_MAX_ELEMENTS` | `25` | Tappable elements listed by `navigator.py`. Default is enough for most screens; raise to `100+` for dense Settings-style screens or audit workflows. **High token impact** at high values. |
+| `IOS_SIM_MAX_ELEMENTS` | `25` | Items listed by `navigator.py --list` and `push_notification.py --list`. Default is enough for most screens; raise to `100+` for dense Settings-style screens or audit workflows. **High token impact** at high values. |
 | `IOS_SIM_SCREEN_BUTTONS_PREVIEW` | `15` | Button names in `screen_mapper.py` summary. |
 | `IOS_SIM_SCREEN_SECTION_ITEMS` | `10` | Items per section in `screen_mapper.py` summary. |
 | `IOS_SIM_APPS_PREVIEW` | `30` | Installed apps listed by `app_launcher.py` before truncation. |
@@ -321,7 +342,7 @@ IOS_SIM_BOOT_TIMEOUT=600 python scripts/simctl_boot.py --wait-ready
 IOS_SIM_BUILD_VERBOSE_CAP=500 python scripts/build_and_test.py --verbose
 
 # Complex Settings-style screen — return more tappable elements
-IOS_SIM_MAX_ELEMENTS=100 python scripts/navigator.py --list-tappable
+IOS_SIM_MAX_ELEMENTS=100 python scripts/navigator.py --list
 
 # Snappy app — cut tap-settle delay in half for faster E2E runs
 IOS_SIM_TAP_SETTLE_MS=250 python scripts/navigator.py --find-text "Login" --tap

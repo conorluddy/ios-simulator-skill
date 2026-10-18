@@ -23,7 +23,7 @@ import subprocess
 import sys
 import time
 
-from common import build_simctl_command, resolve_udid
+from common import build_simctl_command, refuse_without_yes, resolve_udid
 from common.env_config import env_float, env_int
 
 RELAUNCH_DELAY_SECONDS = env_float("IOS_SIM_RELAUNCH_DELAY_MS", 1000.0) / 1000.0
@@ -260,12 +260,17 @@ def main():
     parser.add_argument("--terminate", help="Terminate app by bundle ID")
     parser.add_argument("--restart", help="Restart app by bundle ID")
     parser.add_argument("--install", help="Install app from .app path")
-    parser.add_argument("--uninstall", help="Uninstall app by bundle ID")
+    parser.add_argument("--uninstall", help="Uninstall app by bundle ID (needs --yes)")
     parser.add_argument("--open-url", help="Open URL (deep link)")
     parser.add_argument("--list", action="store_true", help="List installed apps")
     parser.add_argument("--state", help="Get app state by bundle ID")
 
     # Options
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm --uninstall: the app's data on the simulator can't be recovered",
+    )
     parser.add_argument(
         "--wait-for-debugger", action="store_true", help="Wait for debugger when launching"
     )
@@ -346,6 +351,12 @@ def main():
             sys.exit(1)
 
     elif args.uninstall:
+        if not args.yes:
+            print(
+                refuse_without_yes(f"uninstall {args.uninstall} and delete its data"),
+                file=sys.stderr,
+            )
+            sys.exit(1)
         if launcher.uninstall(args.uninstall):
             print(f"Uninstalled {args.uninstall}")
         else:

@@ -18,6 +18,10 @@ Usage Examples:
     # Press a sequence of keys (special key names or single letters)
     python scripts/keyboard.py --key-sequence h,i,return
 
+    # Key chords: hold modifiers (--shift --control --option --command)
+    python scripts/keyboard.py --key a --command
+    python scripts/keyboard.py --key z --command --shift
+
     # Select all and delete the focused field's text
     python scripts/keyboard.py --clear
 
@@ -31,6 +35,7 @@ Usage Examples:
 Output Format:
     Typed: "hello@example.com"
     Pressed return
+    Pressed command+shift+z
     Pressed home button
 
 Special Keys (USB HID usage codes, as idb expects):
@@ -44,7 +49,8 @@ Hardware Buttons (idb `ui button` names):
 
 Technical Details:
 - `idb ui text` types strings into the focused element (ASCII only)
-- `idb ui key <code>` presses one key; `--command` holds Cmd (used for Cmd+A)
+- `idb ui key <code>` presses one key; `--shift/--control/--option/--command` hold
+  modifiers (Cmd+A for --clear). Modifier flags need idb 1.7+ except --command.
 - `idb ui key-sequence <codes...>` presses keys in order
 - `idb ui button <NAME>` presses a hardware button
 """
@@ -53,7 +59,7 @@ import argparse
 import sys
 import time
 
-from common import build_idb_command, resolve_udid, run_idb
+from common import build_idb_command, resolve_udid, run_idb, with_idb_upgrade_hint
 
 SLOW_TYPING_DELAY_SECONDS = 0.1
 REPEAT_KEY_DELAY_SECONDS = 0.1
@@ -89,6 +95,17 @@ HARDWARE_BUTTONS: dict[str, str] = {
 }
 
 BUTTONS_NEEDING_NEWER_IDB = {"volume-up", "volume-down"}
+
+# Modifier name -> `idb ui key` flag, in the order flags are passed.
+MODIFIER_FLAGS: dict[str, str] = {
+    "shift": "--shift",
+    "control": "--control",
+    "option": "--option",
+    "command": "--command",
+}
+
+# Modifier flags other than --command are missing from idb < 1.7 (argparse rejects them).
+MODIFIERS_NEEDING_NEWER_IDB = {"shift", "control", "option"}
 
 
 def resolve_key_code(key: str) -> int | None:
@@ -142,14 +159,14 @@ class KeyboardController:
             time.sleep(delay_seconds)
         return True
 
-    def press_key(self, key: str, count: int = 1, with_command: bool = False) -> bool:
+    def press_key(self, key: str, count: int = 1, modifiers: tuple[str, ...] = ()) -> bool:
         """
         Press a key `count` times.
 
         Args:
             key: Key name (return, delete...), single letter, or HID code
             count: Number of presses
-            with_command: Hold the Command modifier (e.g. Cmd+A)
+            modifiers: Modifiers to hold: shift, control, option, command (e.g. Cmd+A)
 
         Returns:
             Success status
@@ -161,9 +178,19 @@ class KeyboardController:
             )
             return False
 
-        modifiers = ["--command"] if with_command else []
+        unknown_modifiers = [name for name in modifiers if name not in MODIFIER_FLAGS]
+        if unknown_modifiers:
+            self.last_error = (
+                f"Unknown modifier '{unknown_modifiers[0]}' "
+                f"(choose from: {', '.join(MODIFIER_FLAGS)})"
+            )
+            return False
+
+        modifier_flags = [flag for name, flag in MODIFIER_FLAGS.items() if name in modifiers]
         for press_number in range(count):
-            if not self._run("ui key", key_code, *modifiers):
+            if not self._run("ui key", key_code, *modifier_flags):
+                if MODIFIERS_NEEDING_NEWER_IDB.intersection(modifiers):
+                    self.last_error = with_idb_upgrade_hint(self.last_error)
                 return False
             if press_number < count - 1:
                 time.sleep(REPEAT_KEY_DELAY_SECONDS)
@@ -190,10 +217,7 @@ class KeyboardController:
             return False
         ok = self._run("ui button", idb_button)
         if not ok and button.lower() in BUTTONS_NEEDING_NEWER_IDB:
-            self.last_error += (
-                " - volume buttons need idb 1.6.3+: "
-                "brew upgrade facebook/fb/idb-companion facebook/fb/idb-cli"
-            )
+            self.last_error = with_idb_upgrade_hint(self.last_error, requirement="idb 1.6.3+")
         return ok
 
     def clear_text(self, select_all: bool = True) -> bool:
@@ -209,7 +233,7 @@ class KeyboardController:
         """
         if not select_all:
             return self.press_key("delete", count=FALLBACK_DELETE_COUNT)
-        if not self.press_key("a", with_command=True):
+        if not self.press_key("a", modifiers=("command",)):
             return False
         return self.press_key("delete")
 
@@ -255,6 +279,10 @@ def main():
         "--key-sequence", help="Press keys in order (comma-separated, e.g. h,i,return)"
     )
     parser.add_argument("--count", type=int, default=1, help="Number of times to press --key")
+    for modifier, flag in MODIFIER_FLAGS.items():
+        parser.add_argument(
+            flag, action="store_true", help=f"Hold {modifier} while pressing --key (e.g. --key a)"
+        )
 
     # Hardware buttons
     parser.add_argument(
@@ -288,6 +316,13 @@ def main():
         sys.exit(1)
 
     controller = KeyboardController(udid=udid)
+    modifiers = tuple(name for name in MODIFIER_FLAGS if getattr(args, name))
+    if modifiers and not args.key:
+        print(
+            f"Error: {' '.join(MODIFIER_FLAGS[n] for n in modifiers)} requires --key",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if args.type:
         delay = SLOW_TYPING_DELAY_SECONDS if args.slow else 0.0
@@ -296,9 +331,10 @@ def main():
         report(ok, f'Typed: "{args.type}"{suffix}', "Failed to type text", controller)
 
     elif args.key:
-        ok = controller.press_key(args.key, args.count)
+        ok = controller.press_key(args.key, args.count, modifiers)
         times = f" ({args.count}x)" if args.count > 1 else ""
-        report(ok, f"Pressed {args.key}{times}", f"Failed to press {args.key}", controller)
+        chord = "+".join([*modifiers, args.key])
+        report(ok, f"Pressed {chord}{times}", f"Failed to press {chord}", controller)
 
     elif args.key_sequence:
         keys = args.key_sequence.split(",")

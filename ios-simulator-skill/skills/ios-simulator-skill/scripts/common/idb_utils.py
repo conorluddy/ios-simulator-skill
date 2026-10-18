@@ -14,11 +14,50 @@ Used by:
 - gesture.py - Touch gesture operations
 """
 
+import functools
 import json
 import subprocess
 import sys
 
 from .device_utils import get_device_screen_size
+
+HELP_PROBE_TIMEOUT_SECONDS = 10
+TREE_READ_ATTEMPTS = 2
+
+IDB_UPGRADE_COMMAND = "brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
+# How argparse rejects a subcommand or flag that an older idb client doesn't have.
+OLD_IDB_REJECTIONS = ("invalid choice", "unrecognized arguments")
+
+
+def with_idb_upgrade_hint(error: str, requirement: str = "idb 1.7+") -> str:
+    """
+    Turn an old-idb argparse rejection into one actionable line; pass other errors through.
+
+    argparse prints its whole usage block before the error, which is noise to an
+    agent, so only the line naming the problem is kept.
+
+    Example:
+        with_idb_upgrade_hint("usage: idb ...\nidb: error: invalid choice: 'shake'")
+        # "idb: error: invalid choice: 'shake' (needs idb 1.7+: brew upgrade ...)"
+    """
+    if not any(rejection in error for rejection in OLD_IDB_REJECTIONS):
+        return error
+    lines = [line.strip() for line in error.splitlines() if line.strip()]
+    error_line = next(
+        (line for line in reversed(lines) if any(r in line for r in OLD_IDB_REJECTIONS)),
+        error.strip(),
+    )
+    return f"{error_line} (needs {requirement}: {IDB_UPGRADE_COMMAND})"
+
+
+def idb_supports_set_value() -> bool:
+    """
+    Whether this idb has `ui set-value` (idb 1.7+).
+
+    Probed from `--help` rather than a version number: upstream publishes no
+    changelog, so the help text is the only reliable record of what a client has.
+    """
+    return "--value" in _ui_help("set-value")
 
 
 def run_idb(cmd: list[str]) -> tuple[bool, str]:
@@ -48,7 +87,9 @@ def run_idb(cmd: list[str]) -> tuple[bool, str]:
         return (False, "idb not found on PATH - run scripts/sim_health_check.sh")
 
 
-def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict:
+def get_accessibility_tree(
+    udid: str | None = None, nested: bool = True, api: str | None = None
+) -> dict:
     """
     Fetch accessibility tree from IDB.
 
@@ -58,6 +99,11 @@ def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict
     Args:
         udid: Device UDID (uses booted simulator if None)
         nested: Include nested structure (default True). If False, returns flat array.
+        api: idb read backend (`--api`, idb 1.7+). None keeps idb's default, `ax`:
+            what VoiceOver sees. "axbridge" walks the app's view hierarchy from
+            inside the simulator, so it also sees web content and in-app alerts,
+            but returns many unlabelled container views and turns on the device's
+            accessibility automation mode, which idb does not restore.
 
     Returns:
         Root element of accessibility tree as dict.
@@ -78,23 +124,37 @@ def get_accessibility_tree(udid: str | None = None, nested: bool = True) -> dict
     cmd = ["idb", "ui", "describe-all", "--json"]
     if nested:
         cmd.append("--nested")
+    if api:
+        cmd.extend(["--api", api])
     if udid:
         cmd.extend(["--udid", udid])
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        tree_data = json.loads(result.stdout)
+    # One retry: a read that races a backend starting up (axbridge's in-simulator
+    # guest, a fresh companion) can answer with something other than JSON.
+    for attempt in range(TREE_READ_ATTEMPTS):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error: Failed to get accessibility tree: {e.stderr}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            tree_data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            if attempt + 1 < TREE_READ_ATTEMPTS:
+                continue
+            output = (result.stdout or result.stderr).strip()[:200] or "(no output)"
+            print(
+                f"Error: idb returned non-JSON accessibility output: {output}\n"
+                "Retry, or run scripts/sim_health_check.sh",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
         # IDB returns array format, extract first element (root)
         if isinstance(tree_data, list) and len(tree_data) > 0:
             return tree_data[0]
         return tree_data
-    except subprocess.CalledProcessError as e:
-        print(f"Error: Failed to get accessibility tree: {e.stderr}", file=sys.stderr)
-        sys.exit(1)
-    except json.JSONDecodeError:
-        print("Error: Invalid JSON from idb", file=sys.stderr)
-        sys.exit(1)
+    raise AssertionError("unreachable: loop always returns or exits")
 
 
 def flatten_tree(node: dict, depth: int = 0, elements: list[dict] | None = None) -> list[dict]:
@@ -191,3 +251,19 @@ def get_screen_size(udid: str | None = None) -> tuple[int, int]:
         center_x = width // 2
     """
     return get_device_screen_size(udid)
+
+
+@functools.cache
+def _ui_help(command: str) -> str:
+    """`idb ui <command> --help` output, or "" when this idb lacks the command."""
+    try:
+        result = subprocess.run(
+            ["idb", "ui", command, "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=HELP_PROBE_TIMEOUT_SECONDS,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout if result.returncode == 0 else ""

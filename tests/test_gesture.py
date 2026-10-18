@@ -79,10 +79,83 @@ def test_explicit_pinch_scale_overrides_direction(idb_calls):
     assert idb_calls[0][5] == "0.25"
 
 
-def test_drag_passes_swipe_duration_in_seconds(idb_calls):
+def test_double_tap_uses_multi_tap_with_count_two(idb_calls):
+    assert GestureController("U").multi_tap(10, 20)
+    assert idb_calls == [["idb", "ui", "multi-tap", "10", "20", "--count", "2", "--udid", "U"]]
+
+
+def test_multi_tap_passes_explicit_count(idb_calls):
+    assert GestureController("U").multi_tap(10, 20, count=3)
+    assert idb_calls[0][5:7] == ["--count", "3"]
+
+
+def test_multi_tap_rejects_single_tap(idb_calls):
+    controller = GestureController("U")
+    assert not controller.multi_tap(10, 20, count=1)
+    assert "--tap-count" in controller.last_error
+    assert idb_calls == []
+
+
+def test_drag_between_points_passes_both_coordinate_pairs(idb_calls):
     assert GestureController("U").drag_and_drop((1, 2), (3, 4))
-    cmd = idb_calls[0]
-    assert cmd[cmd.index("--duration") + 1] == "1.0"
+    assert idb_calls == [["idb", "ui", "drag-and-drop", "1", "2", "3", "4", "--udid", "U"]]
+
+
+def test_drag_accepts_accessibility_labels_and_mixed_endpoints(idb_calls):
+    controller = GestureController("U")
+    assert controller.drag_and_drop("Row 1", "Row 4")
+    assert controller.drag_and_drop("Row 1", (30, 40))
+    assert idb_calls == [
+        ["idb", "ui", "drag-and-drop", "Row 1", "Row 4", "--udid", "U"],
+        ["idb", "ui", "drag-and-drop", "Row 1", "30", "40", "--udid", "U"],
+    ]
+
+
+def test_drag_endpoint_parsing_distinguishes_points_from_labels():
+    assert gesture.parse_drag_endpoint("200,300", "--drag") == (200, 300)
+    assert gesture.parse_drag_endpoint("Row 1", "--drag") == "Row 1"
+
+
+def test_rotate_maps_name_to_idb_orientation(idb_calls):
+    assert GestureController("U").rotate("landscape-left")
+    assert idb_calls == [["idb", "ui", "rotate", "LANDSCAPE_LEFT", "--udid", "U"]]
+
+
+def test_rotate_rejects_unknown_orientation(idb_calls):
+    controller = GestureController("U")
+    assert not controller.rotate("sideways")
+    assert "choose from" in controller.last_error
+    assert idb_calls == []
+
+
+def test_shake(idb_calls):
+    assert GestureController("U").shake()
+    assert idb_calls == [["idb", "ui", "shake", "--udid", "U"]]
+
+
+@pytest.mark.parametrize("method", ["shake", "rotate", "multi_tap", "drag_and_drop"])
+def test_idb_1_7_commands_hint_at_upgrade_on_old_idb(monkeypatch, method):
+    monkeypatch.setattr(gesture, "get_screen_size", lambda udid: SCREEN)
+    monkeypatch.setattr(
+        gesture, "run_idb", lambda cmd: (False, "error: argument ui_command: invalid choice: 'x'")
+    )
+    arguments = {
+        "shake": (),
+        "rotate": ("portrait",),
+        "multi_tap": (1, 2),
+        "drag_and_drop": ((1, 2), (3, 4)),
+    }[method]
+    controller = GestureController("U")
+    assert not getattr(controller, method)(*arguments)
+    assert "needs idb 1.7+" in controller.last_error
+
+
+def test_other_failures_do_not_get_the_upgrade_hint(monkeypatch):
+    monkeypatch.setattr(gesture, "get_screen_size", lambda udid: SCREEN)
+    monkeypatch.setattr(gesture, "run_idb", lambda cmd: (False, "Connection refused"))
+    controller = GestureController("U")
+    assert not controller.shake()
+    assert controller.last_error == "Connection refused"
 
 
 def test_every_swipe_passes_a_duration(idb_calls):

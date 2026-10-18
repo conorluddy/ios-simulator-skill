@@ -3,11 +3,11 @@
 Delete iOS simulators permanently.
 
 This script permanently removes simulators and frees disk space.
-Includes safety confirmation to prevent accidental deletion.
+Refuses without --yes, since a deletion can't be undone (AGENTS.md Principle 10).
 
 Key features:
 - Delete by UDID or device name
-- Confirmation required for safety
+- Refuses without --yes (no interactive prompt: agents can't answer one)
 - Batch delete operations
 - Report freed disk space estimate
 """
@@ -19,40 +19,27 @@ from typing import Optional
 
 from common.device_utils import (
     list_simulators,
+    refuse_without_yes,
     resolve_device_identifier,
 )
 
 
 class SimulatorDeleter:
-    """Delete iOS simulators with safety confirmation."""
+    """Delete iOS simulators."""
 
     def __init__(self, udid: str | None = None):
         """Initialize with optional device UDID."""
         self.udid = udid
 
-    def delete(self, confirm: bool = False) -> tuple[bool, str]:
+    def delete(self) -> tuple[bool, str]:
         """
         Delete simulator permanently.
-
-        Args:
-            confirm: Skip confirmation prompt (for batch operations)
 
         Returns:
             (success, message) tuple
         """
         if not self.udid:
             return False, "Error: Device UDID not specified"
-
-        # Safety confirmation
-        if not confirm:
-            try:
-                response = input(
-                    f"Permanently delete simulator {self.udid}? " f"(type 'yes' to confirm): "
-                )
-                if response.lower() != "yes":
-                    return False, "Deletion cancelled by user"
-            except KeyboardInterrupt:
-                return False, "Deletion cancelled"
 
         # Execute delete command
         try:
@@ -71,35 +58,21 @@ class SimulatorDeleter:
             return False, f"Deletion error: {e}"
 
     @staticmethod
-    def delete_all(confirm: bool = False) -> tuple[int, int]:
+    def delete_all() -> tuple[int, int]:
         """
         Delete all simulators permanently.
-
-        Args:
-            confirm: Skip confirmation prompt
 
         Returns:
             (succeeded, failed) tuple with counts
         """
         simulators = list_simulators(state=None)
 
-        if not confirm:
-            count = len(simulators)
-            try:
-                response = input(
-                    f"Permanently delete ALL {count} simulators? " f"(type 'yes' to confirm): "
-                )
-                if response.lower() != "yes":
-                    return 0, count
-            except KeyboardInterrupt:
-                return 0, count
-
         succeeded = 0
         failed = 0
 
         for sim in simulators:
             deleter = SimulatorDeleter(udid=sim["udid"])
-            success, _message = deleter.delete(confirm=True)
+            success, _message = deleter.delete()
             if success:
                 succeeded += 1
             else:
@@ -108,13 +81,12 @@ class SimulatorDeleter:
         return succeeded, failed
 
     @staticmethod
-    def delete_by_type(device_type: str, confirm: bool = False) -> tuple[int, int]:
+    def delete_by_type(device_type: str) -> tuple[int, int]:
         """
         Delete all simulators of a specific type.
 
         Args:
             device_type: Device type filter (e.g., "iPhone", "iPad")
-            confirm: Skip confirmation prompt
 
         Returns:
             (succeeded, failed) tuple with counts
@@ -125,24 +97,12 @@ class SimulatorDeleter:
         if not matching:
             return 0, 0
 
-        if not confirm:
-            count = len(matching)
-            try:
-                response = input(
-                    f"Permanently delete {count} {device_type} simulators? "
-                    f"(type 'yes' to confirm): "
-                )
-                if response.lower() != "yes":
-                    return 0, count
-            except KeyboardInterrupt:
-                return 0, count
-
         succeeded = 0
         failed = 0
 
         for sim in matching:
             deleter = SimulatorDeleter(udid=sim["udid"])
-            success, _message = deleter.delete(confirm=True)
+            success, _message = deleter.delete()
             if success:
                 succeeded += 1
             else:
@@ -151,7 +111,7 @@ class SimulatorDeleter:
         return succeeded, failed
 
     @staticmethod
-    def delete_old(keep_count: int = 3, confirm: bool = False) -> tuple[int, int]:
+    def delete_old(keep_count: int = 3) -> tuple[int, int]:
         """
         Delete older simulators, keeping most recent versions.
 
@@ -160,7 +120,6 @@ class SimulatorDeleter:
 
         Args:
             keep_count: Number of recent simulators to keep per type (default: 3)
-            confirm: Skip confirmation prompt
 
         Returns:
             (succeeded, failed) tuple with counts
@@ -186,30 +145,30 @@ class SimulatorDeleter:
         if not to_delete:
             return 0, 0
 
-        if not confirm:
-            count = len(to_delete)
-            try:
-                response = input(
-                    f"Delete {count} older simulators, keeping {keep_count} per type? "
-                    f"(type 'yes' to confirm): "
-                )
-                if response.lower() != "yes":
-                    return 0, count
-            except KeyboardInterrupt:
-                return 0, count
-
         succeeded = 0
         failed = 0
 
         for sim in to_delete:
             deleter = SimulatorDeleter(udid=sim["udid"])
-            success, _message = deleter.delete(confirm=True)
+            success, _message = deleter.delete()
             if success:
                 succeeded += 1
             else:
                 failed += 1
 
         return succeeded, failed
+
+
+def describe_deletion(args: argparse.Namespace) -> str | None:
+    """What this invocation would delete, for the --yes refusal; None if it names no target."""
+    if args.all:
+        return "delete all simulators and their data"
+    if args.type:
+        return f"delete every {args.type} simulator and its data"
+    if args.old is not None:
+        return f"delete older simulators and their data (keeping {args.old} per type)"
+    device_id = args.udid or args.name
+    return f"delete {device_id} and all its data" if device_id else None
 
 
 def main():
@@ -226,7 +185,7 @@ def main():
     parser.add_argument(
         "--yes",
         action="store_true",
-        help="Skip confirmation prompt",
+        help="Confirm the deletion: the simulator and all its data can't be recovered",
     )
     parser.add_argument(
         "--all",
@@ -251,9 +210,14 @@ def main():
 
     args = parser.parse_args()
 
+    target = describe_deletion(args)
+    if target and not args.yes:
+        print(refuse_without_yes(target), file=sys.stderr)
+        sys.exit(1)
+
     # Handle batch operations
     if args.all:
-        succeeded, failed = SimulatorDeleter.delete_all(confirm=args.yes)
+        succeeded, failed = SimulatorDeleter.delete_all()
         if args.json:
             import json
 
@@ -273,7 +237,7 @@ def main():
         sys.exit(0 if failed == 0 else 1)
 
     if args.type:
-        succeeded, failed = SimulatorDeleter.delete_by_type(args.type, confirm=args.yes)
+        succeeded, failed = SimulatorDeleter.delete_by_type(args.type)
         if args.json:
             import json
 
@@ -294,7 +258,7 @@ def main():
         sys.exit(0 if failed == 0 else 1)
 
     if args.old is not None:
-        succeeded, failed = SimulatorDeleter.delete_old(keep_count=args.old, confirm=args.yes)
+        succeeded, failed = SimulatorDeleter.delete_old(keep_count=args.old)
         if args.json:
             import json
 
@@ -331,7 +295,7 @@ def main():
 
     # Delete device
     deleter = SimulatorDeleter(udid=udid)
-    success, message = deleter.delete(confirm=args.yes)
+    success, message = deleter.delete()
 
     if args.json:
         import json

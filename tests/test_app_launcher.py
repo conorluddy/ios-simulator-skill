@@ -2,6 +2,8 @@
 
 from unittest import mock
 
+import pytest
+
 import app_launcher
 from app_launcher import AppLauncher
 
@@ -40,3 +42,30 @@ def test_launch_without_extras_inherits_env(monkeypatch):
     cmd = call.args[0]
     assert cmd[-1] == "com.example.app"
     assert call.kwargs["env"] is None
+
+
+def test_uninstall_refuses_without_yes(monkeypatch, capsys):
+    runner = mock.Mock()
+    monkeypatch.setattr(app_launcher.subprocess, "run", runner)
+    monkeypatch.setattr(app_launcher, "resolve_udid", lambda udid: "ABC123")
+    monkeypatch.setattr("sys.argv", ["app_launcher.py", "--uninstall", "com.example.app"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        app_launcher.main()
+
+    assert exit_info.value.code == 1
+    assert capsys.readouterr().err.startswith(
+        "Refusing to uninstall com.example.app and delete its data without --yes"
+    )
+    runner.assert_not_called()
+
+
+def test_uninstall_with_yes_runs_simctl(monkeypatch):
+    runner = mock.Mock()
+    monkeypatch.setattr(app_launcher.subprocess, "run", runner)
+    monkeypatch.setattr(app_launcher, "resolve_udid", lambda udid: "ABC123")
+    monkeypatch.setattr("sys.argv", ["app_launcher.py", "--uninstall", "com.example.app", "--yes"])
+
+    app_launcher.main()
+
+    assert runner.call_args.args[0] == ["xcrun", "simctl", "uninstall", "ABC123", "com.example.app"]

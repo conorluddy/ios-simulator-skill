@@ -11,6 +11,7 @@ Key features:
 - Preserve device UUID (faster than delete)
 - Verify erase completion
 - Batch erase operations (all, by type)
+- Refuses without --yes: an erase can't be undone (AGENTS.md Principle 10)
 """
 
 import argparse
@@ -21,6 +22,7 @@ from typing import Optional
 
 from common.device_utils import (
     list_simulators,
+    refuse_without_yes,
     resolve_device_identifier,
 )
 from common.env_config import env_float, env_int
@@ -202,6 +204,18 @@ class SimulatorEraser:
         return succeeded, failed
 
 
+def describe_erase(args: argparse.Namespace) -> str | None:
+    """What this invocation would erase, for the --yes refusal; None if it names no target."""
+    if args.all:
+        return "erase all simulators (every app, its data and settings)"
+    if args.type:
+        return f"erase every {args.type} simulator (apps, data and settings)"
+    if args.booted:
+        return "erase every booted simulator (apps, data and settings)"
+    device_id = args.udid or args.name
+    return f"erase {device_id} (all its apps, data and settings)" if device_id else None
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Erase iOS simulators (factory reset)")
@@ -246,8 +260,18 @@ def main():
         action="store_true",
         help="Output as JSON",
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm the erase: apps, data and settings can't be recovered",
+    )
 
     args = parser.parse_args()
+
+    target = describe_erase(args)
+    if target and not args.yes:
+        print(refuse_without_yes(target), file=sys.stderr)
+        sys.exit(1)
 
     # Handle batch operations
     if args.all:
