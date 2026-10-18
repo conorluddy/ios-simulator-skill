@@ -207,9 +207,10 @@ state=$(xcrun simctl ui "$UDID" increase_contrast 2>&1)
 if [[ "$state" == "disabled" ]]; then pass "contrast normal -> $state"; else fail "contrast normal" "$state"; fi
 
 step "push_notification --list / --clear"
-# A push sent while its app is frontmost isn't delivered to Notification Center.
-xcrun simctl launch "$UDID" com.apple.mobilecal >/dev/null
-sleep 2
+# A push sent while its app is frontmost isn't delivered to Notification Center, and
+# launching another app in front is too slow on a fresh sim, so Settings isn't running.
+xcrun simctl terminate "$UDID" com.apple.Preferences 2>/dev/null
+sleep 1
 run push_notification.py --bundle-id com.apple.Preferences --title Smoke --body One >/dev/null 2>&1
 # Delivery takes a few seconds on a fresh sim.
 for _ in {1..10}; do
