@@ -1,6 +1,6 @@
 {
   "name": "ios-simulator-skill",
-  "version": "1.6.0",
+  "version": "2.0.0",
   "description": "30 scripts for iOS app building, testing, and simulator automation. Semantic UI navigation via the accessibility tree, xcodebuild with progressive error disclosure, accessibility audits, hang detection, and simulator lifecycle management.",
   "author": {
     "name": "Conor Luddy",
