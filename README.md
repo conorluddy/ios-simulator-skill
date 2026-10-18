@@ -1,7 +1,7 @@
 
 # iOS Simulator Skill for Agents
 
-Production-ready skill for building, testing, and automating iOS apps. 29 scripts optimized for both human developers and AI agents.
+Production-ready skill for building, testing, and automating iOS apps. 30 scripts optimized for both human developers and AI agents.
 
 (If you'd prefer an MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) -> [NPM](https://www.npmjs.com/package/xc-mcp) )
 
@@ -167,7 +167,7 @@ The accessibility tree gives structured data (element types, labels, frames, tap
 
 ### Screenshot Token Optimization
 
-When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 29 scripts is 3-5 lines — 96% reduction vs raw tool output.
+When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 30 scripts is 3-5 lines — 96% reduction vs raw tool output.
 
 | Task | Raw Tools | This Skill | Savings |
 |------|-----------|-----------|---------|
@@ -175,7 +175,7 @@ When screenshots are needed (visual verification, bug reports, diffs), the skill
 | Find & tap button | 100+ lines | 1 line | 99% |
 | Login flow | 400+ lines | 15 lines | 96% |
 
-### All 29 Scripts
+### All 30 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
 
@@ -190,17 +190,18 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
-| `appearance.py` | Switch dark mode, dynamic type, locale, region | `--theme`, `--text-size`, `--locale`, `--region`, `--reset` |
+| `appearance.py` | Switch dark mode, dynamic type, increase contrast, locale, region | `--theme`, `--text-size`, `--contrast`, `--locale`, `--region`, `--reset` |
 | `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat`, `--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
+| `media.py` | Seed or empty the photo library (`--clear` needs idb 1.7+) | `--add`, `--clear` |
 
 #### Navigation & Interaction
 
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
-| `screen_mapper.py` | Analyze current screen, list interactive elements | `--verbose`, `--hints` |
-| `navigator.py` | Find and interact with elements semantically | `--find-text`, `--find-type`, `--find-id`, `--tap`, `--enter-text`, `--set-value` |
-| `gesture.py` | Swipes (finger direction), scrolls (content direction), pinch, long press, pull to refresh | `--swipe`, `--scroll`, `--pinch`, `--scale`, `--long-press`, `--refresh` |
-| `keyboard.py` | Text input, keys, key sequences and hardware buttons | `--type`, `--key`, `--key-sequence`, `--button`, `--clear`, `--dismiss` |
+| `screen_mapper.py` | Analyze current screen, list interactive elements | `--verbose`, `--hints`, `--deep` |
+| `navigator.py` | Find and interact with elements semantically | `--find-text`, `--find-type`, `--find-id`, `--tap`, `--expect`, `--enter-text`, `--set-value` |
+| `gesture.py` | Swipes (finger direction), scrolls (content direction), pinch, long press, pull to refresh, double-tap, drag, rotate, shake | `--swipe`, `--scroll`, `--pinch`, `--scale`, `--long-press`, `--refresh`, `--double-tap`, `--drag`, `--rotate`, `--shake` |
+| `keyboard.py` | Text input, keys, key chords, key sequences and hardware buttons | `--type`, `--key` (+ `--shift/--control/--option/--command`), `--key-sequence`, `--button`, `--clear`, `--dismiss` |
 | `app_launcher.py` | Launch, terminate, install, deep link apps | `--launch`, `--terminate`, `--install`, `--open-url`, `--list` |
 
 #### Testing & Analysis
@@ -223,7 +224,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 |--------|-------------|-----------|
 | `clipboard.py` | Copy text to simulator clipboard for paste testing | `--copy`, `--test-name` |
 | `status_bar.py` | Override status bar (time, battery, network) | `--preset`, `--time`, `--battery-level`, `--clear` |
-| `push_notification.py` | Send simulated push notifications | `--bundle-id`, `--title`, `--body`, `--payload` |
+| `push_notification.py` | Send, list and clear simulated push notifications | `--bundle-id`, `--title`, `--body`, `--payload`, `--list`, `--clear` |
 | `privacy_manager.py` | Grant, revoke, reset app permissions (15 services) | `--bundle-id`, `--grant`, `--revoke`, `--reset` |
 
 #### Device Lifecycle

@@ -5,10 +5,10 @@ with this repository. `CLAUDE.md` only imports this file - edit here, not there.
 
 ## Project Overview
 
-iOS Simulator Skill is a production-ready Agent Skill providing 29 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
+iOS Simulator Skill is a production-ready Agent Skill providing 30 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
 
 **Key Statistics:**
-- 29 production scripts
+- 30 production scripts
 - 7 script categories (Build, Device State, Navigation, Testing, Permissions, Simulator Discovery, Lifecycle)
 - 7 shared utility modules (~2,400 lines)
 - 100% token-optimized default output
@@ -30,7 +30,7 @@ ios-simulator-skill/            # Repository root
 │       └── ios-simulator-skill/
 │           ├── SKILL.md       # Entry point (table of contents)
 │           ├── agents/openai.yaml  # Codex skill UI metadata
-│           └── scripts/       # 29 production scripts
+│           └── scripts/       # 30 production scripts
 │               ├── build_and_test.py
 │               ├── xcode/     # Xcode integration module
 │               ├── log_monitor.py
@@ -129,9 +129,10 @@ python scripts/simctl_boot.py --type iPhone
 - **build_and_test.py**: Build with progressive disclosure
 - **log_monitor.py**: Real-time log monitoring
 
-### Device State (2)
-- **appearance.py**: Dark mode, Dynamic Type, locale/region
+### Device State (3)
+- **appearance.py**: Dark mode, Dynamic Type, increase contrast, locale/region
 - **location.py**: GPS coordinates, city presets, GPX route playback
+- **media.py**: Photo library seeding (simctl addmedia) and clearing (idb photos clear, idb 1.7+)
 
 ### Navigation & Interaction (5)
 - **screen_mapper.py**: Analyze screen
@@ -253,5 +254,9 @@ New scripts should:
 **Structured**: JSON and formatted text, not raw logs.
 
 **Reusable**: Common patterns across all scripts.
+
+**simctl first**: Apple-maintained and free of companion failure modes. Use idb only for what
+simctl can't do (UI interaction, notification list/clear, photos clear). Gate idb 1.7 features by
+trying the command and falling back, not by version numbers: upstream publishes no changelog.
 
 This design works for both developers and AI agents.
