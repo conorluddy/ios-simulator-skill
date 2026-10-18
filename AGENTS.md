@@ -41,6 +41,10 @@ reviews are checked against them.
    the last resort.
 9. **One helper per repeated agent-facing message.** Shared wording lives in `common/` (e.g.
    `with_idb_upgrade_hint`) once it appears a third time (AHA), so messages can't drift apart.
+10. **Destructive operations need `--yes`.** Anything that deletes data the user can't easily
+    recreate (erasing or deleting a simulator, uninstalling an app, clearing the photo library)
+    refuses without `--yes` in one line that says what would be lost, so the agent asks the user
+    first. Never prompt interactively: an agent has no one to answer.
 
 ## Project Structure
 
