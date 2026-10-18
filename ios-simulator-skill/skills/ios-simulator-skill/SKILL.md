@@ -322,7 +322,8 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - Preserve device UUID (faster than delete+create)
     - Erase all, by type, or booted simulators
     - Optional verification
-    - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--booted`, `--json`
+    - Refuses without `--yes` (apps, data and settings can't be recovered): ask the user first
+    - Options: `--udid`, `--name`, `--yes`, `--verify`, `--timeout`, `--all`, `--type`, `--booted`, `--json`
 
 ## Common Patterns
 

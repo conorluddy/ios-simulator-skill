@@ -248,7 +248,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `simctl_shutdown.py` | Gracefully shutdown simulators | `--name`, `--verify`, `--all`, `--type` |
 | `simctl_create.py` | Create simulators by device type and OS version | `--device`, `--runtime`, `--list-devices` |
 | `simctl_delete.py` | Delete simulators with safety confirmation | `--name`, `--yes`, `--all`, `--old` |
-| `simctl_erase.py` | Factory reset without deletion | `--name`, `--verify`, `--all`, `--booted` |
+| `simctl_erase.py` | Factory reset without deletion (needs `--yes`) | `--name`, `--yes`, `--verify`, `--all`, `--booted` |
 
 ## Configuration
 
