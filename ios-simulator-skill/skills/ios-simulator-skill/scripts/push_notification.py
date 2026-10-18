@@ -20,6 +20,9 @@ import tempfile
 from pathlib import Path
 
 from common import build_idb_command, resolve_udid, run_idb, with_idb_upgrade_hint
+from common.env_config import env_int
+
+MAX_NOTIFICATIONS_LISTED = env_int("IOS_SIM_MAX_ELEMENTS", 25)
 
 
 class PushNotificationSender:
@@ -307,8 +310,10 @@ def _run_inspection(sender: PushNotificationSender, args: argparse.Namespace) ->
             print(json.dumps({"bundle_id": args.bundle_id, "notifications": result}))
         else:
             print(f"{len(result)} notification(s) delivered to {args.bundle_id}")
-            for item in result:
+            for item in result[:MAX_NOTIFICATIONS_LISTED]:
                 print(f"  {item.get('title', '')} | {item.get('body', '')}")
+            if len(result) > MAX_NOTIFICATIONS_LISTED:
+                print(f"  ... and {len(result) - MAX_NOTIFICATIONS_LISTED} more")
         return 0
 
     ok, error = sender.clear_delivered(args.bundle_id)

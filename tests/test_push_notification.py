@@ -80,3 +80,18 @@ def test_clear_passes_other_idb_errors_through_without_hint(monkeypatch):
         False,
         "companion not running",
     )
+
+
+def test_list_output_is_capped(monkeypatch, capsys):
+    notifications = [{"title": f"T{n}", "body": "B"} for n in range(30)]
+    sender = PushNotificationSender(udid=UDID)
+    monkeypatch.setattr(sender, "list_delivered", lambda bundle_id: (True, notifications))
+    monkeypatch.setattr(push_notification, "MAX_NOTIFICATIONS_LISTED", 25)
+    args = SimpleNamespace(list=True, clear=False, json=False, bundle_id=BUNDLE)
+
+    assert push_notification._run_inspection(sender, args) == 0
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == f"30 notification(s) delivered to {BUNDLE}"
+    assert len(lines) == 1 + 25 + 1
+    assert lines[-1] == "  ... and 5 more"

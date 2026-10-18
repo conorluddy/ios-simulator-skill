@@ -378,7 +378,7 @@ Most operational limits can be tuned via environment variables. Defaults work fo
 | `IOS_SIM_LOG_LINE_MAX` | `300` | Per-line truncation in log summaries |
 | `IOS_SIM_LOG_TAIL` | `200` | Lines of log tail in verbose / sample output |
 | `IOS_SIM_LOG_TEXT_SUMMARY` | `15` | Errors/warnings shown in text-mode log summary |
-| `IOS_SIM_MAX_ELEMENTS` | `25` | Tappable elements listed by `navigator.py` |
+| `IOS_SIM_MAX_ELEMENTS` | `25` | Items listed by `navigator.py --list` and `push_notification.py --list` |
 | `IOS_SIM_POLL_INTERVAL` | `0.5` | Boot/erase state polling interval (seconds) |
 | `IOS_SIM_RELAUNCH_DELAY_MS` | `1000` | Delay between terminate and re-launch in `app_launcher.py` |
 | `IOS_SIM_SCREEN_BUTTONS_PREVIEW` | `15` | Button names listed by `screen_mapper.py` |

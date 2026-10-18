@@ -309,7 +309,7 @@ These shape what AI agents see when exploring a screen. They're the biggest dire
 
 | Variable | Default | Tradeoff |
 |---|---|---|
-| `IOS_SIM_MAX_ELEMENTS` | `25` | Tappable elements listed by `navigator.py`. Default is enough for most screens; raise to `100+` for dense Settings-style screens or audit workflows. **High token impact** at high values. |
+| `IOS_SIM_MAX_ELEMENTS` | `25` | Items listed by `navigator.py --list` and `push_notification.py --list`. Default is enough for most screens; raise to `100+` for dense Settings-style screens or audit workflows. **High token impact** at high values. |
 | `IOS_SIM_SCREEN_BUTTONS_PREVIEW` | `15` | Button names in `screen_mapper.py` summary. |
 | `IOS_SIM_SCREEN_SECTION_ITEMS` | `10` | Items per section in `screen_mapper.py` summary. |
 | `IOS_SIM_APPS_PREVIEW` | `30` | Installed apps listed by `app_launcher.py` before truncation. |
@@ -342,7 +342,7 @@ IOS_SIM_BOOT_TIMEOUT=600 python scripts/simctl_boot.py --wait-ready
 IOS_SIM_BUILD_VERBOSE_CAP=500 python scripts/build_and_test.py --verbose
 
 # Complex Settings-style screen — return more tappable elements
-IOS_SIM_MAX_ELEMENTS=100 python scripts/navigator.py --list-tappable
+IOS_SIM_MAX_ELEMENTS=100 python scripts/navigator.py --list
 
 # Snappy app — cut tap-settle delay in half for faster E2E runs
 IOS_SIM_TAP_SETTLE_MS=250 python scripts/navigator.py --find-text "Login" --tap
