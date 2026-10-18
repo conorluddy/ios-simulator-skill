@@ -23,6 +23,7 @@ from .device_utils import (
     get_booted_device_udid,
     get_booted_device_udids,
     get_device_screen_size,
+    refuse_without_yes,
     resolve_udid,
     transform_screenshot_coords,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "get_screen_size",
     "get_size_preset",
     "idb_supports_set_value",
+    "refuse_without_yes",
     "resize_screenshot",
     "resolve_udid",
     "run_idb",

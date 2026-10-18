@@ -79,9 +79,10 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 5. **media.py** - Seed or empty the photo library for photo-picker tests
    - `--add a.jpg b.png` via `xcrun simctl addmedia`
-   - `--clear` empties the library via `idb photos clear` (idb 1.7+); `--clear --add` leaves exactly the added files
+   - `--clear --yes` empties the library via `idb photos clear` (idb 1.7+); `--clear --yes --add` leaves exactly the added files
+   - Without `--yes`, `--clear` refuses if the library has photos (they can't be recovered): ask the user first
    - Fails fast on a missing file
-   - Options: `--add`, `--clear`, `--udid`, `--json`
+   - Options: `--add`, `--clear`, `--yes`, `--udid`, `--json`
 
 ### Navigation & Interaction (5 scripts)
 

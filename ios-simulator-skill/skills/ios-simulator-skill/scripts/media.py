@@ -10,8 +10,8 @@ flags, the library is cleared first, so it ends up holding exactly the added fil
 
 Usage:
   python scripts/media.py --add photo1.jpg photo2.png
-  python scripts/media.py --clear
-  python scripts/media.py --clear --add fixtures/*.jpg --json
+  python scripts/media.py --clear --yes
+  python scripts/media.py --clear --yes --add fixtures/*.jpg --json
 """
 
 import argparse
@@ -23,10 +23,14 @@ from pathlib import Path
 from common import (
     build_idb_command,
     build_simctl_command,
+    refuse_without_yes,
     resolve_udid,
     run_idb,
     with_idb_upgrade_hint,
 )
+
+SIMULATOR_DEVICES_DIR = Path.home() / "Library/Developer/CoreSimulator/Devices"
+PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".gif", ".mov", ".mp4"}
 
 # === MEDIA MANAGER ===
 
@@ -77,6 +81,30 @@ class MediaManager:
             return False, with_idb_upgrade_hint(error)
         return True, "Photo library cleared"
 
+    def photo_count(self) -> int | None:
+        """Photos and videos in the library, or None when it can't be found on disk."""
+        if not self.udid:
+            return None
+        dcim = SIMULATOR_DEVICES_DIR / self.udid / "data/Media/DCIM"
+        if not dcim.is_dir():
+            return None
+        return sum(1 for path in dcim.rglob("*") if path.suffix.lower() in PHOTO_SUFFIXES)
+
+
+def clear_refusal(manager: MediaManager, is_confirmed: bool) -> str | None:
+    """
+    Why --clear must not run yet, or None when it may.
+
+    Clearing an empty library loses nothing, so it needs no confirmation.
+    """
+    if is_confirmed:
+        return None
+    count = manager.photo_count()
+    if count == 0:
+        return None
+    lost = "the photo library" if count is None else f"{count} photo(s)"
+    return refuse_without_yes(f"delete {lost} on {manager.udid}")
+
 
 # === CLI ===
 
@@ -89,14 +117,19 @@ def main() -> None:
         epilog="""
 Examples:
   python scripts/media.py --add photo1.jpg photo2.png
-  python scripts/media.py --clear
-  python scripts/media.py --clear --add fixtures/*.jpg   # library = exactly these files
+  python scripts/media.py --clear --yes
+  python scripts/media.py --clear --yes --add fixtures/*.jpg   # library = exactly these files
 
 --clear needs idb 1.7+ (brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion).
         """,
     )
     parser.add_argument("--add", nargs="+", metavar="FILE", help="Photos/videos/vCards to add")
-    parser.add_argument("--clear", action="store_true", help="Empty the photo library first")
+    parser.add_argument(
+        "--clear", action="store_true", help="Empty the photo library first (needs --yes)"
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="Confirm --clear: deleted photos can't be recovered"
+    )
     parser.add_argument(
         "--udid",
         help="Device UDID (auto-detects booted simulator if not provided)",
@@ -116,6 +149,11 @@ Examples:
         sys.exit(1)
 
     manager = MediaManager(udid=udid)
+    refusal = clear_refusal(manager, args.yes) if args.clear else None
+    if refusal:
+        print(refusal, file=sys.stderr)
+        sys.exit(1)
+
     operations: list[tuple[str, tuple[bool, str]]] = []
 
     if args.clear:

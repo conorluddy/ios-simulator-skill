@@ -163,11 +163,11 @@ expect "--clear empties the list" "0 notification" run push_notification.py --bu
 step "media --add / --clear"
 image="${TMPDIR:-/tmp}/idb17_smoke.png"
 python3 -c 'import base64,sys; open(sys.argv[1],"wb").write(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="))' "$image"
-run media.py --clear --add "$image" >/dev/null 2>&1
+run media.py --clear --yes --add "$image" >/dev/null 2>&1
 sleep 2
 count=$(photo_count)
 if (( count >= 1 )); then pass "--clear --add left $count photo(s)"; else fail "media --add" "$count photos"; fi
-run media.py --clear >/dev/null 2>&1
+run media.py --clear --yes >/dev/null 2>&1
 sleep 2
 count=$(photo_count)
 if (( count == 0 )); then pass "--clear emptied the library"; else fail "media --clear" "$count photos left"; fi

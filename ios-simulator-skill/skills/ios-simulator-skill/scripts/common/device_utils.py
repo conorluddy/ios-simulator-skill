@@ -67,6 +67,20 @@ def build_simctl_command(
     return cmd
 
 
+def refuse_without_yes(action: str) -> str:
+    """
+    One-line refusal for a destructive action the user hasn't confirmed.
+
+    Agents have no one to answer an interactive prompt, so destructive scripts
+    refuse instead and the agent asks the user (AGENTS.md Principle 10).
+
+    Example:
+        refuse_without_yes("erase iPhone 18 Pro")
+        # "Refusing to erase iPhone 18 Pro without --yes: confirm with the user, ..."
+    """
+    return f"Refusing to {action} without --yes: confirm with the user, then re-run with --yes"
+
+
 def build_idb_command(
     operation: str,
     udid: str | None = None,

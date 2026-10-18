@@ -205,7 +205,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 |--------|-------------|-----------|
 | `appearance.py` | Switch dark mode, dynamic type, increase contrast, locale, region | `--theme`, `--text-size`, `--contrast`, `--locale`, `--region`, `--reset` |
 | `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat`, `--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
-| `media.py` | Seed or empty the photo library (`--clear` needs idb 1.7+) | `--add`, `--clear` |
+| `media.py` | Seed or empty the photo library (`--clear` needs idb 1.7+ and `--yes`) | `--add`, `--clear`, `--yes` |
 
 #### Navigation & Interaction
 
