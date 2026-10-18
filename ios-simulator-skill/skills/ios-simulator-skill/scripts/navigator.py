@@ -102,6 +102,13 @@ INTERACTIVE_TYPES = {
 PRESSABLE_TYPES = {"Button", "Link", "Switch", "CheckBox", "Tab"}
 TOGGLE_TYPES = {"Switch", "CheckBox"}
 
+# After an app relaunch the default read can return only a zero-size app node
+# (facebook/idb#964); one axbridge read (screen_mapper.py --deep) brings it back.
+STUCK_TREE_HINT = (
+    "Not found: accessibility tree is empty (app launching?) - "
+    "retry, or run screen_mapper.py --deep once"
+)
+
 
 @dataclass
 class Element:
@@ -359,6 +366,8 @@ class Navigator:
                 criteria.append(f"type={element_type}")
             if identifier:
                 criteria.append(f"id={identifier}")
+            if is_stuck_tree(self.get_accessibility_tree()):
+                return (False, STUCK_TREE_HINT)
             return (False, f"Not found: {', '.join(criteria)}")
 
         if expected_value is not None and element.value != expected_value:
@@ -399,6 +408,8 @@ class Navigator:
         element = self.find_element(find_text, element_type, identifier, index, fuzzy)
 
         if not element:
+            if is_stuck_tree(self.get_accessibility_tree()):
+                return (False, STUCK_TREE_HINT)
             return (False, f"{element_type or 'Element'} not found")
 
         if replace:
@@ -409,6 +420,13 @@ class Navigator:
         if self.enter_text(text_to_enter, element):
             return (True, f"Entered text in: {element.description}")
         return (False, f"Failed to enter text in {element.description}: {self.last_error}")
+
+
+def is_stuck_tree(tree: dict) -> bool:
+    """Whether a read returned only a childless, zero-size root (nothing on screen to find)."""
+    frame = tree.get("frame") or {}
+    has_no_area = not frame.get("width") or not frame.get("height")
+    return not tree.get("children") and has_no_area
 
 
 def rank_match(element: Element, text: str) -> tuple[int, int]:
@@ -596,7 +614,8 @@ def main():
         if element:
             print(f"Found: {element.description} at {element.center}")
         else:
-            print("Element not found")
+            stuck = is_stuck_tree(navigator.get_accessibility_tree())
+            print(STUCK_TREE_HINT if stuck else "Element not found")
             sys.exit(1)
 
 

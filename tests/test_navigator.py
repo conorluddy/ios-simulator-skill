@@ -282,7 +282,9 @@ SHARED_MARKER_TREE = _node(
 
 
 def test_toggle_with_shared_identifier_is_pressed_by_label(press_nav, monkeypatch):
-    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: SHARED_MARKER_TREE)
+    monkeypatch.setattr(
+        navigator, "get_accessibility_tree", lambda udid, nested: SHARED_MARKER_TREE
+    )
     ok, message = press_nav.find_and_tap(text="Shortcut", element_type="CheckBox")
     assert ok
     assert "accessibility press" in message
@@ -292,8 +294,34 @@ def test_toggle_with_shared_identifier_is_pressed_by_label(press_nav, monkeypatc
 
 
 def test_toggle_without_unique_marker_warns_after_coordinate_tap(press_nav, monkeypatch):
-    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: SHARED_MARKER_TREE)
+    monkeypatch.setattr(
+        navigator, "get_accessibility_tree", lambda udid, nested: SHARED_MARKER_TREE
+    )
     ok, message = press_nav.find_and_tap(identifier="keyboard-audio")
     assert ok
     assert press_nav.calls == [["idb", "ui", "tap", "201", "534", "--udid", "U"]]
     assert "toggles ignore coordinate taps" in message
+
+
+# === Stuck tree (facebook/idb#964) ===
+
+STUCK_TREE = _node("Application", None, 0, 0, 0, 0)
+
+
+def test_stuck_tree_says_so_instead_of_not_found(nav, monkeypatch):
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: STUCK_TREE)
+    ok, message = nav.find_and_tap(text="General")
+    assert not ok
+    assert message == navigator.STUCK_TREE_HINT
+    assert nav.calls == []
+
+
+def test_missing_element_on_a_real_screen_still_says_not_found(nav):
+    ok, message = nav.find_and_tap(text="Nowhere")
+    assert not ok
+    assert message == "Not found: text='Nowhere'"
+
+
+def test_stuck_tree_detection():
+    assert navigator.is_stuck_tree(STUCK_TREE)
+    assert not navigator.is_stuck_tree(SETTINGS_TREE)
