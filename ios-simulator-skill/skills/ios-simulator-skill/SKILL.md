@@ -313,7 +313,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 29. **simctl_delete.py** - Permanently delete simulators
     - Delete by UDID or device name
-    - Safety confirmation by default (skip with --yes)
+    - Refuses without `--yes` (no prompt; the simulator and its data can't be recovered): ask the user first
     - Batch delete operations
     - Smart deletion (--old N to keep N per device type)
     - Options: `--udid`, `--name`, `--yes`, `--all`, `--type`, `--old`, `--json`
