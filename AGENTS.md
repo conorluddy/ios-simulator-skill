@@ -14,6 +14,34 @@ iOS Simulator Skill is a production-ready Agent Skill providing 30 scripts for i
 - 100% token-optimized default output
 - Unit tests under `tests/` (run `pytest tests/`)
 
+## Principles
+
+Every script is a tool an agent calls in a loop, so these rules beat convenience. New code and
+reviews are checked against them.
+
+1. **Low noise, high signal.** An agent-facing message is one line that says what happened and,
+   on failure, what to do next. No usage dumps, tracebacks or prose. Default output is 3-5 lines;
+   `--verbose` and `--json` give more. Cap lists (`IOS_SIM_MAX_ELEMENTS`) and end them with
+   "... and N more".
+2. **Never claim an effect you didn't get.** Say how an action was done ("(accessibility press)")
+   and warn when its effect can't be confirmed, e.g. a coordinate tap on a toggle. A wrong "Tapped"
+   costs an agent more than an honest failure.
+3. **Act only on an unambiguous target.** idb markers are substring, first-match: only use one when
+   nothing else on screen contains it, otherwise fall back to the safer path.
+4. **Verify against a live simulator before relying on idb behaviour.** Upstream publishes no
+   changelog and the docs drift from reality. Ship only what you saw working, and record what you
+   dropped and why.
+5. **Gate features by trying, not by version.** Run the command and fall back (or hint at an
+   upgrade) on failure. Don't add `--help` probes to hot paths: each costs ~0.35s.
+6. **simctl first.** It's Apple-maintained, with no companion to break. Use idb only for what simctl
+   can't do (UI interaction, notification list/clear, photos clear).
+7. **Don't change the device silently.** Device-wide side effects (e.g. axbridge's automation mode)
+   sit behind an explicit flag like `--deep`, and tests restore whatever they change.
+8. **Semantic over pixels.** Find elements by meaning via the accessibility tree; coordinates are
+   the last resort.
+9. **One helper per repeated agent-facing message.** Shared wording lives in `common/` (e.g.
+   `with_idb_upgrade_hint`) once it appears a third time (AHA), so messages can't drift apart.
+
 ## Project Structure
 
 ```
@@ -213,16 +241,6 @@ Pure-function HangBuster filter pipeline (parse → normalise → threshold → 
 6. Ruff linter (0 errors)
 7. Never use shell=True
 
-## Token Efficiency
-
-96% reduction in typical output:
-
-- Default: 3-5 lines (5-10 tokens)
-- Verbose: 50+ lines (400+ tokens)
-- JSON: 20-30 lines (20-30 tokens)
-
-This keeps AI agent conversations focused and cost-effective.
-
 ## Contributing
 
 New scripts should:
@@ -233,6 +251,7 @@ New scripts should:
 - Follow Black and Ruff standards
 - Update SKILL.md table of contents
 - Work with real simulators before submission
+- Pass a check against [Principles](#principles), especially 1-3 for anything an agent reads
 
 ## Release Process
 
@@ -240,23 +259,3 @@ New scripts should:
 2. Verify CI passes (Black, Ruff)
 3. Create GitHub release with vX.X.X tag
 4. Attach zipped ios-simulator-skill/ directory
-
-## Design Philosophy
-
-**Semantic**: Find elements by meaning, not pixels.
-
-**Progressive**: Minimal output by default, details on demand.
-
-**Accessible**: Built on standard iOS accessibility APIs.
-
-**Zero-Config**: Works immediately with no setup.
-
-**Structured**: JSON and formatted text, not raw logs.
-
-**Reusable**: Common patterns across all scripts.
-
-**simctl first**: Apple-maintained and free of companion failure modes. Use idb only for what
-simctl can't do (UI interaction, notification list/clear, photos clear). Gate idb 1.7 features by
-trying the command and falling back, not by version numbers: upstream publishes no changelog.
-
-This design works for both developers and AI agents.
