@@ -19,9 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from common import build_idb_command, resolve_udid, run_idb
-
-IDB_UPGRADE_HINT = "needs idb 1.7+: brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
+from common import build_idb_command, resolve_udid, run_idb, with_idb_upgrade_hint
 
 
 class PushNotificationSender:
@@ -163,7 +161,7 @@ class PushNotificationSender:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as e:
-            return False, _with_upgrade_hint(
+            return False, with_idb_upgrade_hint(
                 (e.stderr or "").strip() or f"idb exited with status {e.returncode}"
             )
         except FileNotFoundError:
@@ -187,14 +185,7 @@ class PushNotificationSender:
             (success, error message - "" on success)
         """
         ok, error = run_idb(build_idb_command("notification clear", self.udid, bundle_id))
-        return ok, _with_upgrade_hint(error)
-
-
-def _with_upgrade_hint(error: str) -> str:
-    """Append the idb upgrade hint when argparse rejected a 1.7+ subcommand."""
-    if "invalid choice" in error:
-        return f"{error}\n{IDB_UPGRADE_HINT}"
-    return error
+        return ok, with_idb_upgrade_hint(error)
 
 
 def main():

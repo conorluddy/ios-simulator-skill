@@ -76,6 +76,7 @@ from common import (
     resolve_udid,
     run_idb,
     transform_screenshot_coords,
+    with_idb_upgrade_hint,
 )
 
 SWIPE_DISTANCE_RATIO = 0.7
@@ -97,9 +98,6 @@ MIN_MULTI_TAP_COUNT = 2
 
 # Operations missing from idb < 1.7; argparse rejects them as an invalid choice.
 IDB_1_7_OPERATIONS = {"ui multi-tap", "ui drag-and-drop", "ui rotate", "ui shake"}
-IDB_1_7_UPGRADE_HINT = (
-    " - needs idb 1.7+: brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
-)
 
 # "x,y" drag endpoint, as opposed to an accessibility label.
 POINT_PATTERN = re.compile(r"^\d+,\d+$")
@@ -271,8 +269,8 @@ class GestureController:
     def _run(self, operation: str, *args: object) -> bool:
         """Run an idb operation, keeping the failure reason in last_error."""
         ok, self.last_error = run_idb(build_idb_command(operation, self.udid, *args))
-        if not ok and operation in IDB_1_7_OPERATIONS and "invalid choice" in self.last_error:
-            self.last_error += IDB_1_7_UPGRADE_HINT
+        if not ok and operation in IDB_1_7_OPERATIONS:
+            self.last_error = with_idb_upgrade_hint(self.last_error)
         return ok
 
 

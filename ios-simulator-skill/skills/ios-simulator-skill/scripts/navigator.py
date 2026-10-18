@@ -68,6 +68,7 @@ import time
 from dataclasses import dataclass
 
 from common import (
+    IDB_UPGRADE_COMMAND,
     build_idb_command,
     get_accessibility_tree,
     get_device_screen_size,
@@ -100,8 +101,6 @@ INTERACTIVE_TYPES = {
 # excluded: a press doesn't give them keyboard focus, which typing needs.
 PRESSABLE_TYPES = {"Button", "Link", "Switch", "CheckBox", "Tab"}
 TOGGLE_TYPES = {"Switch", "CheckBox"}
-
-UPGRADE_IDB_HINT = "brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
 
 
 @dataclass
@@ -292,7 +291,7 @@ class Navigator:
         but focus doesn't move, so a following Return key won't reach the field.
         """
         if not idb_supports_set_value():
-            self.last_error = f"--set-value needs idb 1.7+: {UPGRADE_IDB_HINT}"
+            self.last_error = f"--set-value needs idb 1.7+: {IDB_UPGRADE_COMMAND}"
             return False
         marker = self._unique_marker(element)
         if marker:

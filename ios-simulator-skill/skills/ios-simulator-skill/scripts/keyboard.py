@@ -59,7 +59,7 @@ import argparse
 import sys
 import time
 
-from common import build_idb_command, resolve_udid, run_idb
+from common import build_idb_command, resolve_udid, run_idb, with_idb_upgrade_hint
 
 SLOW_TYPING_DELAY_SECONDS = 0.1
 REPEAT_KEY_DELAY_SECONDS = 0.1
@@ -106,9 +106,6 @@ MODIFIER_FLAGS: dict[str, str] = {
 
 # Modifier flags other than --command are missing from idb < 1.7 (argparse rejects them).
 MODIFIERS_NEEDING_NEWER_IDB = {"shift", "control", "option"}
-IDB_1_7_UPGRADE_HINT = (
-    " - modifier flags need idb 1.7+: brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
-)
 
 
 def resolve_key_code(key: str) -> int | None:
@@ -192,7 +189,8 @@ class KeyboardController:
         modifier_flags = [flag for name, flag in MODIFIER_FLAGS.items() if name in modifiers]
         for press_number in range(count):
             if not self._run("ui key", key_code, *modifier_flags):
-                self._add_modifier_upgrade_hint(modifiers)
+                if MODIFIERS_NEEDING_NEWER_IDB.intersection(modifiers):
+                    self.last_error = with_idb_upgrade_hint(self.last_error)
                 return False
             if press_number < count - 1:
                 time.sleep(REPEAT_KEY_DELAY_SECONDS)
@@ -219,10 +217,7 @@ class KeyboardController:
             return False
         ok = self._run("ui button", idb_button)
         if not ok and button.lower() in BUTTONS_NEEDING_NEWER_IDB:
-            self.last_error += (
-                " - volume buttons need idb 1.6.3+: "
-                "brew upgrade facebook/fb/idb-companion facebook/fb/idb-cli"
-            )
+            self.last_error = with_idb_upgrade_hint(self.last_error, requirement="idb 1.6.3+")
         return ok
 
     def clear_text(self, select_all: bool = True) -> bool:
@@ -252,14 +247,6 @@ class KeyboardController:
         """Run an idb operation, keeping the failure reason in last_error."""
         ok, self.last_error = run_idb(build_idb_command(operation, self.udid, *args))
         return ok
-
-    def _add_modifier_upgrade_hint(self, modifiers: tuple[str, ...]) -> None:
-        """Explain an old-idb rejection of modifier flags."""
-        is_old_idb_rejection = (
-            "invalid choice" in self.last_error or "unrecognized arguments" in self.last_error
-        )
-        if is_old_idb_rejection and MODIFIERS_NEEDING_NEWER_IDB.intersection(modifiers):
-            self.last_error += IDB_1_7_UPGRADE_HINT
 
 
 def report(

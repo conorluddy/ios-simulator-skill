@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import media
 import pytest
-from media import IDB_UPGRADE_HINT, MediaManager
+from media import MediaManager
 
 UDID = "UDID-1"
 
@@ -70,7 +70,7 @@ def test_clear_adds_upgrade_hint_on_pre_1_7_idb(monkeypatch):
     ok, error = MediaManager(UDID).clear()
     assert not ok
     assert stderr in error
-    assert IDB_UPGRADE_HINT in error
+    assert "needs idb 1.7+" in error and "\n" not in error
 
 
 def test_clear_passes_other_idb_errors_through_without_hint(monkeypatch):

@@ -24,6 +24,31 @@ from .device_utils import get_device_screen_size
 HELP_PROBE_TIMEOUT_SECONDS = 10
 TREE_READ_ATTEMPTS = 2
 
+IDB_UPGRADE_COMMAND = "brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
+# How argparse rejects a subcommand or flag that an older idb client doesn't have.
+OLD_IDB_REJECTIONS = ("invalid choice", "unrecognized arguments")
+
+
+def with_idb_upgrade_hint(error: str, requirement: str = "idb 1.7+") -> str:
+    """
+    Turn an old-idb argparse rejection into one actionable line; pass other errors through.
+
+    argparse prints its whole usage block before the error, which is noise to an
+    agent, so only the line naming the problem is kept.
+
+    Example:
+        with_idb_upgrade_hint("usage: idb ...\nidb: error: invalid choice: 'shake'")
+        # "idb: error: invalid choice: 'shake' (needs idb 1.7+: brew upgrade ...)"
+    """
+    if not any(rejection in error for rejection in OLD_IDB_REJECTIONS):
+        return error
+    lines = [line.strip() for line in error.splitlines() if line.strip()]
+    error_line = next(
+        (line for line in reversed(lines) if any(r in line for r in OLD_IDB_REJECTIONS)),
+        error.strip(),
+    )
+    return f"{error_line} (needs {requirement}: {IDB_UPGRADE_COMMAND})"
+
 
 def idb_supports_set_value() -> bool:
     """

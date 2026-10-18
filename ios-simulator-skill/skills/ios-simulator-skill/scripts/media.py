@@ -20,10 +20,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import build_idb_command, build_simctl_command, resolve_udid, run_idb
-
-IDB_UPGRADE_HINT = "needs idb 1.7+: brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
-
+from common import (
+    build_idb_command,
+    build_simctl_command,
+    resolve_udid,
+    run_idb,
+    with_idb_upgrade_hint,
+)
 
 # === MEDIA MANAGER ===
 
@@ -71,9 +74,7 @@ class MediaManager:
         """
         ok, error = run_idb(build_idb_command("photos clear", self.udid))
         if not ok:
-            if "invalid choice" in error:
-                error = f"{error}\n{IDB_UPGRADE_HINT}"
-            return False, error
+            return False, with_idb_upgrade_hint(error)
         return True, "Photo library cleared"
 
 

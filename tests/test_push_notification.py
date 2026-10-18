@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import push_notification
 import pytest
-from push_notification import IDB_UPGRADE_HINT, PushNotificationSender
+from push_notification import PushNotificationSender
 
 UDID = "UDID-1"
 BUNDLE = "com.example.app"
@@ -62,7 +62,7 @@ def test_list_adds_upgrade_hint_on_pre_1_7_idb(monkeypatch):
     ok, error = PushNotificationSender(UDID).list_delivered(BUNDLE)
     assert not ok
     assert stderr in error
-    assert IDB_UPGRADE_HINT in error
+    assert "needs idb 1.7+" in error and "\n" not in error
 
 
 def test_clear_adds_upgrade_hint_on_pre_1_7_idb(monkeypatch):
@@ -71,7 +71,7 @@ def test_clear_adds_upgrade_hint_on_pre_1_7_idb(monkeypatch):
     ok, error = PushNotificationSender(UDID).clear_delivered(BUNDLE)
     assert not ok
     assert stderr in error
-    assert IDB_UPGRADE_HINT in error
+    assert "needs idb 1.7+" in error and "\n" not in error
 
 
 def test_clear_passes_other_idb_errors_through_without_hint(monkeypatch):

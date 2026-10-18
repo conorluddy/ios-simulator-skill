@@ -27,12 +27,14 @@ from .device_utils import (
     transform_screenshot_coords,
 )
 from .idb_utils import (
+    IDB_UPGRADE_COMMAND,
     count_elements,
     flatten_tree,
     get_accessibility_tree,
     get_screen_size,
     idb_supports_set_value,
     run_idb,
+    with_idb_upgrade_hint,
 )
 from .screenshot_utils import (
     capture_screenshot,
@@ -43,6 +45,7 @@ from .screenshot_utils import (
 )
 
 __all__ = [
+    "IDB_UPGRADE_COMMAND",
     "ProgressiveCache",
     "build_idb_command",
     "build_simctl_command",
@@ -63,4 +66,5 @@ __all__ = [
     "resolve_udid",
     "run_idb",
     "transform_screenshot_coords",
+    "with_idb_upgrade_hint",
 ]

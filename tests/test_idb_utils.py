@@ -64,3 +64,33 @@ def test_capability_probe_is_false_without_idb(monkeypatch):
     monkeypatch.setattr(idb_utils.subprocess, "run", missing)
     assert not idb_utils.idb_supports_set_value()
     idb_utils._ui_help.cache_clear()
+
+
+# === Upgrade hint ===
+
+ARGPARSE_REJECTION = (
+    "usage: idb [-h] [--log {DEBUG,INFO}]\n"
+    "           {add-media,approve,boot,ui} ...\n"
+    "idb: error: argument ui_command: invalid choice: 'shake' (choose from 'tap', 'swipe')\n"
+)
+
+
+def test_upgrade_hint_collapses_argparse_usage_to_one_line():
+    hinted = idb_utils.with_idb_upgrade_hint(ARGPARSE_REJECTION)
+    assert "\n" not in hinted
+    assert hinted.startswith("idb: error: argument ui_command: invalid choice: 'shake'")
+    assert hinted.endswith(f"(needs idb 1.7+: {idb_utils.IDB_UPGRADE_COMMAND})")
+
+
+def test_upgrade_hint_covers_unrecognized_arguments():
+    hinted = idb_utils.with_idb_upgrade_hint("idb: error: unrecognized arguments: --shift")
+    assert "needs idb 1.7+" in hinted
+
+
+def test_upgrade_hint_names_the_given_requirement():
+    hinted = idb_utils.with_idb_upgrade_hint("invalid choice: 'VOLUME_UP'", "idb 1.6.3+")
+    assert "needs idb 1.6.3+" in hinted
+
+
+def test_upgrade_hint_leaves_other_errors_alone():
+    assert idb_utils.with_idb_upgrade_hint("Connection refused") == "Connection refused"
