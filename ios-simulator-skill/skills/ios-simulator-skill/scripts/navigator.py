@@ -325,10 +325,18 @@ class Navigator:
         for _ in range(VALUE_READ_BACK_ATTEMPTS):
             time.sleep(VALUE_READ_BACK_DELAY_SECONDS)
             self.get_accessibility_tree(force_refresh=True)
-            same = next((e for e in self.list_elements() if _is_same_element(e, element)), None)
-            actual = same.value if same else None
-            if actual == expected:
+            # A set field can move and lose its placeholder label, so the value is the
+            # reliable signal: any same-type element (same id, if it has one) holding it.
+            candidates = [
+                e
+                for e in self.list_elements()
+                if e.type == element.type
+                and (not element.identifier or e.identifier == element.identifier)
+            ]
+            if any(e.value == expected for e in candidates):
                 return True
+            same = next((e for e in candidates if _is_same_element(e, element)), None)
+            actual = same.value if same else None
         self.last_error = (
             f"value didn't stick (reads {actual!r}) - retry, or use --enter-text to type it"
         )
@@ -449,7 +457,7 @@ class Navigator:
 
 def _is_same_element(candidate: Element, original: Element) -> bool:
     """
-    Whether a re-read element is the one acted on.
+    Best guess at which re-read element is the one acted on, to report its value.
 
     Matches on identifier, else type and label, and only then frame: fields move
     once edited (Settings' search bar jumps up the screen when it activates).

@@ -389,3 +389,17 @@ def test_read_back_follows_a_field_that_moves_once_edited():
     before = navigator.Element("TextField", "Search", None, None, {"x": 28, "y": 808}, [])
     after = navigator.Element("TextField", "Search", "Zürich", None, {"x": 8, "y": 498}, [])
     assert navigator._is_same_element(after, before)
+
+
+def test_read_back_succeeds_when_the_field_loses_its_placeholder_label(nav, monkeypatch):
+    # On a fresh sim, Settings' search field drops its "Search" label once it holds a value.
+    field = _node("TextField", "Search", 28, 808, 346, 28)
+    before = dict(SETTINGS_TREE, children=[*SETTINGS_TREE["children"], field])
+    after_field = dict(_node("TextField", None, 8, 498, 326, 28), AXValue="Zürich")
+    after = dict(SETTINGS_TREE, children=[*SETTINGS_TREE["children"], after_field])
+    trees = iter([before, after, after, after])
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: next(trees))
+    monkeypatch.setattr(navigator, "idb_supports_set_value", lambda: True)
+    monkeypatch.setattr(navigator, "VALUE_READ_BACK_DELAY_SECONDS", 0)
+    ok, message = nav.find_and_enter_text("Zürich", element_type="TextField", replace=True)
+    assert ok, message
