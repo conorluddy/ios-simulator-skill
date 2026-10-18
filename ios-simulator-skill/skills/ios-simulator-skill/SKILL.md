@@ -262,6 +262,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - Custom JSON payloads
     - Test notification handling and deep links
     - `--list` shows delivered notifications; `--clear` withdraws them all (both idb 1.7+; sending stays on simctl)
+    - A push sent while its app is in the foreground isn't delivered to Notification Center, so `--list` won't show it
     - Options: `--bundle-id`, `--title`, `--body`, `--badge`, `--payload`, `--list`, `--clear`, `--json`
 
 23. **privacy_manager.py** - Grant, revoke, and reset app permissions
