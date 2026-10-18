@@ -325,3 +325,13 @@ def test_missing_element_on_a_real_screen_still_says_not_found(nav):
 def test_stuck_tree_detection():
     assert navigator.is_stuck_tree(STUCK_TREE)
     assert not navigator.is_stuck_tree(SETTINGS_TREE)
+
+
+def test_untyped_node_sharing_a_label_blocks_the_press(nav, monkeypatch):
+    # idb's marker search sees untyped nodes too, so "General Settings" is ambiguous here.
+    untyped = {"AXLabel": "General Settings", "frame": {}, "children": []}
+    tree = dict(SETTINGS_TREE, children=[*SETTINGS_TREE["children"], untyped])
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: tree)
+    ok, _ = nav.find_and_tap(text="General Settings", fuzzy=False)
+    assert ok
+    assert nav.calls == [["idb", "ui", "tap", "170", "222", "--udid", "U"]]

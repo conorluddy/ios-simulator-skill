@@ -315,14 +315,14 @@ class Navigator:
 
         idb matches markers as substrings and silently acts on the first hit, so a
         marker qualifies only when no other element's value for that key contains
-        it. Tries the identifier, then the label.
+        it. Tries the identifier, then the label. Counts every node, typed or not,
+        because idb's search does.
         """
-        elements = self.list_elements()
+        nodes = list(_iter_nodes(self.get_accessibility_tree()))
         for match_key, marker in (("AXUniqueId", element.identifier), ("AXLabel", element.label)):
             if not marker or marker.startswith("-"):
                 continue
-            field = "identifier" if match_key == "AXUniqueId" else "label"
-            holders = [e for e in elements if marker in (getattr(e, field) or "")]
+            holders = [node for node in nodes if marker in (node.get(match_key) or "")]
             if len(holders) == 1:
                 return (marker, match_key)
         return None
@@ -420,6 +420,13 @@ class Navigator:
         if self.enter_text(text_to_enter, element):
             return (True, f"Entered text in: {element.description}")
         return (False, f"Failed to enter text in {element.description}: {self.last_error}")
+
+
+def _iter_nodes(node: dict):
+    """Yield node and every node below it, depth-first."""
+    yield node
+    for child in node.get("children", []):
+        yield from _iter_nodes(child)
 
 
 def is_stuck_tree(tree: dict) -> bool:
