@@ -117,6 +117,19 @@ Upgrade the CLI and companion together. Newer client features are served by the 
 a 1.7 CLI talking to a 1.5 companion fails or falls back to older output. Companions that are
 already running keep the old binary until restarted, so run `idb kill` after upgrading.
 
+**Pinning or bisecting idb.** The `facebook/fb` tap carries only the newest release, so Homebrew
+can't install an older one. Upstream's `homebrew.py` (in the root of
+[facebook/idb](https://github.com/facebook/idb)) installs CI builds instead, into a separate local
+tap. It needs a GitHub token (`GITHUB_TOKEN`, `GH_TOKEN` or a logged-in `gh`):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/facebook/idb/main/homebrew.py
+python3 homebrew.py builds                # releases and recent CI builds of main
+python3 homebrew.py install <commit-sha>  # or pr:<n>, run:<id>; a tag works only if it's the newest
+python3 homebrew.py status                # what is installed, from which build
+python3 homebrew.py uninstall --restore   # back to facebook/fb/idb
+```
+
 Coming from the old pip package? An old `fb-idb` (1.1.x) left in a pyenv or virtualenv shadows
 the Homebrew CLI if it comes first on your `PATH`, so check with `which -a idb`. Remove it with
 `pip uninstall fb-idb` (then `pyenv rehash` under pyenv). `sim_health_check.sh` detects this.
