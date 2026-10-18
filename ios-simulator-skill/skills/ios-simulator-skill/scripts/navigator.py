@@ -99,6 +99,7 @@ INTERACTIVE_TYPES = {
 # Controls whose accessibility press does what a finger tap does. Text fields are
 # excluded: a press doesn't give them keyboard focus, which typing needs.
 PRESSABLE_TYPES = {"Button", "Link", "Switch", "CheckBox", "Tab"}
+TOGGLE_TYPES = {"Switch", "CheckBox"}
 
 UPGRADE_IDB_HINT = "brew upgrade facebook/fb/idb-cli facebook/fb/idb-companion"
 
@@ -241,14 +242,16 @@ class Navigator:
         Tap an element, by accessibility press when it can be addressed unambiguously.
 
         A press acts on the element itself, so an overlay covering its center (a
-        floating search bar, a toolbar) can't steal the tap. If the press fails -
+        floating search bar, a toolbar) can't steal the tap, and it is the only way
+        to flip an iOS 27 toggle: HID touches on a UISwitch don't. If the press fails -
         including on idb before 1.7, which rejects a marker argument - falls back
         to a coordinate tap. Sets last_tap_was_press for reporting.
         """
+        marker = self._unique_marker(element)
         self.last_tap_was_press = (
             element.type in PRESSABLE_TYPES
-            and self._has_unique_identifier(element)
-            and self._run_marker("ui tap", element)
+            and marker is not None
+            and self._run_marker("ui tap", marker)
         )
         if self.last_tap_was_press:
             return True
@@ -291,39 +294,39 @@ class Navigator:
         if not idb_supports_set_value():
             self.last_error = f"--set-value needs idb 1.7+: {UPGRADE_IDB_HINT}"
             return False
-        if self._has_unique_identifier(element):
-            return self._run_marker("ui set-value", element, "--value", text)
+        marker = self._unique_marker(element)
+        if marker:
+            return self._run_marker("ui set-value", marker, "--value", text)
         x, y = element.center
         ok, self.last_error = run_idb(
             build_idb_command("ui set-value", self.udid, x, y, "--value", text, "--api", "ax")
         )
         return ok
 
-    def _has_unique_identifier(self, element: Element) -> bool:
+    def _unique_marker(self, element: Element) -> tuple[str, str] | None:
         """
-        Whether element's identifier can be used as an idb marker without ambiguity.
+        An idb (marker, match key) that addresses only this element, or None.
 
-        idb matches markers as substrings and silently acts on the first hit, so
-        no other element's identifier may contain this one.
+        idb matches markers as substrings and silently acts on the first hit, so a
+        marker qualifies only when no other element's value for that key contains
+        it. Tries the identifier, then the label.
         """
-        identifier = element.identifier
-        if not identifier or identifier.startswith("-"):
-            return False
-        holders = [e for e in self.list_elements() if e.identifier and identifier in e.identifier]
-        return len(holders) == 1
+        elements = self.list_elements()
+        for match_key, marker in (("AXUniqueId", element.identifier), ("AXLabel", element.label)):
+            if not marker or marker.startswith("-"):
+                continue
+            field = "identifier" if match_key == "AXUniqueId" else "label"
+            holders = [e for e in elements if marker in (getattr(e, field) or "")]
+            if len(holders) == 1:
+                return (marker, match_key)
+        return None
 
-    def _run_marker(self, operation: str, element: Element, *args: str) -> bool:
-        """Run an idb marker action on element, via the same backend reads use."""
+    def _run_marker(self, operation: str, marker: tuple[str, str], *args: str) -> bool:
+        """Run an idb marker action, via the same backend reads use."""
+        value, match_key = marker
         ok, self.last_error = run_idb(
             build_idb_command(
-                operation,
-                self.udid,
-                element.identifier,
-                "--match-key",
-                "AXUniqueId",
-                "--api",
-                "ax",
-                *args,
+                operation, self.udid, value, "--match-key", match_key, "--api", "ax", *args
             )
         )
         return ok
@@ -369,7 +372,10 @@ class Navigator:
         if self.tap(element):
             if self.last_tap_was_press:
                 return (True, f"Tapped: {element.description} (accessibility press)")
-            return (True, f"Tapped: {element.description} at {element.center}")
+            message = f"Tapped: {element.description} at {element.center}"
+            if element.type in TOGGLE_TYPES:
+                message += " - toggles ignore coordinate taps on iOS 27; check its value"
+            return (True, message)
         return (False, f"Failed to tap: {element.description}: {self.last_error}")
 
     def find_and_enter_text(

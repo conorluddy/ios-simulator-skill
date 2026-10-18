@@ -101,15 +101,15 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Find by element type
    - Find by accessibility ID
    - Enter text or tap elements
-   - `--tap` on a Button/Link/Switch/CheckBox/Tab with a unique accessibility ID uses an accessibility press
+   - `--tap` on a Button/Link/Switch/CheckBox/Tab with a unique accessibility ID or label uses an accessibility press
      (idb 1.7+), so overlays like a floating search bar can't intercept it; output says
      `(accessibility press)`. Otherwise it taps the frame center
    - `--set-value TEXT` replaces a field's value without the keyboard (any characters, idb 1.7+).
      Focus doesn't move, so use `--enter-text` when a Return key must submit afterwards
    - `--tap --expect VALUE` taps only if the element's value is VALUE (toggles: `1` on, `0` off) and
      exits 1 without tapping otherwise, so "turn X off" is safe to repeat
-   - iOS 27 reports toggles as `CheckBox`. They're pressed when their ID is unique; a coordinate tap
-     on a toggle row hits the label and does nothing
+   - iOS 27 reports toggles as `CheckBox`. Only a press flips them (no HID touch does, even on the
+     switch itself); if neither ID nor label is unique, the output warns to check the value
    - A frozen app stalls every read and tap until its main thread responds
    - Failures include idb's stderr (e.g. a dead companion)
    - Options: `--find-text`, `--find-exact`, `--find-type`, `--find-id`, `--index`, `--tap`, `--expect`, `--tap-at`, `--enter-text`, `--set-value`, `--list`

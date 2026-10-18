@@ -59,10 +59,20 @@ def test_exact_tap_ignores_partial_matches(nav):
     assert nav.calls == []
 
 
-def test_exact_tap_hits_the_exact_label(nav):
+def test_exact_tap_presses_the_exact_label(nav):
     ok, _ = nav.find_and_tap(text="General Settings", fuzzy=False)
     assert ok
-    assert nav.calls == [["idb", "ui", "tap", "170", "222", "--udid", "U"]]
+    assert nav.calls == [
+        ["idb", "ui", "tap", "General Settings", "--match-key", "AXLabel", "--api", "ax"]
+        + ["--udid", "U"]
+    ]
+
+
+def test_label_shared_with_a_container_falls_back_to_coordinates(nav):
+    # The Group and the Application are also labelled "Settings".
+    ok, _ = nav.find_and_tap(text="Settings", element_type="Button")
+    assert ok
+    assert nav.calls == [["idb", "ui", "tap", "60", "40", "--udid", "U"]]
 
 
 def test_failed_tap_reports_idb_reason(nav, monkeypatch):
@@ -189,10 +199,10 @@ def test_set_value_addresses_field_by_unique_identifier(press_nav):
 
 def test_set_value_without_identifier_uses_coordinates(nav, monkeypatch):
     monkeypatch.setattr(navigator, "idb_supports_set_value", lambda: True)
-    ok, _ = nav.find_and_enter_text("x", find_text="General", element_type="Button", replace=True)
+    ok, _ = nav.find_and_enter_text("x", find_text="Settings", element_type="Button", replace=True)
     assert ok
     assert nav.calls == [
-        ["idb", "ui", "set-value", "170", "222", "--value", "x", "--api", "ax", "--udid", "U"]
+        ["idb", "ui", "set-value", "60", "40", "--value", "x", "--api", "ax", "--udid", "U"]
     ]
 
 
@@ -253,3 +263,37 @@ def test_expect_refuses_to_tap_when_value_differs(toggle_nav):
     assert not ok
     assert message == "Not tapped: CheckBox \"Smart Punctuation\" has value '1', expected '0'"
     assert toggle_nav.calls == []
+
+
+SHARED_MARKER_TREE = _node(
+    "Application",
+    "Keyboards",
+    0,
+    0,
+    400,
+    800,
+    [
+        _with_id(_node("CheckBox", "Shortcut", 36, 375, 330, 28), "PeriodShortcut"),
+        _with_id(_node("StaticText", "Adds a period", 36, 410, 330, 20), "PeriodShortcut"),
+        _with_id(_node("CheckBox", "Sound", 36, 481, 330, 28), "keyboard-audio-x"),
+        _with_id(_node("CheckBox", "Sound", 36, 520, 330, 28), "keyboard-audio"),
+    ],
+)
+
+
+def test_toggle_with_shared_identifier_is_pressed_by_label(press_nav, monkeypatch):
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: SHARED_MARKER_TREE)
+    ok, message = press_nav.find_and_tap(text="Shortcut", element_type="CheckBox")
+    assert ok
+    assert "accessibility press" in message
+    assert press_nav.calls == [
+        ["idb", "ui", "tap", "Shortcut", "--match-key", "AXLabel", *MARKER_ARGS[2:], "--udid", "U"]
+    ]
+
+
+def test_toggle_without_unique_marker_warns_after_coordinate_tap(press_nav, monkeypatch):
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: SHARED_MARKER_TREE)
+    ok, message = press_nav.find_and_tap(identifier="keyboard-audio")
+    assert ok
+    assert press_nav.calls == [["idb", "ui", "tap", "201", "534", "--udid", "U"]]
+    assert "toggles ignore coordinate taps" in message
