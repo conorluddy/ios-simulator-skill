@@ -101,6 +101,10 @@ INTERACTIVE_TYPES = {
 # excluded: a press doesn't give them keyboard focus, which typing needs.
 PRESSABLE_TYPES = {"Button", "Link", "Switch", "CheckBox", "Tab"}
 TOGGLE_TYPES = {"Switch", "CheckBox"}
+SECURE_TYPES = {"SecureTextField"}
+
+VALUE_READ_BACK_ATTEMPTS = 3
+VALUE_READ_BACK_DELAY_SECONDS = 0.3
 
 # After an app relaunch the default read can return only a zero-size app node
 # (facebook/idb#964); one axbridge read (screen_mapper.py --deep) brings it back.
@@ -296,18 +300,39 @@ class Navigator:
 
         Unlike enter_text this accepts any characters and replaces existing text,
         but focus doesn't move, so a following Return key won't reach the field.
+        idb can report success for a value the app then discards, so the value is
+        read back before success is claimed (secure fields read back masked, so
+        they aren't checked).
         """
         if not idb_supports_set_value():
             self.last_error = f"--set-value needs idb 1.7+: {IDB_UPGRADE_COMMAND}"
             return False
         marker = self._unique_marker(element)
         if marker:
-            return self._run_marker("ui set-value", marker, "--value", text)
-        x, y = element.center
-        ok, self.last_error = run_idb(
-            build_idb_command("ui set-value", self.udid, x, y, "--value", text, "--api", "ax")
+            ok = self._run_marker("ui set-value", marker, "--value", text)
+        else:
+            x, y = element.center
+            ok, self.last_error = run_idb(
+                build_idb_command("ui set-value", self.udid, x, y, "--value", text, "--api", "ax")
+            )
+        if not ok or element.type in SECURE_TYPES:
+            return ok
+        return self._value_reads_back(element, text)
+
+    def _value_reads_back(self, element: Element, expected: str) -> bool:
+        """Re-read the screen until element shows expected; on mismatch, say what it shows."""
+        actual = None
+        for _ in range(VALUE_READ_BACK_ATTEMPTS):
+            time.sleep(VALUE_READ_BACK_DELAY_SECONDS)
+            self.get_accessibility_tree(force_refresh=True)
+            same = next((e for e in self.list_elements() if _is_same_element(e, element)), None)
+            actual = same.value if same else None
+            if actual == expected:
+                return True
+        self.last_error = (
+            f"value didn't stick (reads {actual!r}) - retry, or use --enter-text to type it"
         )
-        return ok
+        return False
 
     def _unique_marker(self, element: Element) -> tuple[str, str] | None:
         """
@@ -420,6 +445,20 @@ class Navigator:
         if self.enter_text(text_to_enter, element):
             return (True, f"Entered text in: {element.description}")
         return (False, f"Failed to enter text in {element.description}: {self.last_error}")
+
+
+def _is_same_element(candidate: Element, original: Element) -> bool:
+    """
+    Whether a re-read element is the one acted on.
+
+    Matches on identifier, else type and label, and only then frame: fields move
+    once edited (Settings' search bar jumps up the screen when it activates).
+    """
+    if original.identifier:
+        return candidate.identifier == original.identifier
+    if original.label:
+        return candidate.type == original.type and candidate.label == original.label
+    return candidate.type == original.type and candidate.frame == original.frame
 
 
 def _iter_nodes(node: dict):

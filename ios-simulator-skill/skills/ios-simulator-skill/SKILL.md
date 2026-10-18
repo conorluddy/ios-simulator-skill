@@ -107,6 +107,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
      `(accessibility press)`. Otherwise it taps the frame center
    - `--set-value TEXT` replaces a field's value without the keyboard (any characters, idb 1.7+).
      Focus doesn't move, so use `--enter-text` when a Return key must submit afterwards
+     The value is read back before success is claimed (not for secure fields); a mismatch exits 1
    - `--tap --expect VALUE` taps only if the element's value is VALUE (toggles: `1` on, `0` off) and
      exits 1 without tapping otherwise, so "turn X off" is safe to repeat
    - iOS 27 reports toggles as `CheckBox`. Only a press flips them (no HID touch does, even on the

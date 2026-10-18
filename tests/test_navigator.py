@@ -188,7 +188,36 @@ def test_enter_text_taps_field_coordinates_for_keyboard_focus(press_nav, monkeyp
     assert press_nav.calls[0] == ["idb", "ui", "tap", "201", "822", "--udid", "U"]
 
 
-def test_set_value_addresses_field_by_unique_identifier(press_nav):
+def _idb_applies_set_value(monkeypatch, nav, tree, sticks=True):
+    """Fake idb whose set-value updates the tree, so the read-back sees it (unless not sticks)."""
+    import copy
+
+    live_tree = copy.deepcopy(tree)
+
+    def fake_run(cmd):
+        nav.calls.append(cmd)
+        if sticks and cmd[:3] == ["idb", "ui", "set-value"]:
+            value = cmd[cmd.index("--value") + 1]
+            for node in navigator._iter_nodes(live_tree):
+                if node.get("AXUniqueId") == cmd[3] or _centre_matches(node, cmd[3:5]):
+                    node["AXValue"] = value
+        return (True, "")
+
+    monkeypatch.setattr(navigator, "run_idb", fake_run)
+    monkeypatch.setattr(navigator, "get_accessibility_tree", lambda udid, nested: live_tree)
+    monkeypatch.setattr(navigator, "VALUE_READ_BACK_DELAY_SECONDS", 0)
+
+
+def _centre_matches(node, xy):
+    frame = node.get("frame") or {}
+    if not frame or not all(part.isdigit() for part in xy):
+        return False
+    centre = (int(frame["x"] + frame["width"] / 2), int(frame["y"] + frame["height"] / 2))
+    return centre == (int(xy[0]), int(xy[1]))
+
+
+def test_set_value_addresses_field_by_unique_identifier(press_nav, monkeypatch):
+    _idb_applies_set_value(monkeypatch, press_nav, OVERLAY_TREE)
     ok, message = press_nav.find_and_enter_text("Zürich", identifier="searchField", replace=True)
     assert ok
     assert message == 'Set value of: TextField "Search"'
@@ -199,6 +228,7 @@ def test_set_value_addresses_field_by_unique_identifier(press_nav):
 
 def test_set_value_without_identifier_uses_coordinates(nav, monkeypatch):
     monkeypatch.setattr(navigator, "idb_supports_set_value", lambda: True)
+    _idb_applies_set_value(monkeypatch, nav, SETTINGS_TREE)
     ok, _ = nav.find_and_enter_text("x", find_text="Settings", element_type="Button", replace=True)
     assert ok
     assert nav.calls == [
@@ -335,3 +365,27 @@ def test_untyped_node_sharing_a_label_blocks_the_press(nav, monkeypatch):
     ok, _ = nav.find_and_tap(text="General Settings", fuzzy=False)
     assert ok
     assert nav.calls == [["idb", "ui", "tap", "170", "222", "--udid", "U"]]
+
+
+def test_set_value_that_does_not_stick_fails_with_what_it_reads(press_nav, monkeypatch):
+    _idb_applies_set_value(monkeypatch, press_nav, OVERLAY_TREE, sticks=False)
+    ok, message = press_nav.find_and_enter_text("Zürich", identifier="searchField", replace=True)
+    assert not ok
+    assert "didn't stick (reads None)" in message
+    assert "\n" not in message
+
+
+def test_secure_field_value_is_not_read_back(press_nav, monkeypatch):
+    secure = _with_id(_node("SecureTextField", "Password", 28, 100, 346, 28), "password")
+    tree = dict(OVERLAY_TREE, children=[*OVERLAY_TREE["children"], secure])
+    _idb_applies_set_value(monkeypatch, press_nav, tree, sticks=False)
+    ok, _ = press_nav.find_and_enter_text(
+        "hunter2", identifier="password", element_type="SecureTextField", replace=True
+    )
+    assert ok
+
+
+def test_read_back_follows_a_field_that_moves_once_edited():
+    before = navigator.Element("TextField", "Search", None, None, {"x": 28, "y": 808}, [])
+    after = navigator.Element("TextField", "Search", "Zürich", None, {"x": 8, "y": 498}, [])
+    assert navigator._is_same_element(after, before)
