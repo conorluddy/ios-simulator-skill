@@ -219,6 +219,11 @@ When you do need pixels (visual verification, bug reports, diffs), `app_state_ca
 | `quarter` | 301×655 | ~260 |
 | `thumb` | 120×262 | ~40 |
 
+Token counts are for Claude (width × height ÷ 750, after it shrinks images over about 1.15 MP).
+Most providers already shrink or cap large images on their side, so halving a screenshot saves
+less than the 75% the pixel count suggests: about 30% here. `quarter` and `thumb` are where the
+real savings are, if the agent can still read what it needs at that size.
+
 ### All 30 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
