@@ -169,7 +169,8 @@ class Navigator:
             element = Element(
                 type=node.get("type", "Unknown"),
                 label=node.get("AXLabel"),
-                value=node.get("AXValue"),
+                # Sliders and steppers report AXValue as a number; the rest of the script expects text.
+                value=None if node.get("AXValue") is None else str(node.get("AXValue")),
                 identifier=node.get("AXUniqueId"),
                 frame=node.get("frame", {}),
                 traits=node.get("traits", []),
