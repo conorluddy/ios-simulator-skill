@@ -168,6 +168,10 @@ class Config:
 
         return None
 
+    def get_preferred_os_version(self) -> str | None:
+        """Get the iOS version to pin the preferred simulator to, e.g. "26.5"."""
+        return self.data.get("device", {}).get("preferred_os_version")
+
     def should_fallback_to_any_iphone(self) -> bool:
         """
         Check if fallback to any iPhone is enabled.
