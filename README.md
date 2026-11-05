@@ -3,7 +3,9 @@
 
 Production-ready skill for building, testing, and automating iOS apps. 30 scripts optimized for both human developers and AI agents.
 
-(If you'd prefer an MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) -> [NPM](https://www.npmjs.com/package/xc-mcp) )
+If you prefer MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) was the original source of this toolkit before Skills were even a thing, and can be run from [NPM](https://www.npmjs.com/package/xc-mcp) too)
+
+https://github.com/user-attachments/assets/b1c4225a-e083-4c4b-96bd-0d20a41f9b1f
 
 ## Xcode Build + Simulator Automation
 
@@ -12,9 +14,7 @@ This skill covers both sides of iOS development:
 - **Xcode builds** via `xcodebuild` — compile, test, and parse results with progressive error disclosure
 - **Simulator interaction** via `xcrun simctl` and `idb` — semantic UI navigation, accessibility testing, device lifecycle
 
-If you only need Xcode build tooling without the simulator scripts, see the plugin version: [xclaude-plugin](https://github.com/conorluddy/xclaude-plugin)
-
-## Installation
+## Install it
 
 ### Claude Code — plugin marketplace (recommended)
 
@@ -32,6 +32,20 @@ codex plugin add ios-simulator-skill@conorluddy
 
 Or run `/plugins` inside Codex and install it from the `conorluddy` marketplace. Start a new
 Codex session afterwards. Update later with `codex plugin marketplace upgrade conorluddy`.
+
+### Any agent — `npx skills`
+
+The [`skills` CLI](https://github.com/vercel-labs/skills) finds `SKILL.md` inside the repo and
+copies it into the right directory for each agent it detects (Claude Code, Codex, Cursor and
+others). It needs Node.js 18+.
+
+```bash
+npx skills add conorluddy/ios-simulator-skill        # project-level (./.claude/skills, ./.agents/skills, ...)
+npx skills add conorluddy/ios-simulator-skill -g     # user-level, for every project
+npx skills add conorluddy/ios-simulator-skill -a claude-code   # only one agent
+```
+
+Restart your agent afterwards so it picks the skill up.
 
 ### Manual install
 
@@ -176,17 +190,41 @@ idb ui tap 320 400
 python scripts/navigator.py --find-text "Login" --tap
 ```
 
-The accessibility tree gives structured data (element types, labels, frames, tap targets) at ~10 tokens default output vs 1,600-6,300 tokens for a screenshot. See [AI-Accessible Apps](https://www.conor.fyi/writing/ai-access) for more on why accessibility-first navigation matters for AI agents.
+The raw accessibility tree is not cheap on its own: `idb ui describe-all` often costs more than a
+screenshot. The win is the summary the skill builds from it: element types, labels and tap
+targets in 3-5 lines. See [AI-Accessible Apps](https://www.conor.fyi/writing/ai-access) for more on
+why accessibility-first navigation matters for AI agents.
+
+### What it costs to see a screen
+
+Measured walking 6 screens of a real SwiftUI app on an iPhone 17 Pro simulator (iOS 27).
+Text tokens are estimated at characters ÷ 4, image tokens at width × height ÷ 750.
+
+| Way of seeing a screen | Per screen (median) | 6-screen run |
+|---|---|---|
+| Screenshot, full size | ~1,500 | ~9,000 |
+| Raw `idb ui describe-all --json` | ~6,700 (largest: ~58,000) | ~91,000 |
+| `screen_mapper.py` summary | ~35 | ~250 |
+
+A single lookup is smaller still: `navigator.py --find-text "Springs"` prints
+`Found: Button "Springs" at (201, 1367)`, about 10 tokens.
 
 ### Screenshot Token Optimization
 
-When screenshots are needed (visual verification, bug reports, diffs), the skill automatically resizes and compresses them to minimize token cost. Default output across all 30 scripts is 3-5 lines — 96% reduction vs raw tool output.
+When you do need pixels (visual verification, bug reports, diffs), `app_state_capture.py` and
+`test_recorder.py` resize screenshots with `--size` before an agent sees them:
 
-| Task | Raw Tools | This Skill | Savings |
-|------|-----------|-----------|---------|
-| Screen analysis | 200+ lines | 5 lines | 97.5% |
-| Find & tap button | 100+ lines | 1 line | 99% |
-| Login flow | 400+ lines | 15 lines | 96% |
+| `--size` | iPhone 17 Pro | Tokens per screenshot |
+|---|---|---|
+| `full` | 1206×2622 | ~1,500 (up to ~4,000 on models that accept larger images) |
+| `half` (default) | 603×1311 | ~1,050 |
+| `quarter` | 301×655 | ~260 |
+| `thumb` | 120×262 | ~40 |
+
+Token counts are for Claude (width × height ÷ 750, after it shrinks images over about 1.15 MP).
+Most providers already shrink or cap large images on their side, so halving a screenshot saves
+less than the 75% the pixel count suggests: about 30% here. `quarter` and `thumb` are where the
+real savings are, if the agent can still read what it needs at that size.
 
 ### All 30 Scripts
 
