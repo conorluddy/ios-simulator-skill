@@ -167,32 +167,68 @@ class BuildRunner:
 
         With os_version, only that runtime counts. None when no device matches.
         """
+        device = self._find_simulator(name, os_version)
+        return device[0] if device else None
+
+    def _find_simulator(self, name: str, os_version: str | None = None) -> tuple[str, str] | None:
+        """Return (iOS version, udid) of the newest available device named exactly `name`."""
+        matches = [
+            (version, device.get("udid", ""))
+            for version, device in _available_ios_devices()
+            if device.get("name") == name and (not os_version or version == os_version)
+        ]
+        if not matches:
+            return None
+        return max(matches, key=lambda match: _version_key(match[0]))
+
+    def get_destination_udid(self) -> str | None:
+        """Return the UDID of the simulator the destination names, or None if generic/unknown."""
+        destination = self.get_simulator_destination()
+        name = self._extract_simulator_name_from_destination(destination)
+        if not name:
+            return None
+        os_match = re.search(r"OS=([^,]+)", destination)
+        device = self._find_simulator(name, os_match.group(1).strip() if os_match else None)
+        return device[1] if device and device[1] else None
+
+    def get_built_app(self) -> tuple[str, str] | None:
+        """Return (app path, bundle ID) of the scheme's .app product, or None if there isn't one."""
+        cmd = ["xcodebuild", "-showBuildSettings", "-json", *self._project_args()]
+        cmd.extend(
+            [
+                "-scheme",
+                self.scheme or "",
+                "-configuration",
+                self.configuration,
+                "-destination",
+                self.get_simulator_destination(),
+            ]
+        )
         try:
             result = subprocess.run(
-                ["xcrun", "simctl", "list", "devices", "available", "-j"],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=INTROSPECT_TIMEOUT,
+                cmd, capture_output=True, text=True, check=True, timeout=INTROSPECT_TIMEOUT
             )
-            runtimes = json.loads(result.stdout).get("devices", {})
+            targets = json.loads(result.stdout)
         except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
             return None
 
-        matching_versions = []
-        for runtime_id, devices in runtimes.items():
-            version_match = re.search(r"SimRuntime\.iOS-([\d-]+)$", runtime_id)
-            if not version_match:
+        for target in targets:
+            settings = target.get("buildSettings", {})
+            if settings.get("WRAPPER_EXTENSION") != "app":
                 continue
-            version = version_match.group(1).replace("-", ".")
-            if os_version and version != os_version:
-                continue
-            if any(device.get("name") == name for device in devices):
-                matching_versions.append(version)
+            build_dir = settings.get("TARGET_BUILD_DIR")
+            product = settings.get("FULL_PRODUCT_NAME")
+            bundle_id = settings.get("PRODUCT_BUNDLE_IDENTIFIER")
+            if build_dir and product and bundle_id:
+                return (str(Path(build_dir) / product), bundle_id)
+        return None
 
-        if not matching_versions:
-            return None
-        return max(matching_versions, key=lambda v: tuple(int(part) for part in v.split(".")))
+    def _project_args(self) -> list[str]:
+        if self.workspace_path:
+            return ["-workspace", self.workspace_path]
+        if self.project_path:
+            return ["-project", self.project_path]
+        return []
 
     def _extract_simulator_name_from_destination(self, destination: str) -> str | None:
         """
@@ -351,12 +387,13 @@ class BuildRunner:
             print(f"Error executing build: {e}", file=sys.stderr)
             return (False, "", str(e))
 
-    def test(self, test_suite: str | None = None) -> tuple[bool, str, str]:
+    def test(self, test_suite: str | None = None, parallel: bool = True) -> tuple[bool, str, str]:
         """
         Run tests.
 
         Args:
             test_suite: Specific test suite to run
+            parallel: False runs tests on one simulator (-parallel-testing-enabled NO)
 
         Returns:
             Tuple of (success: bool, xcresult_id: str, stderr: str)
@@ -396,6 +433,8 @@ class BuildRunner:
 
         if test_suite:
             cmd.extend(["-only-testing", test_suite])
+        if not parallel:
+            cmd.extend(["-parallel-testing-enabled", "NO"])
 
         # Execute tests
         try:
@@ -437,3 +476,33 @@ class BuildRunner:
         except Exception as e:
             print(f"Error executing tests: {e}", file=sys.stderr)
             return (False, "", str(e))
+
+
+# === HELPERS ===
+
+
+def _available_ios_devices() -> list[tuple[str, dict]]:
+    """Return (iOS version, device) for every available simulator; empty if simctl fails."""
+    try:
+        result = subprocess.run(
+            ["xcrun", "simctl", "list", "devices", "available", "-j"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=INTROSPECT_TIMEOUT,
+        )
+        runtimes = json.loads(result.stdout).get("devices", {})
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
+        return []
+
+    devices = []
+    for runtime_id, runtime_devices in runtimes.items():
+        version_match = re.search(r"SimRuntime\.iOS-([\d-]+)$", runtime_id)
+        if version_match:
+            version = version_match.group(1).replace("-", ".")
+            devices.extend((version, device) for device in runtime_devices)
+    return devices
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))

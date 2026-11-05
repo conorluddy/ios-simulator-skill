@@ -176,6 +176,8 @@ python scripts/build_and_test.py --get-warnings xcresult-20251018-143052
 python scripts/build_and_test.py --get-log xcresult-20251018-143052
 ```
 
+Add `--run` to build, install and launch in one call (`Launched: com.example.MyApp on iPhone 17 Pro (pid 4410)`). If Xcode's parallel test clones can't boot, `--test` reports `Tests: NOT RUN` instead of a misleading FAIL; `--no-parallel` runs tests on one simulator.
+
 This keeps agent conversations focused — no walls of build output unless you ask for them.
 
 ### Simulator Navigation via Accessibility
@@ -234,7 +236,7 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
-| `build_and_test.py` | Build Xcode projects, run tests, parse xcresult bundles | `--project`, `--scheme`, `--test`, `--get-errors`, `--get-warnings` |
+| `build_and_test.py` | Build Xcode projects, run tests, parse xcresult bundles | `--project`, `--scheme`, `--test`, `--run`, `--no-parallel`, `--get-errors`, `--get-warnings` |
 | `log_monitor.py` | Real-time log monitoring with severity filtering | `--app`, `--severity`, `--follow`, `--duration` |
 
 #### Device State

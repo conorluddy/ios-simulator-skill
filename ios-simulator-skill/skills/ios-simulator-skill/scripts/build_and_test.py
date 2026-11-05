@@ -36,15 +36,62 @@ Usage Examples:
 
 import argparse
 import sys
+import time
 from pathlib import Path
+
+from app_launcher import AppLauncher
 
 # Import our modular components
 from common.env_config import env_int
+from simctl_boot import SimulatorBooter
 
 from xcode import BuildRunner, OutputFormatter, XCResultCache, XCResultParser
+from xcode.reporter import is_runner_failure
 
 BUILD_LOG_PREVIEW_CHARS = env_int("IOS_SIM_BUILD_LOG_PREVIEW", 4000)
 BUILD_JSON_CAP = env_int("IOS_SIM_BUILD_JSON_CAP", 50)
+LAUNCH_RETRY_DELAY_S = 1.0
+
+
+def run_built_app(builder: BuildRunner) -> tuple[dict | None, str]:
+    """Install and launch the app a successful build produced.
+
+    Returns (run info, message): info is None on failure and the message is one line
+    naming the failed step and what to do next.
+    """
+    built_app = builder.get_built_app()
+    if not built_app:
+        return None, f"Run failed: no .app target in scheme {builder.scheme} (is it a framework?)"
+    app_path, bundle_id = built_app
+
+    udid = builder.get_destination_udid()
+    if not udid:
+        return (
+            None,
+            "Run failed: no simulator to run on; pass --simulator '<name>' (see sim_list.py)",
+        )
+
+    booted, boot_message = SimulatorBooter(udid).boot(wait_ready=True)
+    if not booted and "Booted" not in boot_message:
+        return None, f"Run failed: could not boot {udid}: {boot_message}"
+
+    launcher = AppLauncher(udid)
+    if not launcher.install(app_path):
+        return None, f"Run failed: could not install {app_path}; retry or try --clean"
+    launched, pid = launcher.launch(bundle_id)
+    if not launched:
+        # Seen once right after a fresh install; a second attempt succeeded.
+        time.sleep(LAUNCH_RETRY_DELAY_S)
+        launched, pid = launcher.launch(bundle_id)
+    if not launched:
+        return None, f"Run failed: installed {bundle_id} but launch failed; check log_monitor.py"
+
+    device_name = builder._extract_simulator_name_from_destination(
+        builder.get_simulator_destination()
+    )
+    pid_text = f"pid {pid}" if pid else "pid unknown"
+    info = {"bundle_id": bundle_id, "app_path": app_path, "udid": udid, "pid": pid}
+    return info, f"Launched: {bundle_id} on {device_name} ({pid_text})"
 
 
 def main():
@@ -92,6 +139,14 @@ Examples:
     build_group.add_argument("--clean", action="store_true", help="Clean before building")
     build_group.add_argument("--test", action="store_true", help="Run tests")
     build_group.add_argument("--suite", help="Specific test suite to run")
+    build_group.add_argument(
+        "--run", action="store_true", help="After a successful build, install and launch the app"
+    )
+    build_group.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Run tests on one simulator (no parallel clones)",
+    )
 
     # Progressive disclosure arguments
     disclosure_group = parser.add_argument_group("Progressive Disclosure Options")
@@ -117,6 +172,9 @@ Examples:
     output_group.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
+    if args.run and args.test:
+        print("Error: --run builds and launches the app; it can't be combined with --test")
+        return 1
 
     # Initialize cache
     cache = XCResultCache()
@@ -248,7 +306,9 @@ Examples:
 
     # Execute build or test
     if args.test:
-        success, xcresult_id, stderr = builder.test(test_suite=args.suite)
+        success, xcresult_id, stderr = builder.test(
+            test_suite=args.suite, parallel=not args.no_parallel
+        )
     else:
         success, xcresult_id, stderr = builder.build(clean=args.clean)
 
@@ -297,6 +357,14 @@ Examples:
         if not success:
             failed_tests = parser.get_failed_tests()
 
+    runner_failed = args.test and not success and is_runner_failure(errors, test_info)
+
+    run_info = None
+    run_message = None
+    if args.run and success:
+        run_info, run_message = run_built_app(builder)
+        success = run_info is not None
+
     if args.verbose:
         # Verbose mode with error/warning details
         verbose_errors = errors if error_count > 0 else None
@@ -327,6 +395,12 @@ Examples:
                 data["errors"] = errors[:BUILD_JSON_CAP]
             if failed_tests:
                 data["failed_tests"] = failed_tests[:BUILD_JSON_CAP]
+        if runner_failed:
+            data["status"] = "not_run"
+        if run_info:
+            data["run"] = run_info
+        elif run_message:
+            data["run_error"] = run_message
         if hints:
             data["hints"] = hints
         import json
@@ -343,8 +417,11 @@ Examples:
             hints=hints,
             errors=errors,
             failed_tests=failed_tests,
+            runner_failed=runner_failed,
         )
         print(output)
+    if run_message and not args.json:
+        print(run_message)
 
     # Exit with appropriate code
     return 0 if success else 1
