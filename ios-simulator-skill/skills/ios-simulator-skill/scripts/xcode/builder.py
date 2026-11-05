@@ -4,6 +4,7 @@ Xcode build execution.
 Handles xcodebuild command construction and execution with xcresult generation.
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -110,7 +111,7 @@ class BuildRunner:
         """
         # Priority 1: CLI flag
         if self.simulator:
-            return f"platform=iOS Simulator,name={self.simulator}"
+            return self._named_destination(self.simulator)
 
         # Priority 2-3: Config preferences
         try:
@@ -125,9 +126,9 @@ class BuildRunner:
             preferred = config.get_preferred_simulator()
 
             if preferred:
-                # Check if preferred simulator exists
-                if self._simulator_exists(preferred):
-                    return f"platform=iOS Simulator,name={preferred}"
+                preferred_os = config.get_preferred_os_version()
+                if self._find_simulator_os(preferred, preferred_os):
+                    return self._named_destination(preferred, preferred_os)
                 print(f"Warning: Preferred simulator '{preferred}' not available", file=sys.stderr)
                 if config.should_fallback_to_any_iphone():
                     print("Falling back to auto-detection...", file=sys.stderr)
@@ -141,30 +142,48 @@ class BuildRunner:
         # Priority 4-5: Auto-detect
         return self._auto_detect_simulator()
 
-    def _simulator_exists(self, name: str) -> bool:
+    def _named_destination(self, name: str, os_version: str | None = None) -> str:
+        """Build a destination for a named simulator, pinned to the OS it runs.
+
+        A bare name= makes xcodebuild assume OS:latest, so a device on an older
+        runtime (e.g. 26.5 once 27.0 is installed) never matches.
         """
-        Check if simulator with given name exists and is available.
+        resolved_os = self._find_simulator_os(name, os_version)
+        if resolved_os:
+            return f"platform=iOS Simulator,name={name},OS={resolved_os}"
+        return f"platform=iOS Simulator,name={name}"
 
-        Args:
-            name: Simulator name (e.g., "iPhone 16 Pro")
+    def _find_simulator_os(self, name: str, os_version: str | None = None) -> str | None:
+        """Return the newest iOS version with an available device named exactly `name`.
 
-        Returns:
-            True if simulator exists and is available
+        With os_version, only that runtime counts. None when no device matches.
         """
         try:
             result = subprocess.run(
-                ["xcrun", "simctl", "list", "devices", "available", "iOS"],
+                ["xcrun", "simctl", "list", "devices", "available", "-j"],
                 capture_output=True,
                 text=True,
                 check=True,
                 timeout=INTROSPECT_TIMEOUT,
             )
+            runtimes = json.loads(result.stdout).get("devices", {})
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return None
 
-            # Check if simulator name appears in available devices
-            return any(name in line and "(" in line for line in result.stdout.split("\n"))
+        matching_versions = []
+        for runtime_id, devices in runtimes.items():
+            version_match = re.search(r"SimRuntime\.iOS-([\d-]+)$", runtime_id)
+            if not version_match:
+                continue
+            version = version_match.group(1).replace("-", ".")
+            if os_version and version != os_version:
+                continue
+            if any(device.get("name") == name for device in devices):
+                matching_versions.append(version)
 
-        except subprocess.CalledProcessError:
-            return False
+        if not matching_versions:
+            return None
+        return max(matching_versions, key=lambda v: tuple(int(part) for part in v.split(".")))
 
     def _extract_simulator_name_from_destination(self, destination: str) -> str | None:
         """
