@@ -5,6 +5,8 @@ Production-ready skill for building, testing, and automating iOS apps. 30 script
 
 If you prefer MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) was the original source of this toolkit before Skills were even a thing, and can be run from [NPM](https://www.npmjs.com/package/xc-mcp) too)
 
+https://github.com/user-attachments/assets/b1c4225a-e083-4c4b-96bd-0d20a41f9b1f
+
 ## Xcode Build + Simulator Automation
 
 This skill covers both sides of iOS development:
