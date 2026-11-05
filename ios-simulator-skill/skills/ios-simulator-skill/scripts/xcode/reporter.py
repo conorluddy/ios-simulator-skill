@@ -12,6 +12,23 @@ BUILD_SUMMARY_CAP = env_int("IOS_SIM_BUILD_SUMMARY_CAP", 15)
 BUILD_VERBOSE_CAP = env_int("IOS_SIM_BUILD_VERBOSE_CAP", 100)
 BUILD_LOG_TAIL = env_int("IOS_SIM_LOG_TAIL", 200)
 
+# Messages xcodebuild emits when the test runner (often a parallel clone) can't start.
+RUNNER_FAILURE_PATTERNS = (
+    "failed to prepare device",
+    "timed out trying to boot",
+    "no matching device",
+)
+
+
+def is_runner_failure(errors: list[dict] | None, test_info: dict | None) -> bool:
+    """True when no test passed and every error says the test runner couldn't start."""
+    if not errors or (test_info or {}).get("passed", 0) > 0:
+        return False
+    return all(
+        any(pattern in error.get("message", "").lower() for pattern in RUNNER_FAILURE_PATTERNS)
+        for error in errors
+    )
+
 
 class OutputFormatter:
     """
@@ -30,6 +47,7 @@ class OutputFormatter:
         hints: list[str] | None = None,
         errors: list[dict] | None = None,
         failed_tests: list[dict] | None = None,
+        runner_failed: bool = False,
     ) -> str:
         """
         Format ultra-minimal output (5-10 tokens on success, more on failure).
@@ -46,13 +64,19 @@ class OutputFormatter:
             hints: Optional list of actionable hints
             errors: Optional error list to surface on failure
             failed_tests: Optional failed test list to surface on failure
+            runner_failed: Tests never ran because the runner couldn't start (is_runner_failure)
 
         Returns:
             Minimal formatted string
         """
         lines = []
 
-        if test_info:
+        if runner_failed:
+            lines.append(
+                f"Tests: NOT RUN (test runner couldn't start on the simulator) [{xcresult_id}]"
+            )
+            hints = ["Retry, or run tests on one simulator: --no-parallel"]
+        elif test_info:
             # Test mode
             total = test_info.get("total", 0)
             passed = test_info.get("passed", 0)
@@ -264,7 +288,9 @@ class OutputFormatter:
             hints.append(
                 '  • For simulator builds, use CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO'
             )
-            hints.append("  • Or specify simulator explicitly: --simulator 'iPhone 16 Pro'")
+            hints.append(
+                "  • Or specify simulator explicitly: --simulator '<name>' (names: python scripts/sim_list.py)"
+            )
 
         if "signing" in error_types:
             hints.append("Code signing issue detected:")
@@ -277,7 +303,9 @@ class OutputFormatter:
             if any("destination" in error.get("message", "").lower() for error in errors):
                 hints.append("Device selection issue detected:")
                 hints.append("  • List available simulators: xcrun simctl list devices available")
-                hints.append("  • Specify simulator: --simulator 'iPhone 16 Pro'")
+                hints.append(
+                    "  • Specify simulator: --simulator '<name>' (names: python scripts/sim_list.py)"
+                )
 
         return hints
 

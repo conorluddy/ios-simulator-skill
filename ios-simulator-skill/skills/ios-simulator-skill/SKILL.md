@@ -52,7 +52,9 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Build with live result streaming
    - Parse errors and warnings from xcresult bundles
    - Retrieve detailed build logs on demand
-   - Options: `--project`, `--scheme`, `--clean`, `--test`, `--verbose`, `--json`
+   - `--run` builds, installs and launches the app in one call: `Launched: <bundle> on <device> (pid N)`
+   - Tests that never started (parallel clone failed to boot) report `Tests: NOT RUN`, not FAIL; retry with `--no-parallel`
+   - Options: `--project`, `--scheme`, `--clean`, `--test`, `--run`, `--no-parallel`, `--verbose`, `--json`
 
 2. **log_monitor.py** - Real-time log monitoring with intelligent filtering
    - Stream logs or capture by duration
