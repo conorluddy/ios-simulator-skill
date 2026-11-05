@@ -34,6 +34,7 @@ class BuildRunner:
         scheme: str | None = None,
         configuration: str = "Debug",
         simulator: str | None = None,
+        os_version: str | None = None,
         cache: XCResultCache | None = None,
     ):
         """
@@ -45,6 +46,7 @@ class BuildRunner:
             scheme: Build scheme (auto-detected if not provided)
             configuration: Build configuration (Debug/Release)
             simulator: Simulator name
+            os_version: iOS version to pin the simulator to (e.g. "26.5")
             cache: XCResult cache (creates default if not provided)
         """
         self.project_path = project_path
@@ -52,6 +54,8 @@ class BuildRunner:
         self.scheme = scheme
         self.configuration = configuration
         self.simulator = simulator
+        self.os_version = os_version
+        self._destination: str | None = None
         self.cache = cache or XCResultCache()
 
     def auto_detect_scheme(self) -> str | None:
@@ -107,11 +111,16 @@ class BuildRunner:
             5. Generic iOS Simulator
 
         Returns:
-            Destination string for -destination flag
+            Destination string for -destination flag (resolved once, then cached)
         """
+        if self._destination is None:
+            self._destination = self._resolve_destination()
+        return self._destination
+
+    def _resolve_destination(self) -> str:
         # Priority 1: CLI flag
         if self.simulator:
-            return self._named_destination(self.simulator)
+            return self._named_destination(self.simulator, self.os_version)
 
         # Priority 2-3: Config preferences
         try:
@@ -126,9 +135,9 @@ class BuildRunner:
             preferred = config.get_preferred_simulator()
 
             if preferred:
-                preferred_os = config.get_preferred_os_version()
-                if self._find_simulator_os(preferred, preferred_os):
-                    return self._named_destination(preferred, preferred_os)
+                resolved_os = self._find_simulator_os(preferred, config.get_preferred_os_version())
+                if resolved_os:
+                    return f"platform=iOS Simulator,name={preferred},OS={resolved_os}"
                 print(f"Warning: Preferred simulator '{preferred}' not available", file=sys.stderr)
                 if config.should_fallback_to_any_iphone():
                     print("Falling back to auto-detection...", file=sys.stderr)
@@ -167,7 +176,7 @@ class BuildRunner:
                 timeout=INTROSPECT_TIMEOUT,
             )
             runtimes = json.loads(result.stdout).get("devices", {})
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
             return None
 
         matching_versions = []
@@ -243,7 +252,7 @@ class BuildRunner:
             # Fallback to generic iOS Simulator if no iPhone found
             return "generic/platform=iOS Simulator"
 
-        except subprocess.CalledProcessError as e:
+        except (subprocess.SubprocessError, OSError) as e:
             print(f"Warning: Could not auto-detect simulator: {e}", file=sys.stderr)
             return "generic/platform=iOS Simulator"
 

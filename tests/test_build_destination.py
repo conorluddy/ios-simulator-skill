@@ -50,3 +50,32 @@ def test_preferred_os_version_selects_that_runtime(monkeypatch):
 def test_name_match_is_exact_not_substring(monkeypatch):
     _fake_simctl(monkeypatch)
     assert BuildRunner()._find_simulator_os("iPhone 17") is None
+
+
+def test_destination_is_resolved_once_per_build(monkeypatch):
+    calls = []
+
+    def run(*_args, **_kwargs):
+        calls.append(1)
+        return subprocess.CompletedProcess([], 0, stdout=json.dumps(SIMCTL_DEVICES), stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    runner = BuildRunner(simulator="iPhone 17 Pro")
+    runner.get_simulator_destination()
+    runner.get_simulator_destination()
+    assert len(calls) == 1
+
+
+def test_os_flag_pins_cli_simulator_to_older_runtime(monkeypatch):
+    _fake_simctl(monkeypatch)
+    runner = BuildRunner(simulator="iPhone 17 Pro", os_version="26.5")
+    assert runner.get_simulator_destination() == "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
+
+
+def test_missing_xcrun_falls_back_to_bare_name(monkeypatch):
+    def run(*_args, **_kwargs):
+        raise FileNotFoundError("xcrun")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    runner = BuildRunner(simulator="iPhone 17 Pro")
+    assert runner.get_simulator_destination() == "platform=iOS Simulator,name=iPhone 17 Pro"

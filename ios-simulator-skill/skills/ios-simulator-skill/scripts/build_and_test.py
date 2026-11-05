@@ -86,6 +86,9 @@ Examples:
     build_group.add_argument(
         "--simulator", help="Simulator name (default: an iPhone on the newest installed runtime)"
     )
+    build_group.add_argument(
+        "--os", dest="os_version", help="iOS version to pin --simulator to, e.g. 26.5"
+    )
     build_group.add_argument("--clean", action="store_true", help="Clean before building")
     build_group.add_argument("--test", action="store_true", help="Run tests")
     build_group.add_argument("--suite", help="Specific test suite to run")
@@ -239,6 +242,7 @@ Examples:
         scheme=args.scheme,
         configuration=args.configuration,
         simulator=args.simulator,
+        os_version=args.os_version,
         cache=cache,
     )
 
