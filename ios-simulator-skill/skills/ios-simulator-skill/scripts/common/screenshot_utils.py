@@ -19,6 +19,7 @@ import base64
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -187,6 +188,7 @@ def capture_screenshot(
     app_name: str | None = None,
     screen_name: str | None = None,
     state: str | None = None,
+    display: str | None = None,
 ) -> dict[str, Any]:
     """Capture screenshot with flexible output modes.
 
@@ -201,6 +203,7 @@ def capture_screenshot(
         app_name: App name for semantic naming
         screen_name: Screen name for semantic naming
         state: State description for semantic naming
+        display: Explicit simctl display ID; no coordinate mapping is implied
 
     Returns:
         Dict with mode-specific fields:
@@ -235,12 +238,16 @@ def capture_screenshot(
         print(f"Screenshot: {result['width']}x{result['height']}")
         print(f"Base64: {result['base64_data'][:50]}...")
     """
+    temporary = tempfile.TemporaryDirectory(prefix="ios-screenshot-")
     try:
-        # Capture raw screenshot to temp file
-        temp_path = "/tmp/ios_simulator_screenshot.png"
-        cmd = ["xcrun", "simctl", "io", udid, "screenshot", temp_path]
+        # Each capture owns its temporary files, including concurrent display captures.
+        temp_path = str(Path(temporary.name) / "screenshot.png")
+        cmd = ["xcrun", "simctl", "io", udid, "screenshot"]
+        if display is not None:
+            cmd.append(f"--display={display}")
+        cmd.append(temp_path)
 
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
+        subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
 
         if inline:
             # Inline mode: resize and convert to base64
@@ -254,7 +261,7 @@ def capture_screenshot(
                     img = Image.open(resized_path)
                     width, height = img.size
                 else:
-                    width, height = 390, 844  # Fallback to common device size
+                    width, height = 0, 0  # Dimensions unknown without Pillow
 
             # Read and encode as base64
             with open(resized_path, "rb") as f:
@@ -266,6 +273,7 @@ def capture_screenshot(
                 Path(resized_path).unlink(missing_ok=True)
 
             return {
+                **({"display_id": display} if display is not None else {}),
                 "mode": "inline",
                 "base64_data": base64_data,
                 "mime_type": "image/png",
@@ -293,12 +301,13 @@ def capture_screenshot(
                 img = Image.open(final_path)
                 width, height = img.size
             else:
-                width, height = 390, 844  # Fallback
+                width, height = 0, 0  # Dimensions unknown without Pillow
 
         # Get file size
         size_bytes = Path(final_path).stat().st_size
 
         return {
+            **({"display_id": display} if display is not None else {}),
             "mode": "file",
             "file_path": final_path,
             "size_bytes": size_bytes,
@@ -311,6 +320,9 @@ def capture_screenshot(
         raise RuntimeError(f"Failed to capture screenshot: {e.stderr}") from e
     except Exception as e:
         raise RuntimeError(f"Screenshot capture error: {e!s}") from e
+
+    finally:
+        temporary.cleanup()
 
 
 def format_screenshot_result(result: dict[str, Any]) -> str:

@@ -1,7 +1,7 @@
 
 # iOS Simulator Skill for Agents
 
-Production-ready skill for building, testing, and automating iOS apps. 30 scripts optimized for both human developers and AI agents.
+Production-ready skill for building, testing, and automating iOS apps. 31 scripts optimized for both human developers and AI agents.
 
 If you prefer MCP, [XC-MCP](https://github.com/conorluddy/xc-mcp) was the original source of this toolkit before Skills were even a thing, and can be run from [NPM](https://www.npmjs.com/package/xc-mcp) too)
 
@@ -228,7 +228,7 @@ Most providers already shrink or cap large images on their side, so halving a sc
 less than the 75% the pixel count suggests: about 30% here. `quarter` and `thumb` are where the
 real savings are, if the agent can still read what it needs at that size.
 
-### All 30 Scripts
+### All 31 Scripts
 
 Every script supports `--help` and `--json`. See **SKILL.md** for the complete reference.
 
@@ -239,10 +239,18 @@ Every script supports `--help` and `--json`. See **SKILL.md** for the complete r
 | `build_and_test.py` | Build Xcode projects, run tests, parse xcresult bundles | `--project`, `--scheme`, `--test`, `--run`, `--no-parallel`, `--get-errors`, `--get-warnings` |
 | `log_monitor.py` | Real-time log monitoring with severity filtering | `--app`, `--severity`, `--follow`, `--duration` |
 
+Duo controls require an explicit booted iPhone Duo UDID. Use
+`python3 scripts/duo.py --udid <UDID> --pose open`, then read `--state --json` for the active
+`display_id`. Pass it with `--display` to `app_state_capture.py` or `test_recorder.py`
+(file or inline mode). The bundled private helper compiles with Xcode on first use and verifies
+observed state; inner-display coordinate touches remain unverified. See
+[backend contracts and live verification](references/duo.md).
+
 #### Device State
 
 | Script | What it does | Key flags |
 |--------|-------------|-----------|
+| `duo.py` | Duo hinge, orientation and active display readback | `--udid`, `--state`, `--pose`, `--angle`, `--orientation`, `--json` |
 | `appearance.py` | Switch dark mode, dynamic type, increase contrast, locale, region | `--theme`, `--text-size`, `--contrast`, `--locale`, `--region`, `--reset` |
 | `location.py` | Simulate GPS coordinates and run built-in scenarios | `--lat`, `--lng`, `--city`, `--gpx`, `--list-scenarios`, `--clear` |
 | `media.py` | Seed or empty the photo library (`--clear` needs idb 1.7+ and `--yes`) | `--add`, `--clear`, `--yes` |

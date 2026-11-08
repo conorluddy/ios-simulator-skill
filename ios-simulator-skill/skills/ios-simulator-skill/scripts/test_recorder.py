@@ -37,6 +37,7 @@ class TestRecorder:
         inline: bool = False,
         screenshot_size: str = "half",
         app_name: str | None = None,
+        display: str | None = None,
     ):
         """
         Initialize test recorder.
@@ -47,12 +48,14 @@ class TestRecorder:
             udid: Optional device UDID (uses booted if not specified)
             inline: If True, return screenshots as base64 (for vision-based automation)
             screenshot_size: 'full', 'half', 'quarter', 'thumb' (default: 'half')
+            display: Explicit simctl screenshot display ID; independent of accessibility tree
             app_name: App name for semantic screenshot naming
         """
         self.test_name = test_name
         self.udid = udid
         self.inline = inline
         self.screenshot_size = screenshot_size
+        self.display = display
         self.app_name = app_name
         self.start_time = time.time()
         self.steps: list[dict] = []
@@ -104,6 +107,7 @@ class TestRecorder:
         screenshot_result = capture_screenshot(
             self.udid,
             size=self.screenshot_size,
+            display=self.display,
             inline=self.inline,
             app_name=self.app_name,
             screen_name=screen_name or description,
@@ -127,6 +131,9 @@ class TestRecorder:
             "screenshot_mode": screenshot_result["mode"],
             "screenshot_size": self.screenshot_size,
         }
+
+        if self.display is not None:
+            step_data["display_id"] = self.display
 
         # Handle screenshot data based on mode
         if screenshot_result["mode"] == "file":
@@ -167,7 +174,10 @@ class TestRecorder:
         else:
             cmd.append("booted")
 
-        cmd.extend(["screenshot", str(output_path)])
+        cmd.append("screenshot")
+        if self.display is not None:
+            cmd.append(f"--display={self.display}")
+        cmd.append(str(output_path))
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -283,6 +293,7 @@ def main():
         default="half",
         help="Screenshot size for token optimization (default: half)",
     )
+    parser.add_argument("--display", help="Explicit simctl display ID (from duo.py --state)")
     parser.add_argument("--app-name", help="App name for semantic screenshot naming")
 
     args = parser.parse_args()
@@ -303,6 +314,7 @@ def main():
         udid=udid,
         inline=args.inline,
         screenshot_size=args.size,
+        display=args.display,
         app_name=args.app_name,
     )
 
