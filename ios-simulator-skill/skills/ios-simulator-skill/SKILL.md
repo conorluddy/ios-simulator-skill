@@ -1,7 +1,7 @@
 ---
 name: ios-simulator-skill
 version: 1.8.0
-description: Build, test, and drive iOS apps in the Simulator with 30 token-efficient scripts. Use when asked to build or test an Xcode project, launch an app on a simulator, tap/type/swipe through its UI by accessibility label, take screenshots or visual diffs, audit accessibility, read logs or diagnose hangs, or manage simulators (boot, erase, permissions, location, push, appearance). macOS only; needs Xcode, Python 3.12+ and idb.
+description: Build, test, and drive iOS apps in the Simulator with 31 token-efficient scripts. Use when asked to build or test an Xcode project, launch an app on a simulator, tap/type/swipe through its UI by accessibility label, take screenshots or visual diffs, audit accessibility, read logs or diagnose hangs, or manage simulators (boot, erase, permissions, location, push, appearance). macOS only; needs Xcode, Python 3.12+ and idb.
 ---
 
 # iOS Simulator Skill
@@ -44,7 +44,7 @@ Use this priority:
 
 Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree costs 10–50 tokens in default mode.
 
-## 30 Production Scripts
+## 31 Production Scripts
 
 ### Build & Development (2 scripts)
 
@@ -62,7 +62,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Deduplicate repeated messages
    - Options: `--app`, `--severity`, `--follow`, `--duration`, `--output`, `--json`
 
-### Device State (3 scripts)
+### Device State (4 scripts)
 
 3. **appearance.py** - Control simulator appearance: dark mode, Dynamic Type size, contrast, and locale/region
    - Toggle light/dark theme via `xcrun simctl ui`
@@ -86,9 +86,18 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Fails fast on a missing file
    - Options: `--add`, `--clear`, `--yes`, `--udid`, `--json`
 
+6. **duo.py** - Experimental iPhone Duo hinge and interface orientation controls
+   - Requires an explicit booted Duo `--udid`; no automatic device selection
+   - Read observed angle, active cover/inner display ID and rotation (default or `--state`)
+   - `--pose closed|partial|open` (0°/90°/180°), `--angle 0..180`, or `--orientation portrait|landscape|portrait-upside-down|landscape-flipped`
+   - Changes verify observed readback; hinge endpoints also verify cover/inner display activation
+   - Bundled Objective-C helper compiles and signs with the selected Xcode on first use; no extra CLI
+   - Private APIs are experimental; inner-display coordinate touch routing is unverified
+   - Options: `--udid`, `--state`, `--pose`, `--angle`, `--orientation`, `--json`, `--verbose`
+
 ### Navigation & Interaction (5 scripts)
 
-6. **screen_mapper.py** - Analyze current screen and list interactive elements
+7. **screen_mapper.py** - Analyze current screen and list interactive elements
    - Element type breakdown
    - Interactive button list
    - Text field status
@@ -99,7 +108,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
      relative to the web view, so use `--deep` to find elements, not to take tap coordinates
    - Options: `--verbose`, `--hints`, `--deep`, `--json`
 
-7. **navigator.py** - Find and interact with elements semantically
+8. **navigator.py** - Find and interact with elements semantically
    - Find by text (fuzzy, or exact with `--find-exact`); interactive leaf elements rank above containers sharing the label
    - Find by element type
    - Find by accessibility ID
@@ -118,7 +127,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Failures include idb's stderr (e.g. a dead companion)
    - Options: `--find-text`, `--find-exact`, `--find-type`, `--find-id`, `--index`, `--tap`, `--expect`, `--tap-at`, `--enter-text`, `--set-value`, `--list`
 
-8. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
+9. **gesture.py** - Perform swipes, scrolls, pinches, and complex gestures
    - Directional swipes (up/down/left/right) - `--swipe` is the direction the finger moves
    - Multi-swipe scrolling - `--scroll` is the direction the content moves (`down` reveals content below)
    - Pinch zoom via `idb ui pinch` (`--pinch out` zooms in; `--scale` sets an explicit factor)
@@ -131,7 +140,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - `--shake` - shake the device, for debug menus and undo (idb 1.7+)
    - Options: `--swipe`, `--swipe-from/--swipe-to`, `--scroll`, `--scroll-amount`, `--pinch`, `--scale`, `--long-press`, `--duration`, `--refresh`, `--double-tap`, `--tap-count`, `--drag`, `--rotate`, `--shake`
 
-9. **keyboard.py** - Text input and hardware button control
+10. **keyboard.py** - Text input and hardware button control
    - Type text (fast or slow; ASCII only)
    - Special keys (return, delete, tab, space, escape, arrows), single letters, or raw HID codes
    - Key sequences (`--key-sequence h,i,return`)
@@ -140,7 +149,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
    - Hardware buttons: home, lock/power, side, siri, apple-pay, volume-up/down (volume needs idb 1.6.3+)
    - Options: `--type`, `--slow`, `--key`, `--shift`, `--control`, `--option`, `--command`, `--count`, `--key-sequence`, `--button`, `--clear`, `--dismiss`
 
-10. **app_launcher.py** - App lifecycle management
+11. **app_launcher.py** - App lifecycle management
    - Launch apps by bundle ID
    - Terminate apps
    - Install/uninstall from .app bundles (`--uninstall` needs `--yes`: the app's data is deleted)
@@ -152,41 +161,41 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 ### Testing & Analysis (9 scripts)
 
-11. **accessibility_audit.py** - Check WCAG compliance on current screen
+12. **accessibility_audit.py** - Check WCAG compliance on current screen
     - Critical issues (missing labels, empty buttons, no alt text)
     - Warnings (missing hints, small touch targets)
     - Info (missing IDs, deep nesting)
     - Options: `--verbose`, `--output`, `--json`
 
-12. **visual_diff.py** - Compare two screenshots for visual changes
+13. **visual_diff.py** - Compare two screenshots for visual changes
     - Pixel-by-pixel comparison
     - Threshold-based pass/fail
     - Generate diff images
     - Options: `--threshold`, `--output`, `--details`, `--json`
 
-13. **test_recorder.py** - Automatically document test execution
+14. **test_recorder.py** - Automatically document test execution
     - Capture screenshots and accessibility trees per step
     - Generate markdown reports with timing data
     - Options: `--test-name`, `--output`, `--verbose`, `--json`
 
-14. **app_state_capture.py** - Create comprehensive debugging snapshots
+15. **app_state_capture.py** - Create comprehensive debugging snapshots
     - Screenshot, UI hierarchy, app logs, device info
     - Markdown summary for bug reports
     - Options: `--app-bundle-id`, `--output`, `--log-lines`, `--json`
 
-15. **sim_health_check.sh** - Verify environment is properly configured
+16. **sim_health_check.sh** - Verify environment is properly configured
     - Check macOS, Xcode, simctl, IDB, Python
     - List available and booted simulators
     - Verify Python packages (Pillow)
 
-16. **model_inspector.py** - Inspect Core Data and SwiftData models from project files
+17. **model_inspector.py** - Inspect Core Data and SwiftData models from project files
     - Parse .xcdatamodeld packages (entities, attributes, relationships)
     - Detect model versions and current active version
     - Best-effort SwiftData @Model class extraction
     - Raw source dump for any model on demand (`--raw ModelName`)
     - Options: `--project-path`, `--core-data-only`, `--swiftdata-only`, `--show-versions`, `--raw`, `--verbose`, `--json`
 
-17. **container.py** - Inspect app sandbox: files, UserDefaults, and Core Data store paths
+18. **container.py** - Inspect app sandbox: files, UserDefaults, and Core Data store paths
     - List data container files at configurable depth via `--ls`
     - Read files with auto-detected plist decoding via `--cat` (large files cached)
     - Dump UserDefaults as key=value or JSON via `--userdefaults`
@@ -194,7 +203,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - Export full container snapshot via `--export`
     - Options: `--ls`, `--cat`, `--userdefaults`, `--core-data-path`, `--export`, `--udid`, `--json`, `--verbose`
 
-18. **hang_watcher.py** (HangBuster) - Record + summarise os_log hang events with progressive disclosure
+19. **hang_watcher.py** (HangBuster) - Record + summarise os_log hang events with progressive disclosure
     - **Session mode (HangBuster, agent-native):** start a detached recorder, interact with the simulator, stop for a token-tight summary
       - `--start` → returns a session ID; detached worker normalises + thresholds events on the fly
       - `--stop SESSION_ID` → emits ~80–120 token L1 summary (header + top-N clusters + drill hint)
@@ -241,7 +250,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     zcat .../raw.ndjson.gz | jq -r '.timestamp[:16]' | sort | uniq -c
     ```
 
-19. **localization_audit.py** - Detect string catalog gaps, missing keys, and placeholder mismatches
+20. **localization_audit.py** - Detect string catalog gaps, missing keys, and placeholder mismatches
     - Report missing and `needs_review`/`new` keys per locale in `.xcstrings` catalogs
     - Cross-reference catalog keys against Swift source (`String(localized:)` / `NSLocalizedString`) via `--source`
     - Flag placeholder count mismatches (`%d`, `%@`, `%s`, `%lld`) across locales
@@ -251,17 +260,17 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 ### Advanced Testing & Permissions (4 scripts)
 
-20. **clipboard.py** - Manage simulator clipboard for paste testing
+21. **clipboard.py** - Manage simulator clipboard for paste testing
     - Copy text to clipboard
     - Test paste flows without manual entry
     - Options: `--copy`, `--test-name`, `--expected`, `--json`
 
-21. **status_bar.py** - Override simulator status bar appearance
+22. **status_bar.py** - Override simulator status bar appearance
     - Presets: clean (9:41, 100% battery), testing (11:11, 50%), low-battery (20%), airplane (offline)
     - Custom time, network, battery, WiFi settings
     - Options: `--preset`, `--time`, `--data-network`, `--battery-level`, `--clear`, `--json`
 
-22. **push_notification.py** - Send simulated push notifications
+23. **push_notification.py** - Send simulated push notifications
     - Simple mode (title + body + badge)
     - Custom JSON payloads
     - Test notification handling and deep links
@@ -269,7 +278,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - A push sent while its app is in the foreground isn't delivered to Notification Center, so `--list` won't show it
     - Options: `--bundle-id`, `--title`, `--body`, `--badge`, `--payload`, `--list`, `--clear`, `--json`
 
-23. **privacy_manager.py** - Grant, revoke, and reset app permissions
+24. **privacy_manager.py** - Grant, revoke, and reset app permissions
     - 13 supported services (camera, microphone, location, contacts, photos, calendar, health, etc.)
     - Batch operations (comma-separated services)
     - Audit trail with test scenario tracking
@@ -277,7 +286,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 ### Simulator Discovery (2 scripts)
 
-24. **sim_list.py** - List simulators with progressive disclosure
+25. **sim_list.py** - List simulators with progressive disclosure
     - Concise summary by default (total / available / booted)
     - Full details on demand via cache IDs
     - Filter by device type
@@ -285,7 +294,7 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
     - 96% token reduction vs raw `simctl list` (57k → 2k tokens)
     - Options: `--get-details`, `--suggest`, `--device-type`, `--json`
 
-25. **simulator_selector.py** - Suggest the best simulator for the job
+26. **simulator_selector.py** - Suggest the best simulator for the job
     - Ranks candidates by recent use (from `config.json`), latest iOS, common test models, and boot status
     - List all available simulators with `--list`
     - Boot a selected simulator directly with `--boot`
@@ -294,39 +303,61 @@ Screenshots cost 1,600–6,300 tokens depending on size. The accessibility tree 
 
 ### Device Lifecycle Management (5 scripts)
 
-26. **simctl_boot.py** - Boot simulators with optional readiness verification
+27. **simctl_boot.py** - Boot simulators with optional readiness verification
     - Boot by UDID or device name
     - Wait for device ready with timeout
     - Batch boot operations (--all, --type)
     - Performance timing
     - Options: `--udid`, `--name`, `--wait-ready`, `--timeout`, `--all`, `--type`, `--json`
 
-27. **simctl_shutdown.py** - Gracefully shutdown simulators
+28. **simctl_shutdown.py** - Gracefully shutdown simulators
     - Shutdown by UDID or device name
     - Optional verification of shutdown completion
     - Batch shutdown operations
     - Options: `--udid`, `--name`, `--verify`, `--timeout`, `--all`, `--type`, `--json`
 
-28. **simctl_create.py** - Create simulators dynamically
+29. **simctl_create.py** - Create simulators dynamically
     - Create by device type and iOS version
     - List available device types and runtimes
     - Custom device naming
     - Returns UDID for CI/CD integration
     - Options: `--device`, `--runtime`, `--name`, `--list-devices`, `--list-runtimes`, `--json`
 
-29. **simctl_delete.py** - Permanently delete simulators
+30. **simctl_delete.py** - Permanently delete simulators
     - Delete by UDID or device name
     - Refuses without `--yes` (no prompt; the simulator and its data can't be recovered): ask the user first
     - Batch delete operations
     - Smart deletion (--old N to keep N per device type)
     - Options: `--udid`, `--name`, `--yes`, `--all`, `--type`, `--old`, `--json`
 
-30. **simctl_erase.py** - Factory reset simulators without deletion
+31. **simctl_erase.py** - Factory reset simulators without deletion
     - Preserve device UUID (faster than delete+create)
     - Erase all, by type, or booted simulators
     - Optional verification
     - Refuses without `--yes` (apps, data and settings can't be recovered): ask the user first
     - Options: `--udid`, `--name`, `--yes`, `--verify`, `--timeout`, `--all`, `--type`, `--booted`, `--json`
+
+## Duo workflow
+
+```bash
+python3 scripts/duo.py --udid <DUO_UDID> --pose open
+python3 scripts/duo.py --udid <DUO_UDID> --state --json
+# Use the observed display_id, rather than assuming which display is active.
+python3 scripts/app_state_capture.py --udid <DUO_UDID> --display 3 --output duo-state
+python3 scripts/test_recorder.py --udid <DUO_UDID> --display 3 --test-name duo-layout
+```
+
+`--display` selects the screenshot display in file and inline modes; accessibility trees remain
+independent and provide no verified coordinate mapping to that display. Rotation polls observed
+interface state across native orientation candidates because sensor and interface orientation may
+differ. The five-second verification polling window excludes initial reads and hinge dispatch;
+individual commands have separate timeouts, so total requests can take longer. If a change times
+out, inspect observed state before retrying. Inactive displays may capture black frames.
+
+The private backend credits [hinge](https://github.com/artemnovichkov/hinge) and
+[duoctl](https://github.com/skarol/duoctl) mechanism research. Replace folding and rotation
+independently when supported headless APIs offer equivalent control and observed readback;
+XCTest-only hinge APIs are insufficient. Video display selection is outside this package's scope.
 
 ## Common Patterns
 

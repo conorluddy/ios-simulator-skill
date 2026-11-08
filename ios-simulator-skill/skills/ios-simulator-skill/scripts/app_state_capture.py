@@ -35,6 +35,7 @@ class AppStateCapture:
         udid: str | None = None,
         inline: bool = False,
         screenshot_size: str = "half",
+        display: str | None = None,
     ):
         """
         Initialize state capture.
@@ -44,11 +45,13 @@ class AppStateCapture:
             udid: Optional device UDID (uses booted if not specified)
             inline: If True, return screenshots as base64 (for vision-based automation)
             screenshot_size: 'full', 'half', 'quarter', 'thumb' (default: 'half')
+            display: Explicit simctl screenshot display ID; independent of accessibility tree
         """
         self.app_bundle_id = app_bundle_id
         self.udid = udid
         self.inline = inline
         self.screenshot_size = screenshot_size
+        self.display = display
 
     def capture_screenshot(self, output_path: Path) -> bool:
         """Capture screenshot of current screen."""
@@ -59,7 +62,10 @@ class AppStateCapture:
         else:
             cmd.append("booted")
 
-        cmd.extend(["screenshot", str(output_path)])
+        cmd.append("screenshot")
+        if self.display is not None:
+            cmd.append(f"--display={self.display}")
+        cmd.append(str(output_path))
 
         try:
             subprocess.run(cmd, capture_output=True, check=True)
@@ -208,9 +214,13 @@ class AppStateCapture:
         screenshot_result = capture_screenshot(
             self.udid,
             size=self.screenshot_size,
+            display=self.display,
             inline=self.inline,
             app_name=app_name,
         )
+
+        if self.display is not None:
+            summary["display_id"] = self.display
 
         if self.inline:
             # Inline mode: store base64
@@ -348,6 +358,7 @@ def main():
         default="half",
         help="Screenshot size for token optimization (default: half)",
     )
+    parser.add_argument("--display", help="Explicit simctl display ID (from duo.py --state)")
     parser.add_argument("--app-name", help="App name for semantic screenshot naming")
 
     args = parser.parse_args()
@@ -365,6 +376,7 @@ def main():
         udid=udid,
         inline=args.inline,
         screenshot_size=args.size,
+        display=args.display,
     )
 
     # Capture state

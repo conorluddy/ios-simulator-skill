@@ -5,10 +5,10 @@ with this repository. `CLAUDE.md` only imports this file - edit here, not there.
 
 ## Project Overview
 
-iOS Simulator Skill is a production-ready Agent Skill providing 30 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
+iOS Simulator Skill is a production-ready Agent Skill providing 31 scripts for iOS app building, testing, and automation. It wraps Apple's `xcrun simctl` and Facebook's `idb` tools with semantic interfaces designed for AI agents and developers.
 
 **Key Statistics:**
-- 30 production scripts
+- 31 production scripts
 - 7 script categories (Build, Device State, Navigation, Testing, Permissions, Simulator Discovery, Lifecycle)
 - 7 shared utility modules (~2,400 lines)
 - 100% token-optimized default output
@@ -62,7 +62,7 @@ ios-simulator-skill/            # Repository root
 │       └── ios-simulator-skill/
 │           ├── SKILL.md       # Entry point (table of contents)
 │           ├── agents/openai.yaml  # Codex skill UI metadata
-│           └── scripts/       # 30 production scripts
+│           └── scripts/       # 31 production scripts
 │               ├── build_and_test.py
 │               ├── xcode/     # Xcode integration module
 │               ├── log_monitor.py
@@ -161,7 +161,8 @@ python scripts/simctl_boot.py --type iPhone
 - **build_and_test.py**: Build with progressive disclosure
 - **log_monitor.py**: Real-time log monitoring
 
-### Device State (3)
+### Device State (4)
+- **duo.py**: Experimental hinge/orientation control with observed state verification; explicit booted Duo UDID required. Bundled `scripts/native/duo.m`, isolated `common/duo_backend.py`.
 - **appearance.py**: Dark mode, Dynamic Type, increase contrast, locale/region
 - **location.py**: GPS coordinates, city presets, GPX route playback
 - **media.py**: Photo library seeding (simctl addmedia) and clearing (idb photos clear, idb 1.7+)
