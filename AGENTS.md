@@ -57,6 +57,8 @@ ios-simulator-skill/            # Repository root
 │   │   └── plugin.json        # Claude Code plugin manifest
 │   ├── .codex-plugin/
 │   │   └── plugin.json        # Codex plugin manifest (keep version in sync)
+│   ├── package.json           # OpenCode plugin manifest (keep version in sync)
+│   ├── server.ts              # OpenCode plugin: registers the bundled skill
 │   ├── assets/icon.svg        # Codex plugin icon
 │   └── skills/
 │       └── ios-simulator-skill/
@@ -260,7 +262,7 @@ New scripts should:
 
 ## Release Process
 
-1. Update version in SKILL.md frontmatter, pyproject.toml, and both plugin.json manifests (`.claude-plugin/`, `.codex-plugin/`)
+1. Update version in SKILL.md frontmatter, pyproject.toml, and the plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `package.json`)
 2. Verify CI passes (Black, Ruff)
 3. Create GitHub release with vX.X.X tag
 4. Attach zipped ios-simulator-skill/ directory

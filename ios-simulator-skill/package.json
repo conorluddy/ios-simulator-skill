@@ -1,0 +1,23 @@
+{
+  "name": "opencode-ios-simulator-skill",
+  "version": "1.8.0",
+  "description": "OpenCode plugin that registers the iOS Simulator skill: build, test and automate iOS apps in the Simulator.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/conorluddy/ios-simulator-skill",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conorluddy/ios-simulator-skill.git",
+    "directory": "ios-simulator-skill"
+  },
+  "exports": {
+    ".": "./server.ts"
+  },
+  "files": [
+    "server.ts",
+    "skills"
+  ],
+  "dependencies": {
+    "@opencode/plugin": "latest"
+  }
+}
