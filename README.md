@@ -33,19 +33,43 @@ codex plugin add ios-simulator-skill@conorluddy
 Or run `/plugins` inside Codex and install it from the `conorluddy` marketplace. Start a new
 Codex session afterwards. Update later with `codex plugin marketplace upgrade conorluddy`.
 
-### Any agent — `npx skills`
+### OpenCode — plugin (recommended)
 
-The [`skills` CLI](https://github.com/vercel-labs/skills) finds `SKILL.md` inside the repo and
-copies it into the right directory for each agent it detects (Claude Code, Codex, Cursor and
-others). It needs Node.js 18+.
+The plugin package registers the skill with OpenCode, so it is available in every project:
 
 ```bash
-npx skills add conorluddy/ios-simulator-skill        # project-level (./.claude/skills, ./.agents/skills, ...)
-npx skills add conorluddy/ios-simulator-skill -g     # user-level, for every project
-npx skills add conorluddy/ios-simulator-skill -a claude-code   # only one agent
+opencode plugin add github:conorluddy/ios-simulator-skill::path:ios-simulator-skill
 ```
 
-Restart your agent afterwards so it picks the skill up.
+Confirm it loaded with `opencode plugin list`, then mention `@ios-simulator-skill` in a prompt. Update
+later with `opencode plugin update opencode-ios-simulator-skill` or `opencode plugin update`.
+
+To load a local checkout instead, add its directory to `plugins` in `~/.config/opencode/opencode.json`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["/Users/you/src/ios-simulator-skill/ios-simulator-skill"]
+}
+```
+
+Prefer [`npx skills`](#any-agent--npx-skills) instead? Use `-a opencode`. Both methods register the
+same `ios-simulator-skill` ID, so pick one rather than installing both.
+
+### Any agent — `npx skills`
+
+The [`skills` CLI](https://github.com/vercel-labs/skills) finds the `SKILL.md` declared in
+`skills.sh.json` and copies it into the right directory for each agent it detects (Claude Code,
+Codex, OpenCode, Cursor and others). It needs Node.js 22.20+.
+
+```bash
+npx skills add conorluddy/ios-simulator-skill                    # project-level (./.claude/skills, ./.agents/skills, ...)
+npx skills add conorluddy/ios-simulator-skill -g                 # user-level, for every project
+npx skills add conorluddy/ios-simulator-skill -a opencode        # only OpenCode
+npx skills add conorluddy/ios-simulator-skill -a claude-code     # only Claude Code
+```
+
+Restart your agent afterwards if it doesn't pick the skill up (OpenCode reloads it automatically).
 
 ### Manual install
 
@@ -55,8 +79,10 @@ A skill is loaded from `SKILL.md` at the root of its directory:
 |---|---|---|
 | Claude Code | `~/.claude/skills/<name>/SKILL.md` | `.claude/skills/<name>/SKILL.md` |
 | Codex | `~/.agents/skills/<name>/SKILL.md` | `.agents/skills/<name>/SKILL.md` |
+| OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` | `.opencode/skills/<name>/SKILL.md` |
 
-The commands below use the Claude Code path; swap in `~/.agents/skills` for Codex.
+The commands below use the Claude Code path; swap in `~/.agents/skills` for Codex or
+`~/.config/opencode/skills` for OpenCode.
 This repository is a *plugin*, so the skill itself lives at
 `ios-simulator-skill/skills/ios-simulator-skill/`; cloning the whole repo into your skills
 directory puts `SKILL.md` three levels too deep and the skill will not load.
@@ -77,12 +103,13 @@ cp -R ~/src/ios-simulator-skill/ios-simulator-skill/skills/ios-simulator-skill \
 ```
 
 For a project-local install, use the project-level path from the table instead.
-Restart Claude Code afterwards (Codex picks up new skills automatically; restart it if the skill
-doesn't appear). Verify `SKILL.md` sits at the root of the destination:
+Restart Claude Code afterwards (Codex and OpenCode pick up new skills automatically; restart them
+if the skill doesn't appear). Verify `SKILL.md` sits at the root of the destination:
 
 ```bash
-ls ~/.claude/skills/ios-simulator-skill/SKILL.md   # Claude Code
-ls ~/.agents/skills/ios-simulator-skill/SKILL.md   # Codex
+ls ~/.claude/skills/ios-simulator-skill/SKILL.md            # Claude Code
+ls ~/.agents/skills/ios-simulator-skill/SKILL.md            # Codex
+ls ~/.config/opencode/skills/ios-simulator-skill/SKILL.md   # OpenCode
 ```
 
 ### Prerequisites

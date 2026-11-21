@@ -52,11 +52,14 @@ reviews are checked against them.
 ios-simulator-skill/            # Repository root
 ├── .claude-plugin/marketplace.json  # Claude Code marketplace
 ├── .agents/plugins/marketplace.json # Codex marketplace
+├── skills.sh.json             # skills CLI discovery path (`npx skills add`)
 ├── ios-simulator-skill/        # Distributable package
 │   ├── .claude-plugin/
 │   │   └── plugin.json        # Claude Code plugin manifest
 │   ├── .codex-plugin/
 │   │   └── plugin.json        # Codex plugin manifest (keep version in sync)
+│   ├── package.json           # OpenCode plugin manifest (keep version in sync)
+│   ├── server.ts              # OpenCode plugin: registers the bundled skill
 │   ├── assets/icon.svg        # Codex plugin icon
 │   └── skills/
 │       └── ios-simulator-skill/
@@ -257,10 +260,11 @@ New scripts should:
 - Update SKILL.md table of contents
 - Work with real simulators before submission
 - Pass a check against [Principles](#principles), especially 1-3 for anything an agent reads
+- If the skill directory moves, update `skills.sh.json` so `npx skills add` keeps finding it
 
 ## Release Process
 
-1. Update version in SKILL.md frontmatter, pyproject.toml, and both plugin.json manifests (`.claude-plugin/`, `.codex-plugin/`)
+1. Update version in SKILL.md frontmatter, pyproject.toml, and the plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `package.json`)
 2. Verify CI passes (Black, Ruff)
 3. Create GitHub release with vX.X.X tag
 4. Attach zipped ios-simulator-skill/ directory
