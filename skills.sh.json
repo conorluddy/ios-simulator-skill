@@ -1,0 +1,4 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "paths": ["./ios-simulator-skill/skills"]
+}

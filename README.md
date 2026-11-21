@@ -53,19 +53,23 @@ To load a local checkout instead, add its directory to `plugins` in `~/.config/o
 }
 ```
 
+Prefer [`npx skills`](#any-agent--npx-skills) instead? Use `-a opencode`. Both methods register the
+same `ios-simulator-skill` ID, so pick one rather than installing both.
+
 ### Any agent — `npx skills`
 
-The [`skills` CLI](https://github.com/vercel-labs/skills) finds `SKILL.md` inside the repo and
-copies it into the right directory for each agent it detects (Claude Code, Codex, Cursor and
-others). It needs Node.js 18+.
+The [`skills` CLI](https://github.com/vercel-labs/skills) finds the `SKILL.md` declared in
+`skills.sh.json` and copies it into the right directory for each agent it detects (Claude Code,
+Codex, OpenCode, Cursor and others). It needs Node.js 22.20+.
 
 ```bash
-npx skills add conorluddy/ios-simulator-skill        # project-level (./.claude/skills, ./.agents/skills, ...)
-npx skills add conorluddy/ios-simulator-skill -g     # user-level, for every project
-npx skills add conorluddy/ios-simulator-skill -a claude-code   # only one agent
+npx skills add conorluddy/ios-simulator-skill                    # project-level (./.claude/skills, ./.agents/skills, ...)
+npx skills add conorluddy/ios-simulator-skill -g                 # user-level, for every project
+npx skills add conorluddy/ios-simulator-skill -a opencode        # only OpenCode
+npx skills add conorluddy/ios-simulator-skill -a claude-code     # only Claude Code
 ```
 
-Restart your agent afterwards so it picks the skill up.
+Restart your agent afterwards if it doesn't pick the skill up (OpenCode reloads it automatically).
 
 ### Manual install
 

@@ -29,6 +29,9 @@ jobs:
           test -f ios-simulator-skill/.codex-plugin/plugin.json || { echo "ERROR: .codex-plugin/plugin.json not found"; exit 1; }
           test -f ios-simulator-skill/package.json || { echo "ERROR: package.json (OpenCode plugin) not found"; exit 1; }
           test -f ios-simulator-skill/server.ts || { echo "ERROR: server.ts (OpenCode plugin) not found"; exit 1; }
+          test -f skills.sh.json || { echo "ERROR: skills.sh.json (npx skills discovery) not found"; exit 1; }
+          jq -e '.paths | index("./ios-simulator-skill/skills")' skills.sh.json >/dev/null \
+            || { echo "ERROR: skills.sh.json does not point at ./ios-simulator-skill/skills"; exit 1; }
           echo "✅ Skill structure validated successfully"
 
       - name: Create skill package

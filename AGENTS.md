@@ -52,6 +52,7 @@ reviews are checked against them.
 ios-simulator-skill/            # Repository root
 ├── .claude-plugin/marketplace.json  # Claude Code marketplace
 ├── .agents/plugins/marketplace.json # Codex marketplace
+├── skills.sh.json             # skills CLI discovery path (`npx skills add`)
 ├── ios-simulator-skill/        # Distributable package
 │   ├── .claude-plugin/
 │   │   └── plugin.json        # Claude Code plugin manifest
@@ -259,6 +260,7 @@ New scripts should:
 - Update SKILL.md table of contents
 - Work with real simulators before submission
 - Pass a check against [Principles](#principles), especially 1-3 for anything an agent reads
+- If the skill directory moves, update `skills.sh.json` so `npx skills add` keeps finding it
 
 ## Release Process
 
